@@ -5,6 +5,8 @@ Preparación técnica de una aplicación que analiza incidentes con IA. **Estado
 Las decisiones de stack están en [ADR-001](docs/decisions/ADR-001-stack.md): stack confirmado: NestJS sobre Node.js, React y PostgreSQL; PostgreSQL en Docker para desarrollo local.
 
 ## Documentación
+- [Guía documental y exclusión del despliegue](docs/README.md)
+- [Por qué se tomó cada decisión](docs/architecture/RATIONALE.md)
 - [Negocio y flujos](docs/business/PRODUCT.md)
 - [Requisitos del assessment](docs/requirements/ASSESSMENT.md)
 - [Arquitectura](docs/architecture/DESIGN.md)
