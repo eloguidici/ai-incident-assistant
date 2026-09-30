@@ -8,8 +8,13 @@ import type { ExecutionRunStatus, FinishedRunStatus } from '../../domain/run-sta
 
 export type AnalysisListRow = Pick<
   AnalysisEntity,
-  'id' | 'status' | 'sourceText' | 'result' | 'errorCode' | 'createdAt' | 'expiresAt'
->;
+  'id' | 'status' | 'sourceText' | 'errorCode' | 'createdAt' | 'expiresAt'
+> & {
+  /** Summary excerpt from the stored JSON result (list views do not load the full blob). */
+  resultSummary: string | null;
+  /** Severity excerpt from the stored JSON result. */
+  resultSeverity: string | null;
+};
 
 export type AnalysisDetailRecord = {
   analysis: AnalysisEntity;
@@ -113,7 +118,6 @@ export interface AnalysisRepository {
       result: FinishedRunStatus;
       correlationId: string;
     };
-    injectMidTransactionFailure?: boolean;
   }): Promise<'committed' | 'stale'>;
 
   commitAnalysisFailure(input: {
@@ -184,7 +188,6 @@ export interface AnalysisRepository {
       result: FinishedRunStatus;
       correlationId: string;
     };
-    injectMidTransactionFailure?: boolean;
   }): Promise<'committed' | 'stale'>;
 
   appendMessage(input: {

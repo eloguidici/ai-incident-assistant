@@ -7,6 +7,7 @@ import { ANALYSIS_PROMPT_VERSION, QUESTION_PROMPT_VERSION, type AnalysisResult }
 import { AuditAction } from '../src/domain/audit-action';
 import { createApplication } from '../src/main';
 import { ErrorCode } from '../src/common/constants/error-code';
+import { AppError } from '../src/common/http';
 import { CsrfHeaderName, SessionCookieName } from '../src/common/constants/http';
 import { loadAppConfig } from '../src/config/env';
 import { authConfig, databaseConfig } from '../src/config/slices';
@@ -18,6 +19,8 @@ import { ANALYSIS_REPOSITORY, USER_REPOSITORY } from '../src/db/repositories/tok
 import type { AnalysisRepository } from '../src/db/repositories/analysis.repository';
 import type { UserRepository } from '../src/db/repositories/user.repository';
 import { AnalysesService } from '../src/analyses/analyses.service';
+import { MidTransactionInjectSuffix } from '../src/db/repositories/typeorm/transaction-test-hooks';
+import { AnalysisCommandShared } from '../src/analyses/analysis-command.shared';
 import { resetMockState } from '../src/ai/mock.provider';
 
 const password = 'local-demo-password';
@@ -334,8 +337,10 @@ describe('API with PostgreSQL', () => {
       promptVersion: QUESTION_PROMPT_VERSION,
       provider: 'mock',
       model: 'mock-incident-v1',
-      correlationId: 'n05-stuck-question',
+      correlationId: `n05-stuck-question${MidTransactionInjectSuffix}`,
     });
+    const previousFaultInjection = process.env.FAULT_INJECTION;
+    process.env.FAULT_INJECTION = 'true';
     await expect(
       repo.commitQuestionFailure({
         ownerId: userId,
@@ -357,11 +362,11 @@ describe('API with PostgreSQL', () => {
           resourceType: 'analysis',
           resourceId: analysisId,
           result: RunStatus.Failed,
-          correlationId: 'n05-stuck-question',
+          correlationId: `n05-stuck-question${MidTransactionInjectSuffix}`,
         },
-        injectMidTransactionFailure: true,
       }),
     ).rejects.toThrow('injected-write-failure');
+    process.env.FAULT_INJECTION = previousFaultInjection;
     const dataSource = app.get(DataSource);
     expect(await countProcessingExecutions(dataSource)).toBe(1);
     await dataSource.query(`update ai_executions set created_at = now() - interval '1 hour' where id = $1`, [reserved.id]);
@@ -379,6 +384,110 @@ describe('API with PostgreSQL', () => {
     expect(Number(audits[0]?.count ?? 0)).toBe(1);
   });
 
+  it('N06 closes a question execution via fallback when the failure transaction aborts', async () => {
+    const { userId } = await asUser(userA);
+    const repo = app.get<AnalysisRepository>(ANALYSIS_REPOSITORY);
+    const created = await repo.reserveProcessingAnalysisWithExecution({
+      ownerId: userId,
+      sourceText: `${incident} fallback question`,
+      expiresAt: new Date(Date.now() + 86400000),
+      kind: 'analysis',
+      promptVersion: ANALYSIS_PROMPT_VERSION,
+      provider: 'mock',
+      model: 'mock-incident-v1',
+      correlationId: 'n06-base',
+    });
+    await repo.commitAnalysisSuccess({
+      ownerId: userId,
+      analysisId: created.analysisId,
+      executionId: created.executionId,
+      result: sampleResult,
+      promptVersion: ANALYSIS_PROMPT_VERSION,
+      provider: 'mock',
+      model: 'mock-incident-v1',
+      attemptCount: 1,
+      latencyMs: 1,
+      inputTokens: 1,
+      outputTokens: 1,
+      audit: {
+        actorId: userId,
+        action: AuditAction.AnalysisCreate,
+        resourceType: 'analysis',
+        resourceId: created.analysisId,
+        result: RunStatus.Completed,
+        correlationId: 'n06-base',
+      },
+    });
+    const execution = await repo.insertExecution({
+      analysisId: created.analysisId,
+      ownerId: userId,
+      kind: 'question',
+      status: RunStatus.Processing,
+      promptVersion: QUESTION_PROMPT_VERSION,
+      provider: 'mock',
+      model: 'mock-incident-v1',
+      correlationId: `n06-fallback${MidTransactionInjectSuffix}`,
+    });
+    const previousFaultInjection = process.env.FAULT_INJECTION;
+    process.env.FAULT_INJECTION = 'true';
+    const shared = app.get(AnalysisCommandShared);
+    await shared.recordQuestionFailure({
+      ownerId: userId,
+      analysisId: created.analysisId,
+      question: 'fallback probe',
+      appError: new AppError(ErrorCode.ProviderError, 502, 'Simulated provider failure'),
+      sourceError: new Error('simulated'),
+      outcome: undefined,
+      correlationId: `n06-fallback${MidTransactionInjectSuffix}`,
+      executionId: execution.id,
+      userMessageStored: false,
+    });
+    process.env.FAULT_INJECTION = previousFaultInjection;
+    const dataSource = app.get(DataSource);
+    expect(await countProcessingExecutions(dataSource)).toBe(0);
+  });
+
+  it('N07 recoverStuck marks only aged processing rows as interrupted', async () => {
+    const { userId: userIdA } = await asUser(userA);
+    const { userId: userIdB } = await asUser(userB);
+    const repo = app.get<AnalysisRepository>(ANALYSIS_REPOSITORY);
+    const stale = await repo.reserveProcessingAnalysisWithExecution({
+      ownerId: userIdA,
+      sourceText: `${incident} stale recovery`,
+      expiresAt: new Date(Date.now() + 86400000),
+      kind: 'analysis',
+      promptVersion: ANALYSIS_PROMPT_VERSION,
+      provider: 'mock',
+      model: 'mock-incident-v1',
+      correlationId: 'n07-stale',
+    });
+    const fresh = await repo.reserveProcessingAnalysisWithExecution({
+      ownerId: userIdB,
+      sourceText: `${incident} fresh recovery`,
+      expiresAt: new Date(Date.now() + 86400000),
+      kind: 'analysis',
+      promptVersion: ANALYSIS_PROMPT_VERSION,
+      provider: 'mock',
+      model: 'mock-incident-v1',
+      correlationId: 'n07-fresh',
+    });
+    const dataSource = app.get(DataSource);
+    await dataSource.query(`update analyses set updated_at = now() - interval '1 hour' where id = $1`, [stale.analysisId]);
+    await dataSource.query(`update ai_executions set created_at = now() - interval '1 hour' where analysis_id = $1`, [
+      stale.analysisId,
+    ]);
+    await app.get(AnalysesService).recoverStuck();
+    const staleRow = await dataSource.query<{ status: string }[]>(`select status from analyses where id = $1`, [
+      stale.analysisId,
+    ]);
+    const freshRow = await dataSource.query<{ status: string }[]>(`select status from analyses where id = $1`, [
+      fresh.analysisId,
+    ]);
+    expect(staleRow[0]?.status).toBe(RunStatus.Failed);
+    expect(freshRow[0]?.status).toBe(RunStatus.Processing);
+    await dataSource.query(`delete from analyses where id in ($1, $2)`, [stale.analysisId, fresh.analysisId]);
+  });
+
   it('N01 rolls back a mid-transaction commit without marking the analysis completed', async () => {
     const { userId } = await asUser(userA);
     const repo = app.get<AnalysisRepository>(ANALYSIS_REPOSITORY);
@@ -390,8 +499,10 @@ describe('API with PostgreSQL', () => {
       promptVersion: ANALYSIS_PROMPT_VERSION,
       provider: 'mock',
       model: 'mock-incident-v1',
-      correlationId: 'n01-rollback',
+      correlationId: `n01-rollback${MidTransactionInjectSuffix}`,
     });
+    const previousFaultInjection = process.env.FAULT_INJECTION;
+    process.env.FAULT_INJECTION = 'true';
     await expect(
       repo.commitAnalysisSuccess({
         ownerId: userId,
@@ -411,11 +522,11 @@ describe('API with PostgreSQL', () => {
           resourceType: 'analysis',
           resourceId: reserved.analysisId,
           result: RunStatus.Completed,
-          correlationId: 'n01-rollback',
+          correlationId: `n01-rollback${MidTransactionInjectSuffix}`,
         },
-        injectMidTransactionFailure: true,
       }),
     ).rejects.toThrow('injected-write-failure');
+    process.env.FAULT_INJECTION = previousFaultInjection;
     const dataSource = app.get(DataSource);
     const rows = await dataSource.query<{ status: string; result: unknown }[]>(
       `select status, result from analyses where id = $1`,

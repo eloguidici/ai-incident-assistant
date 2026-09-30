@@ -17,10 +17,12 @@ import {
 import { AuthGuard } from './auth.guard';
 import { AuthService } from './auth.service';
 
-const loginSchema = z.object({
-  email: z.string().email().max(320),
-  password: z.string().min(1).max(200),
-}).strict();
+const loginSchema = z
+  .object({
+    email: z.string().email().max(320).transform((value) => value.trim().toLowerCase()),
+    password: z.string().min(1).max(200),
+  })
+  .strict();
 
 @ApiTags('auth')
 @Controller('auth')

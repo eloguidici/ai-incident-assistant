@@ -8,6 +8,7 @@ import { ANALYSIS_PROMPT_VERSION } from '../src/ai/contracts';
 import { validateAnalysis } from '../src/ai/validate';
 import { selectContext } from '../src/ai/context';
 import { InflightLimiter, SlidingWindowLimiter } from '../src/common/limiters';
+import { stuckRecoveryCutoff, stuckRecoveryIntervalMs } from '../src/domain/recovery';
 import { redactFields } from '../src/common/log';
 import { loadAppConfig } from '../src/config/env';
 import { llmConfig } from '../src/config/slices';
@@ -106,6 +107,11 @@ describe('pure rules', () => {
       authorization: 'Bearer abc',
     });
     expect(redactedLog).toEqual({ msg: 'request', status: 200 });
+    expect(redactFields({ msg: 'persist_no_op', note: 'question_execution_already_closed', errorCode: 'OK' })).toEqual({
+      msg: 'persist_no_op',
+      note: 'question_execution_already_closed',
+      errorCode: 'OK',
+    });
     expect(JSON.stringify(redactedLog)).not.toContain('TOKEN-PII');
   });
 
@@ -142,6 +148,14 @@ describe('pure rules', () => {
     controller.abort('client');
     const prompt = buildAnalysisPrompt('incident text long enough for the prompt');
     await expect(gateway.complete(prompt, controller.signal, Date.now() + 5000)).rejects.toMatchObject({ kind: 'cancelled' });
+  });
+
+  it('schedules stuck recovery relative to the LLM deadline', () => {
+    const deadlineMs = 2500;
+    const cutoff = stuckRecoveryCutoff(deadlineMs, 10_000);
+    expect(cutoff.getTime()).toBe(10_000 - deadlineMs - 5000);
+    expect(stuckRecoveryIntervalMs(deadlineMs)).toBeGreaterThanOrEqual(15_000);
+    expect(stuckRecoveryIntervalMs(deadlineMs)).toBeLessThanOrEqual(60_000);
   });
 
   it('limits bursts and concurrency', () => {

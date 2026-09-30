@@ -2,6 +2,7 @@
 export const PersistenceErrorCode = {
   Interrupted: 'INTERRUPTED',
   DbWriteFailed: 'DB_WRITE_FAILED',
+  DbReadFailed: 'DB_READ_FAILED',
 } as const;
 
 export type PersistenceErrorCode = (typeof PersistenceErrorCode)[keyof typeof PersistenceErrorCode];

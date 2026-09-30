@@ -2,7 +2,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import { InjectConfig } from '../config';
 import { llmConfig, type LlmConfig } from '../config/slices';
 import { AuditAction, AuditResourceType } from '../domain/audit-action';
-import { RetentionCorrelationId, StuckRecoveryGraceMs } from '../domain/recovery';
+import { RetentionCorrelationId, stuckRecoveryCutoff } from '../domain/recovery';
 import { RunStatus } from '../domain/run-status';
 import { ErrorCode } from '../common/constants/error-code';
 import { LogEvent } from '../common/constants/log-event';
@@ -13,6 +13,8 @@ import { ANALYSIS_REPOSITORY } from '../db/repositories/tokens';
 /** Retention purge and stuck-run recovery (scheduled jobs, not HTTP CQRS paths). */
 @Injectable()
 export class AnalysesService {
+  private recoveryInFlight = false;
+
   /**
    * @param llmSettings Deadline used to detect stuck processing runs.
    * @param analyses Persistence port for purge and recovery updates.
@@ -43,10 +45,32 @@ export class AnalysesService {
     return deleted;
   }
 
-  /** Marks analyses and executions stuck in processing past the deadline as interrupted. */
+  /**
+   * Marks analyses and executions stuck in processing past the deadline as interrupted.
+   * Skips overlapping sweeps so concurrent timers do not corrupt rows.
+   */
   async recoverStuck(): Promise<void> {
-    const cutoff = new Date(Date.now() - this.llmSettings.deadlineMs - StuckRecoveryGraceMs);
-    await this.analyses.recoverStuckAnalyses(cutoff);
-    await this.analyses.recoverStuckExecutions(cutoff);
+    if (this.recoveryInFlight) return;
+    this.recoveryInFlight = true;
+    try {
+      const cutoff = stuckRecoveryCutoff(this.llmSettings.deadlineMs);
+      await this.analyses.recoverStuckAnalyses(cutoff);
+      await this.analyses.recoverStuckExecutions(cutoff);
+      this.logger.info({ msg: LogEvent.StuckRecoverySweep, errorCode: ErrorCode.Ok });
+    } catch (error) {
+      this.logger.error({ msg: LogEvent.StuckRecoverySweep, errorCode: readCode(error) });
+    } finally {
+      this.recoveryInFlight = false;
+    }
   }
+}
+
+/**
+ * @param error Anything thrown by the database driver.
+ * @returns The driver error code, or `unknown` when there is none.
+ */
+function readCode(error: unknown): string {
+  if (!error || typeof error !== 'object' || !('code' in error)) return 'unknown';
+  const code = (error as { code?: unknown }).code;
+  return typeof code === 'string' ? code : 'unknown';
 }

@@ -14,6 +14,7 @@ const ALLOWED = new Set([
   'userId',
   'kind',
   'deleted',
+  'note',
 ]);
 
 /**

@@ -1,5 +1,8 @@
 type Bucket = number[];
 
+/**
+ * In-memory sliding window limiter (per Node process). Idle keys are pruned on access only; use a shared store for multi-instance caps.
+ */
 export class SlidingWindowLimiter {
   private readonly hits = new Map<string, Bucket>();
 
@@ -12,7 +15,6 @@ export class SlidingWindowLimiter {
    * @returns `ok: true` when the hit was recorded, or the seconds to wait before the next allowed hit.
    */
   consume(key: string, limit: number, windowMs: number, now = Date.now()): { ok: true } | { ok: false; retryAfterSeconds: number } {
-    this.evictExpiredKeys(windowMs, now);
     const recent = this.prune(key, windowMs, now);
     if (recent.length >= limit) {
       const retryAfterSeconds = Math.max(1, Math.ceil((recent[0] + windowMs - now) / 1000));
@@ -44,14 +46,6 @@ export class SlidingWindowLimiter {
     return bucket;
   }
 
-  /** Drops buckets whose hits are entirely outside the window so idle keys do not accumulate. */
-  private evictExpiredKeys(windowMs: number, now: number): void {
-    for (const [key, bucket] of this.hits) {
-      const recent = bucket.filter((timestamp) => now - timestamp < windowMs);
-      if (recent.length === 0) this.hits.delete(key);
-      else if (recent.length !== bucket.length) this.hits.set(key, recent);
-    }
-  }
 }
 
 export class InflightLimiter {

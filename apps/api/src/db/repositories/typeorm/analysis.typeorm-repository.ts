@@ -10,6 +10,7 @@ import { AiExecutionEntity } from '../../entities/ai-execution.entity';
 import { AuditEventEntity } from '../../entities/audit-event.entity';
 import { MessageEntity } from '../../entities/message.entity';
 import type { AnalysisDetailRecord, AnalysisListRow, AnalysisRepository } from '../analysis.repository';
+import { shouldInjectMidTransactionFailure } from './transaction-test-hooks';
 
 @Injectable()
 export class TypeOrmAnalysisRepository implements AnalysisRepository {
@@ -30,13 +31,40 @@ export class TypeOrmAnalysisRepository implements AnalysisRepository {
 
   /** @inheritdoc */
   async listByOwner(ownerId: string, limit: number, offset: number): Promise<AnalysisListRow[]> {
-    return this.analyses.find({
-      where: { ownerId },
-      order: { createdAt: 'DESC' },
-      take: limit,
-      skip: offset,
-      select: ['id', 'status', 'sourceText', 'result', 'errorCode', 'createdAt', 'expiresAt'],
-    });
+    const rows = await this.analyses
+      .createQueryBuilder('analysis')
+      .select('analysis.id', 'id')
+      .addSelect('analysis.status', 'status')
+      .addSelect('analysis.sourceText', 'sourceText')
+      .addSelect('analysis.errorCode', 'errorCode')
+      .addSelect('analysis.createdAt', 'createdAt')
+      .addSelect('analysis.expiresAt', 'expiresAt')
+      .addSelect(`analysis.result->>'summary'`, 'resultSummary')
+      .addSelect(`analysis.result->>'suggestedSeverity'`, 'resultSeverity')
+      .where('analysis.ownerId = :ownerId', { ownerId })
+      .orderBy('analysis.createdAt', 'DESC')
+      .offset(offset)
+      .limit(limit)
+      .getRawMany<{
+        id: string;
+        status: AnalysisEntity['status'];
+        sourceText: string;
+        errorCode: string | null;
+        createdAt: Date;
+        expiresAt: Date;
+        resultSummary: string | null;
+        resultSeverity: string | null;
+      }>();
+    return rows.map((row) => ({
+      id: row.id,
+      status: row.status,
+      sourceText: row.sourceText,
+      errorCode: row.errorCode,
+      createdAt: row.createdAt,
+      expiresAt: row.expiresAt,
+      resultSummary: row.resultSummary,
+      resultSeverity: row.resultSeverity,
+    }));
   }
 
   /** @inheritdoc */
@@ -280,7 +308,6 @@ export class TypeOrmAnalysisRepository implements AnalysisRepository {
       result: FinishedRunStatus;
       correlationId: string;
     };
-    injectMidTransactionFailure?: boolean;
   }): Promise<'committed' | 'stale'> {
     return this.dataSource.transaction(async (manager) => {
       const executionUpdate = await manager.update(
@@ -314,7 +341,7 @@ export class TypeOrmAnalysisRepository implements AnalysisRepository {
         },
       );
       if (!analysisUpdate.affected) throw new Error('analysis_commit_inconsistent');
-      if (input.injectMidTransactionFailure) throw new Error('injected-write-failure');
+      if (shouldInjectMidTransactionFailure(input.audit.correlationId)) throw new Error('injected-write-failure');
       await manager.insert(AuditEventEntity, {
         actorId: input.audit.actorId,
         action: input.audit.action,
@@ -479,7 +506,6 @@ export class TypeOrmAnalysisRepository implements AnalysisRepository {
       result: FinishedRunStatus;
       correlationId: string;
     };
-    injectMidTransactionFailure?: boolean;
   }): Promise<'committed' | 'stale'> {
     return this.dataSource.transaction(async (manager) => {
       const executionUpdate = await manager.update(
@@ -532,7 +558,7 @@ export class TypeOrmAnalysisRepository implements AnalysisRepository {
         errorCode: input.errorCode,
         sequence: assistantSequence,
       });
-      if (input.injectMidTransactionFailure) throw new Error('injected-write-failure');
+      if (shouldInjectMidTransactionFailure(input.audit.correlationId)) throw new Error('injected-write-failure');
       await manager.insert(AuditEventEntity, {
         actorId: input.audit.actorId,
         action: input.audit.action,

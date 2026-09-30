@@ -2,7 +2,7 @@ import { Inject, Injectable, OnModuleDestroy, OnModuleInit } from '@nestjs/commo
 import { DataSource } from 'typeorm';
 import { InjectConfig } from './config';
 import { assertTestDatabase } from './config/env';
-import { appConfig, authConfig, databaseConfig, type AppConfig, type AuthConfig, type DatabaseConfig } from './config/slices';
+import { appConfig, authConfig, databaseConfig, llmConfig, type AppConfig, type AuthConfig, type DatabaseConfig, type LlmConfig } from './config/slices';
 import { applyMigrations, truncateDomain } from './db/migrate';
 import { seedDemoUsers } from './db/seed';
 import { DATA_SOURCE, USER_REPOSITORY } from './db/repositories/tokens';
@@ -10,16 +10,19 @@ import type { UserRepository } from './db/repositories/user.repository';
 import { AppLogger } from './common/app-logger';
 import { LogEvent } from './common/constants/log-event';
 import { AnalysesService } from './analyses/analyses.service';
+import { stuckRecoveryIntervalMs } from './domain/recovery';
 import { migrationPool } from './db/database-bootstrap';
 
 @Injectable()
 export class StartupService implements OnModuleInit, OnModuleDestroy {
-  private timer?: NodeJS.Timeout;
+  private purgeTimer?: NodeJS.Timeout;
+  private recoveryTimer?: NodeJS.Timeout;
 
   /**
    * @param appSettings E2E reset flag.
    * @param authSettings Demo seed flag and demo credentials.
    * @param databaseSettings Database URL, checked before an E2E reset.
+   * @param llmSettings Used to schedule stuck-run recovery intervals.
    * @param dataSource Connection that is migrated and closed on shutdown.
    * @param users Repository used for demo seeding.
    * @param analyses Runs stuck-run recovery and retention purges.
@@ -29,6 +32,7 @@ export class StartupService implements OnModuleInit, OnModuleDestroy {
     @InjectConfig(appConfig) private readonly appSettings: AppConfig,
     @InjectConfig(authConfig) private readonly authSettings: AuthConfig,
     @InjectConfig(databaseConfig) private readonly databaseSettings: DatabaseConfig,
+    @InjectConfig(llmConfig) private readonly llmSettings: LlmConfig,
     @Inject(DATA_SOURCE) private readonly dataSource: DataSource,
     @Inject(USER_REPOSITORY) private readonly users: UserRepository,
     private readonly analyses: AnalysesService,
@@ -36,7 +40,7 @@ export class StartupService implements OnModuleInit, OnModuleDestroy {
   ) {}
 
   /**
-   * Migrates the database, resets or seeds demo data when configured, recovers stuck runs, and schedules the hourly retention purge.
+   * Migrates the database, resets or seeds demo data when configured, recovers stuck runs, and schedules retention purge plus periodic recovery.
    * @throws Error when migrations keep failing after 10 attempts, or when an E2E reset targets a non-test database.
    */
   async onModuleInit(): Promise<void> {
@@ -50,15 +54,21 @@ export class StartupService implements OnModuleInit, OnModuleDestroy {
     }
     await this.analyses.recoverStuck();
     await this.runPurge('startup');
-    this.timer = setInterval(() => {
+    const recoveryIntervalMs = stuckRecoveryIntervalMs(this.llmSettings.deadlineMs);
+    this.recoveryTimer = setInterval(() => {
+      void this.analyses.recoverStuck();
+    }, recoveryIntervalMs);
+    this.recoveryTimer.unref?.();
+    this.purgeTimer = setInterval(() => {
       void this.runPurge('interval');
     }, 60 * 60 * 1000);
-    this.timer.unref?.();
+    this.purgeTimer.unref?.();
   }
 
-  /** Stops the retention timer and closes the connection pool. */
+  /** Stops scheduled jobs and closes the connection pool. */
   async onModuleDestroy(): Promise<void> {
-    if (this.timer) clearInterval(this.timer);
+    if (this.purgeTimer) clearInterval(this.purgeTimer);
+    if (this.recoveryTimer) clearInterval(this.recoveryTimer);
     await this.dataSource.destroy();
   }
 

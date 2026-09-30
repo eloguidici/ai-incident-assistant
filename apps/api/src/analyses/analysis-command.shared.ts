@@ -1,5 +1,4 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { MockFaultTag } from '../ai/mock-fault-tags';
 import { buildAnalysisPrompt, buildQuestionPrompt } from '../ai/prompt';
 import { validateAnalysis, validateQuestion } from '../ai/validate';
 import { orchestrationAttemptCount, toOrchestrationAppError } from './analysis-orchestration.errors';
@@ -7,22 +6,32 @@ import { resolveQuestionContextWindow } from './question-context';
 import { LlmGateway, type LlmOutcome } from '../ai/gateway';
 import { ANALYSIS_PROMPT_VERSION } from '../ai/contracts';
 import { ErrorCode } from '../common/constants/error-code';
-import { LogEvent } from '../common/constants/log-event';
-import { AppError, isUniqueViolation } from '../common/http';
 import { SlidingWindowLimiter } from '../common/limiters';
 import { AppLogger } from '../common/app-logger';
 import { InjectConfig } from '../config';
 import { appConfig, limitsConfig, llmConfig, type AppConfig, type LimitsConfig, type LlmConfig } from '../config/slices';
 import { AuditAction, AuditResourceType } from '../domain/audit-action';
 import { MessageRole } from '../domain/message-role';
-import { PersistenceErrorCode } from '../domain/persistence-error';
 import { FinishedRunStatus, RunStatus } from '../domain/run-status';
 import type { AnalysisRepository } from '../db/repositories/analysis.repository';
 import { ANALYSIS_REPOSITORY } from '../db/repositories/tokens';
 import { mapAnalysisDetail } from './analysis-detail.mapper';
 import type { AnalysisDetailResult } from './analysis-detail.types';
+import { AnalysesService } from './analyses.service';
+import { logPersistNoOp, logPersistReadFailed, logPersistWriteFailed } from './persistence-orchestration.log';
+import type { QuestionFailureRecord } from './question-failure.types';
+import { AppError, isUniqueViolation } from '../common/http';
 
 export type AnalysisOwner = { id: string };
+
+type ExecutionFinishFields = {
+  attemptCount: number;
+  latencyMs: number | null;
+  inputTokens: number | null;
+  outputTokens: number | null;
+  provider: string;
+  model: string;
+};
 
 /** Shared LLM orchestration, rate limits, and persistence helpers for analysis commands. */
 @Injectable()
@@ -31,10 +40,11 @@ export class AnalysisCommandShared {
   readonly questionLimiter = new SlidingWindowLimiter();
 
   /**
-   * @param appSettings Retention and optional fault-injection flags.
+   * @param appSettings Retention settings.
    * @param llmSettings Provider, model, and text limits for the gateway.
    * @param limitSettings Hourly caps for analyses and questions.
    * @param analyses Persistence port for analyses, messages, executions, and audit rows.
+   * @param analysesMaintenance Scheduled recovery when persistence fallbacks cannot close a row.
    * @param gateway Mock or OpenAI calls with retries and in-flight limits.
    * @param logger Redacted structured logs for persistence failures.
    */
@@ -43,6 +53,7 @@ export class AnalysisCommandShared {
     @InjectConfig(llmConfig) private readonly llmSettings: LlmConfig,
     @InjectConfig(limitsConfig) private readonly limitSettings: LimitsConfig,
     @Inject(ANALYSIS_REPOSITORY) private readonly analyses: AnalysisRepository,
+    private readonly analysesMaintenance: AnalysesService,
     private readonly gateway: LlmGateway,
     private readonly logger: AppLogger,
   ) {}
@@ -152,18 +163,16 @@ export class AnalysisCommandShared {
         inputTokens: outcome.response.inputTokens,
         outputTokens: outcome.response.outputTokens,
         audit: this.auditPayload(owner.id, AuditAction.AnalysisCreate, analysisId, RunStatus.Completed, correlationId),
-        injectMidTransactionFailure:
-          this.llmSettings.faultInjection && sourceText.includes(MockFaultTag.DbFailAfter),
       });
       if (commit === 'stale') {
         throw new AppError(ErrorCode.Conflict, 409, 'This analysis run is no longer active.');
       }
       persisted = true;
-      return await this.loadDetailOrThrow(owner.id, analysisId);
+      return await this.loadDetailAfterPersist(owner.id, analysisId, correlationId);
     } catch (error) {
       if (error instanceof AppError && error.errorCode === ErrorCode.Conflict) throw error;
       if (persisted) {
-        this.logger.info({ msg: LogEvent.PersistFailure, errorCode: PersistenceErrorCode.DbWriteFailed, correlationId, analysisId });
+        logPersistReadFailed(this.logger, { correlationId, analysisId });
         return await this.loadDetailOrThrow(owner.id, analysisId);
       }
       const appError = toOrchestrationAppError(error, analysisId, outcome);
@@ -188,7 +197,16 @@ export class AnalysisCommandShared {
         }
       } catch (inner) {
         if (inner instanceof AppError) throw inner;
-        this.logger.info({ msg: LogEvent.PersistFailure, errorCode: PersistenceErrorCode.DbWriteFailed, correlationId, analysisId });
+        logPersistWriteFailed(this.logger, { correlationId, analysisId });
+        await this.fallbackCloseAnalysisExecution(
+          owner.id,
+          analysisId,
+          executionId,
+          appError,
+          outcome,
+          error,
+          correlationId,
+        );
       }
       throw appError;
     }
@@ -196,19 +214,20 @@ export class AnalysisCommandShared {
 
   /**
    * Appends assistant failure messages and finishes the question execution.
-   * @param executionId Question execution to mark failed.
+   * @param record Failure context for one question run.
    */
-  async recordQuestionFailure(
-    ownerId: string,
-    analysisId: string,
-    question: string,
-    appError: AppError,
-    sourceError: unknown,
-    outcome: LlmOutcome | undefined,
-    correlationId: string,
-    executionId: string,
-    userMessageStored: boolean,
-  ): Promise<void> {
+  async recordQuestionFailure(record: QuestionFailureRecord): Promise<void> {
+    const {
+      ownerId,
+      analysisId,
+      question,
+      appError,
+      sourceError,
+      outcome,
+      correlationId,
+      executionId,
+      userMessageStored,
+    } = record;
     try {
       const commit = await this.analyses.commitQuestionFailure({
         ownerId,
@@ -231,16 +250,8 @@ export class AnalysisCommandShared {
       }
     } catch (error) {
       if (error instanceof AppError) throw error;
-      this.logger.info({ msg: LogEvent.PersistFailure, errorCode: PersistenceErrorCode.DbWriteFailed, correlationId, analysisId });
-      await this.fallbackCloseQuestionExecution(
-        ownerId,
-        analysisId,
-        executionId,
-        appError,
-        sourceError,
-        outcome,
-        correlationId,
-      );
+      logPersistWriteFailed(this.logger, { correlationId, analysisId });
+      await this.fallbackCloseQuestionExecution(ownerId, analysisId, executionId, appError, sourceError, outcome, correlationId);
     }
   }
 
@@ -257,31 +268,69 @@ export class AnalysisCommandShared {
     outcome: LlmOutcome | undefined,
     correlationId: string,
   ): Promise<void> {
+    const finishFields = this.executionFinishFields(outcome, sourceError);
     try {
       const closed = await this.analyses.finishExecution({
         executionId,
         ownerId,
         status: RunStatus.Failed,
         errorCode: appError.errorCode,
-        attemptCount: orchestrationAttemptCount(outcome, sourceError),
-        latencyMs: outcome?.latencyMs ?? null,
-        inputTokens: outcome?.response.inputTokens ?? null,
-        outputTokens: outcome?.response.outputTokens ?? null,
-        provider: outcome?.response.provider ?? this.llmSettings.provider,
-        model: outcome?.response.model ?? this.modelName(),
+        ...finishFields,
       });
       if (!closed) {
-        this.logger.info({
-          msg: LogEvent.PersistFailure,
-          errorCode: PersistenceErrorCode.DbWriteFailed,
+        logPersistNoOp(this.logger, {
           correlationId,
           analysisId,
           note: 'question_execution_already_closed',
         });
+        return;
       }
     } catch (inner) {
       if (inner instanceof AppError) throw inner;
-      this.logger.info({ msg: LogEvent.PersistFailure, errorCode: PersistenceErrorCode.DbWriteFailed, correlationId, analysisId });
+      logPersistWriteFailed(this.logger, { correlationId, analysisId });
+      void this.analysesMaintenance.recoverStuck();
+    }
+  }
+
+  /** Closes analysis and execution rows when the failure transaction could not commit. */
+  private async fallbackCloseAnalysisExecution(
+    ownerId: string,
+    analysisId: string,
+    executionId: string,
+    appError: AppError,
+    outcome: LlmOutcome | undefined,
+    sourceError: unknown,
+    correlationId: string,
+  ): Promise<void> {
+    const finishFields = this.executionFinishFields(outcome, sourceError);
+    try {
+      const closed = await this.analyses.finishExecution({
+        executionId,
+        ownerId,
+        status: RunStatus.Failed,
+        errorCode: appError.errorCode,
+        ...finishFields,
+      });
+      await this.analyses.saveFailedAnalysis({
+        ownerId,
+        analysisId,
+        errorCode: appError.errorCode,
+        errorMessage: appError.message,
+        promptVersion: ANALYSIS_PROMPT_VERSION,
+        provider: finishFields.provider,
+        model: finishFields.model,
+      });
+      if (!closed) {
+        logPersistNoOp(this.logger, {
+          correlationId,
+          analysisId,
+          note: 'analysis_execution_already_closed',
+        });
+      }
+    } catch (inner) {
+      if (inner instanceof AppError) throw inner;
+      logPersistWriteFailed(this.logger, { correlationId, analysisId });
+      void this.analysesMaintenance.recoverStuck();
     }
   }
 
@@ -341,25 +390,25 @@ export class AnalysisCommandShared {
         throw new AppError(ErrorCode.Conflict, 409, 'This question run is no longer active.');
       }
       persisted = true;
-      return await this.loadDetailOrThrow(owner.id, analysisId);
+      return await this.loadDetailAfterPersist(owner.id, analysisId, correlationId);
     } catch (error) {
       if (error instanceof AppError && error.errorCode === ErrorCode.Conflict) throw error;
       if (persisted) {
-        this.logger.info({ msg: LogEvent.PersistFailure, errorCode: PersistenceErrorCode.DbWriteFailed, correlationId, analysisId });
+        logPersistReadFailed(this.logger, { correlationId, analysisId });
         return await this.loadDetailOrThrow(owner.id, analysisId);
       }
       const appError = toOrchestrationAppError(error, analysisId, outcome);
-      await this.recordQuestionFailure(
-        owner.id,
+      await this.recordQuestionFailure({
+        ownerId: owner.id,
         analysisId,
         question,
         appError,
-        error,
+        sourceError: error,
         outcome,
         correlationId,
         executionId,
-        userSequence > 0,
-      );
+        userMessageStored: userSequence > 0,
+      });
       throw appError;
     }
   }
@@ -370,6 +419,17 @@ export class AnalysisCommandShared {
       throw new AppError(ErrorCode.Conflict, 409, message);
     }
     throw error;
+  }
+
+  private executionFinishFields(outcome: LlmOutcome | undefined, sourceError: unknown): ExecutionFinishFields {
+    return {
+      attemptCount: orchestrationAttemptCount(outcome, sourceError),
+      latencyMs: outcome?.latencyMs ?? null,
+      inputTokens: outcome?.response.inputTokens ?? null,
+      outputTokens: outcome?.response.outputTokens ?? null,
+      provider: outcome?.response.provider ?? this.llmSettings.provider,
+      model: outcome?.response.model ?? this.modelName(),
+    };
   }
 
   private auditPayload(
@@ -387,6 +447,19 @@ export class AnalysisCommandShared {
       result,
       correlationId,
     };
+  }
+
+  private async loadDetailAfterPersist(
+    ownerId: string,
+    analysisId: string,
+    correlationId: string,
+  ): Promise<AnalysisDetailResult> {
+    try {
+      return await this.loadDetailOrThrow(ownerId, analysisId);
+    } catch (error) {
+      logPersistReadFailed(this.logger, { correlationId, analysisId });
+      throw error;
+    }
   }
 
   private async loadDetailOrThrow(ownerId: string, analysisId: string): Promise<AnalysisDetailResult> {

@@ -17,5 +17,9 @@ export async function createAppDataSource(databaseUrl: string): Promise<DataSour
  * @returns The pool used for advisory-lock migrations.
  */
 export function migrationPool(dataSource: DataSource): Pool {
-  return (dataSource.driver as unknown as { master: Pool }).master;
+  const driver = dataSource.driver as { master?: Pool };
+  if (!driver.master) {
+    throw new Error('The PostgreSQL driver pool is not available on this data source.');
+  }
+  return driver.master;
 }

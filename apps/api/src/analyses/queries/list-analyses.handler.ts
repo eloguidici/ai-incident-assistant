@@ -3,7 +3,6 @@ import { IQueryHandler, QueryHandler } from '@nestjs/cqrs';
 import { AnalysisListExcerptLength } from '../../common/constants/pagination';
 import type { AnalysisRepository } from '../../db/repositories/analysis.repository';
 import { ANALYSIS_REPOSITORY } from '../../db/repositories/tokens';
-import { readSeverity, readSummary } from '../analysis-list.helpers';
 import { ListAnalysesQuery, type ListAnalysesResult } from './list-analyses.types';
 
 /** CQRS query handler: lists analyses for one owner (reference vertical for R00-B). */
@@ -25,8 +24,8 @@ export class ListAnalysesHandler implements IQueryHandler<ListAnalysesQuery> {
         id: row.id,
         status: row.status,
         excerpt: row.sourceText.slice(0, AnalysisListExcerptLength),
-        summary: readSummary(row.result),
-        suggestedSeverity: readSeverity(row.result),
+        summary: row.resultSummary,
+        suggestedSeverity: row.resultSeverity,
         errorCode: row.errorCode,
         createdAt: row.createdAt.toISOString(),
         expiresAt: row.expiresAt.toISOString(),
