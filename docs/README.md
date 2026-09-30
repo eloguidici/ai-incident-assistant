@@ -1,6 +1,7 @@
 # Documentación técnica
 Esta carpeta forma parte del repositorio entregado al evaluador, pero no de la aplicación publicada.
 
+
 ## Lectura breve
 1. [Explicación de decisiones](architecture/RATIONALE.md)
 2. [Stack y alternativas](decisions/ADR-001-stack.md)
