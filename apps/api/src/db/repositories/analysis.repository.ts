@@ -22,6 +22,121 @@ export type AnalysisDetailRecord = {
   executions: AiExecutionEntity[];
 };
 
+/** Audit event written in the same transaction as the state change it describes. */
+export type AuditInput = {
+  actorId: string | null;
+  action: string;
+  resourceType: string;
+  resourceId: string | null;
+  result: FinishedRunStatus;
+  correlationId: string;
+};
+
+/** Provider metrics recorded when an execution finishes. */
+export type ExecutionMetrics = {
+  attemptCount: number;
+  latencyMs: number | null;
+  inputTokens: number | null;
+  outputTokens: number | null;
+  provider: string;
+  model: string;
+};
+
+export type ReserveAnalysisInput = {
+  ownerId: string;
+  sourceText: string;
+  expiresAt: Date;
+  kind: ExecutionKind;
+  promptVersion: string;
+  provider: string;
+  model: string;
+  correlationId: string;
+};
+
+export type ReserveRetryInput = {
+  ownerId: string;
+  analysisId: string;
+  promptVersion: string;
+  provider: string;
+  model: string;
+  correlationId: string;
+};
+
+export type ReserveRetryResult =
+  | { ok: true; executionId: string }
+  | { ok: false; reason: 'not_found' | 'not_failed' | 'in_progress' };
+
+export type InsertExecutionInput = {
+  analysisId: string;
+  ownerId: string;
+  kind: ExecutionKind;
+  status: ExecutionRunStatus;
+  promptVersion: string;
+  provider: string;
+  model: string;
+  correlationId: string;
+};
+
+export type FinishExecutionInput = ExecutionMetrics & {
+  executionId: string;
+  ownerId: string;
+  status: FinishedRunStatus;
+  errorCode: string | null;
+};
+
+export type CommitAnalysisSuccessInput = ExecutionMetrics & {
+  ownerId: string;
+  analysisId: string;
+  executionId: string;
+  result: AnalysisResult;
+  promptVersion: string;
+  audit: AuditInput;
+};
+
+export type CommitAnalysisFailureInput = ExecutionMetrics & {
+  ownerId: string;
+  analysisId: string;
+  executionId: string;
+  errorCode: string;
+  errorMessage: string;
+  promptVersion: string;
+  audit: AuditInput;
+};
+
+export type CommitQuestionSuccessInput = ExecutionMetrics & {
+  ownerId: string;
+  analysisId: string;
+  executionId: string;
+  assistantContent: string;
+  assistantResult: QuestionResult;
+  assistantSequence: number;
+  audit: AuditInput;
+};
+
+export type CommitQuestionFailureInput = ExecutionMetrics & {
+  ownerId: string;
+  analysisId: string;
+  executionId: string;
+  question: string;
+  userMessageStored: boolean;
+  errorCode: string;
+  errorMessage: string;
+  audit: AuditInput;
+};
+
+export type AppendMessageInput = {
+  analysisId: string;
+  ownerId: string;
+  role: MessageRole;
+  content: string;
+  status: FinishedRunStatus;
+  result: QuestionResult | null;
+  errorCode: string | null;
+  sequence?: number;
+};
+
+export type CommitOutcome = 'committed' | 'stale';
+
 /** Persistence port for analyses, messages, executions, and related audit rows. */
 export interface AnalysisRepository {
   listByOwner(ownerId: string, limit: number, offset: number): Promise<AnalysisListRow[]>;
@@ -30,160 +145,28 @@ export interface AnalysisRepository {
   loadDetail(ownerId: string, id: string): Promise<AnalysisDetailRecord | null>;
   listMessages(analysisId: string, ownerId: string): Promise<MessageEntity[]>;
 
-  reserveProcessingAnalysisWithExecution(input: {
-    ownerId: string;
-    sourceText: string;
-    expiresAt: Date;
-    kind: ExecutionKind;
-    promptVersion: string;
-    provider: string;
-    model: string;
-    correlationId: string;
-  }): Promise<{ analysisId: string; executionId: string }>;
+  reserveProcessingAnalysisWithExecution(input: ReserveAnalysisInput): Promise<{ analysisId: string; executionId: string }>;
 
-  reserveRetryWithExecution(input: {
-    ownerId: string;
-    analysisId: string;
-    promptVersion: string;
-    provider: string;
-    model: string;
-    correlationId: string;
-  }): Promise<
-    | { ok: true; executionId: string }
-    | { ok: false; reason: 'not_found' | 'not_failed' | 'in_progress' }
-  >;
+  reserveRetryWithExecution(input: ReserveRetryInput): Promise<ReserveRetryResult>;
 
   deleteAnalysis(id: string): Promise<void>;
 
-  insertExecution(input: {
-    analysisId: string;
-    ownerId: string;
-    kind: ExecutionKind;
-    status: ExecutionRunStatus;
-    promptVersion: string;
-    provider: string;
-    model: string;
-    correlationId: string;
-  }): Promise<{ id: string }>;
+  insertExecution(input: InsertExecutionInput): Promise<{ id: string }>;
 
-  finishExecution(input: {
-    executionId: string;
-    ownerId: string;
-    status: FinishedRunStatus;
-    errorCode: string | null;
-    attemptCount: number;
-    latencyMs: number | null;
-    inputTokens: number | null;
-    outputTokens: number | null;
-    provider: string;
-    model: string;
-  }): Promise<boolean>;
+  finishExecution(input: FinishExecutionInput): Promise<boolean>;
 
-  commitAnalysisSuccess(input: {
-    ownerId: string;
-    analysisId: string;
-    executionId: string;
-    result: AnalysisResult;
-    promptVersion: string;
-    provider: string;
-    model: string;
-    attemptCount: number;
-    latencyMs: number | null;
-    inputTokens: number | null;
-    outputTokens: number | null;
-    audit: {
-      actorId: string | null;
-      action: string;
-      resourceType: string;
-      resourceId: string | null;
-      result: FinishedRunStatus;
-      correlationId: string;
-    };
-  }): Promise<'committed' | 'stale'>;
+  commitAnalysisSuccess(input: CommitAnalysisSuccessInput): Promise<CommitOutcome>;
 
-  commitAnalysisFailure(input: {
-    ownerId: string;
-    analysisId: string;
-    executionId: string;
-    errorCode: string;
-    errorMessage: string;
-    promptVersion: string;
-    provider: string;
-    model: string;
-    attemptCount: number;
-    latencyMs: number | null;
-    inputTokens: number | null;
-    outputTokens: number | null;
-    audit: {
-      actorId: string | null;
-      action: string;
-      resourceType: string;
-      resourceId: string | null;
-      result: FinishedRunStatus;
-      correlationId: string;
-    };
-  }): Promise<'committed' | 'stale'>;
+  commitAnalysisFailure(input: CommitAnalysisFailureInput): Promise<CommitOutcome>;
 
   /** Minimal atomic failure close, scoped to an execution; omits audit if the full commit failed. */
-  closeAnalysisFailure(input: Omit<Parameters<AnalysisRepository['commitAnalysisFailure']>[0], 'audit'>): Promise<'committed' | 'stale'>;
+  closeAnalysisFailure(input: Omit<CommitAnalysisFailureInput, 'audit'>): Promise<CommitOutcome>;
 
-  commitQuestionSuccess(input: {
-    ownerId: string;
-    analysisId: string;
-    executionId: string;
-    assistantContent: string;
-    assistantResult: QuestionResult;
-    assistantSequence: number;
-    attemptCount: number;
-    latencyMs: number | null;
-    inputTokens: number | null;
-    outputTokens: number | null;
-    provider: string;
-    model: string;
-    audit: {
-      actorId: string | null;
-      action: string;
-      resourceType: string;
-      resourceId: string | null;
-      result: FinishedRunStatus;
-      correlationId: string;
-    };
-  }): Promise<'committed' | 'stale'>;
+  commitQuestionSuccess(input: CommitQuestionSuccessInput): Promise<CommitOutcome>;
 
-  commitQuestionFailure(input: {
-    ownerId: string;
-    analysisId: string;
-    executionId: string;
-    question: string;
-    userMessageStored: boolean;
-    errorCode: string;
-    errorMessage: string;
-    attemptCount: number;
-    latencyMs: number | null;
-    inputTokens: number | null;
-    outputTokens: number | null;
-    provider: string;
-    model: string;
-    audit: {
-      actorId: string | null;
-      action: string;
-      resourceType: string;
-      resourceId: string | null;
-      result: FinishedRunStatus;
-      correlationId: string;
-    };
-  }): Promise<'committed' | 'stale'>;
+  commitQuestionFailure(input: CommitQuestionFailureInput): Promise<CommitOutcome>;
 
-  appendMessage(input: {
-    analysisId: string;
-    ownerId: string;
-    role: MessageRole;
-    content: string;
-    status: FinishedRunStatus;
-    result: QuestionResult | null;
-    errorCode: string | null;
-    sequence?: number;
-  }): Promise<number>;
+  appendMessage(input: AppendMessageInput): Promise<number>;
 
   hasUserMessage(analysisId: string, question: string): Promise<boolean>;
 
@@ -192,15 +175,7 @@ export interface AnalysisRepository {
   /** Atomically reconciles aged analysis runs and closes aged questions. */
   recoverStuck(cutoff: Date): Promise<void>;
 
-  insertAudit(input: {
-    actorId: string | null;
-    action: string;
-    resourceType: string;
-    resourceId: string | null;
-    result: FinishedRunStatus;
-    correlationId: string;
-  }): Promise<void>;
+  insertAudit(input: AuditInput): Promise<void>;
 
   ping(): Promise<void>;
 }
-

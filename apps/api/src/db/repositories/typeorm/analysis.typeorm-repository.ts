@@ -1,15 +1,31 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, EntityManager, In, LessThan, Repository } from 'typeorm';
-import type { AnalysisResult, QuestionResult } from '../../../ai/contracts';
 import { MessageRole } from '../../../domain/message-role';
 import { PersistenceErrorCode } from '../../../domain/persistence-error';
-import { RunStatus, type ExecutionRunStatus, type FinishedRunStatus } from '../../../domain/run-status';
+import { RunStatus } from '../../../domain/run-status';
 import { AnalysisEntity } from '../../entities/analysis.entity';
 import { AiExecutionEntity } from '../../entities/ai-execution.entity';
 import { AuditEventEntity } from '../../entities/audit-event.entity';
 import { MessageEntity } from '../../entities/message.entity';
-import type { AnalysisDetailRecord, AnalysisListRow, AnalysisRepository } from '../analysis.repository';
+import type {
+  AnalysisDetailRecord,
+  AnalysisListRow,
+  AnalysisRepository,
+  AppendMessageInput,
+  AuditInput,
+  CommitAnalysisFailureInput,
+  CommitAnalysisSuccessInput,
+  CommitOutcome,
+  CommitQuestionFailureInput,
+  CommitQuestionSuccessInput,
+  ExecutionMetrics,
+  FinishExecutionInput,
+  InsertExecutionInput,
+  ReserveAnalysisInput,
+  ReserveRetryInput,
+  ReserveRetryResult,
+} from '../analysis.repository';
 
 @Injectable()
 export class TypeOrmAnalysisRepository implements AnalysisRepository {
@@ -97,16 +113,7 @@ export class TypeOrmAnalysisRepository implements AnalysisRepository {
   }
 
   /** @inheritdoc */
-  async reserveProcessingAnalysisWithExecution(input: {
-    ownerId: string;
-    sourceText: string;
-    expiresAt: Date;
-    kind: 'analysis' | 'question';
-    promptVersion: string;
-    provider: string;
-    model: string;
-    correlationId: string;
-  }): Promise<{ analysisId: string; executionId: string }> {
+  async reserveProcessingAnalysisWithExecution(input: ReserveAnalysisInput): Promise<{ analysisId: string; executionId: string }> {
     return this.dataSource.transaction(async (manager) => {
       const analysis = await manager.save(
         AnalysisEntity,
@@ -134,17 +141,7 @@ export class TypeOrmAnalysisRepository implements AnalysisRepository {
   }
 
   /** @inheritdoc */
-  async reserveRetryWithExecution(input: {
-    ownerId: string;
-    analysisId: string;
-    promptVersion: string;
-    provider: string;
-    model: string;
-    correlationId: string;
-  }): Promise<
-    | { ok: true; executionId: string }
-    | { ok: false; reason: 'not_found' | 'not_failed' | 'in_progress' }
-  > {
+  async reserveRetryWithExecution(input: ReserveRetryInput): Promise<ReserveRetryResult> {
     return this.dataSource.transaction(async (manager) => {
       const updated = await manager.update(
         AnalysisEntity,
@@ -180,16 +177,7 @@ export class TypeOrmAnalysisRepository implements AnalysisRepository {
   }
 
   /** @inheritdoc */
-  async insertExecution(input: {
-    analysisId: string;
-    ownerId: string;
-    kind: 'analysis' | 'question';
-    status: ExecutionRunStatus;
-    promptVersion: string;
-    provider: string;
-    model: string;
-    correlationId: string;
-  }): Promise<{ id: string }> {
+  async insertExecution(input: InsertExecutionInput): Promise<{ id: string }> {
     const insert = await this.executions.insert({
       analysisId: input.analysisId,
       ownerId: input.ownerId,
@@ -204,18 +192,7 @@ export class TypeOrmAnalysisRepository implements AnalysisRepository {
   }
 
   /** @inheritdoc */
-  async finishExecution(input: {
-    executionId: string;
-    ownerId: string;
-    status: FinishedRunStatus;
-    errorCode: string | null;
-    attemptCount: number;
-    latencyMs: number | null;
-    inputTokens: number | null;
-    outputTokens: number | null;
-    provider: string;
-    model: string;
-  }): Promise<boolean> {
+  async finishExecution(input: FinishExecutionInput): Promise<boolean> {
     const updated = await this.executions.update(
       {
         id: input.executionId,
@@ -225,12 +202,7 @@ export class TypeOrmAnalysisRepository implements AnalysisRepository {
       {
         status: input.status,
         errorCode: input.errorCode,
-        attemptCount: input.attemptCount,
-        latencyMs: input.latencyMs,
-        inputTokens: input.inputTokens,
-        outputTokens: input.outputTokens,
-        provider: input.provider,
-        model: input.model,
+        ...executionMetrics(input),
         finishedAt: new Date(),
       },
     );
@@ -238,27 +210,7 @@ export class TypeOrmAnalysisRepository implements AnalysisRepository {
   }
 
   /** @inheritdoc */
-  async commitAnalysisSuccess(input: {
-    ownerId: string;
-    analysisId: string;
-    executionId: string;
-    result: AnalysisResult;
-    promptVersion: string;
-    provider: string;
-    model: string;
-    attemptCount: number;
-    latencyMs: number | null;
-    inputTokens: number | null;
-    outputTokens: number | null;
-    audit: {
-      actorId: string | null;
-      action: string;
-      resourceType: string;
-      resourceId: string | null;
-      result: FinishedRunStatus;
-      correlationId: string;
-    };
-  }): Promise<'committed' | 'stale'> {
+  async commitAnalysisSuccess(input: CommitAnalysisSuccessInput): Promise<CommitOutcome> {
     return this.dataSource.transaction(async (manager) => {
       if (!(await this.lockProcessingAnalysis(manager, input.ownerId, input.analysisId))) return 'stale';
       const executionUpdate = await manager.update(
@@ -267,12 +219,7 @@ export class TypeOrmAnalysisRepository implements AnalysisRepository {
         {
           status: RunStatus.Completed,
           errorCode: null,
-          attemptCount: input.attemptCount,
-          latencyMs: input.latencyMs,
-          inputTokens: input.inputTokens,
-          outputTokens: input.outputTokens,
-          provider: input.provider,
-          model: input.model,
+          ...executionMetrics(input),
           finishedAt: new Date(),
         },
       );
@@ -292,57 +239,27 @@ export class TypeOrmAnalysisRepository implements AnalysisRepository {
         },
       );
       if (!analysisUpdate.affected) throw new Error('analysis_commit_inconsistent');
-      await manager.insert(AuditEventEntity, {
-        actorId: input.audit.actorId,
-        action: input.audit.action,
-        resourceType: input.audit.resourceType,
-        resourceId: input.audit.resourceId,
-        result: input.audit.result,
-        correlationId: input.audit.correlationId,
-      });
+      await manager.insert(AuditEventEntity, auditRow(input.audit));
       return 'committed';
     });
   }
 
   /** @inheritdoc */
-  async commitAnalysisFailure(input: {
-    ownerId: string;
-    analysisId: string;
-    executionId: string;
-    errorCode: string;
-    errorMessage: string;
-    promptVersion: string;
-    provider: string;
-    model: string;
-    attemptCount: number;
-    latencyMs: number | null;
-    inputTokens: number | null;
-    outputTokens: number | null;
-    audit: {
-      actorId: string | null;
-      action: string;
-      resourceType: string;
-      resourceId: string | null;
-      result: FinishedRunStatus;
-      correlationId: string;
-    };
-  }): Promise<'committed' | 'stale'> {
+  async commitAnalysisFailure(input: CommitAnalysisFailureInput): Promise<CommitOutcome> {
     return this.persistAnalysisFailure(input);
   }
 
   /** @inheritdoc */
   async closeAnalysisFailure(
-    input: Omit<Parameters<AnalysisRepository['commitAnalysisFailure']>[0], 'audit'>,
-  ): Promise<'committed' | 'stale'> {
+    input: Omit<CommitAnalysisFailureInput, 'audit'>,
+  ): Promise<CommitOutcome> {
     return this.persistAnalysisFailure(input);
   }
 
   /** Closes the matching execution and analysis in one transaction; stale attempts cannot modify a retry. */
   private async persistAnalysisFailure(
-    input: Omit<Parameters<AnalysisRepository['commitAnalysisFailure']>[0], 'audit'> & {
-      audit?: Parameters<AnalysisRepository['commitAnalysisFailure']>[0]['audit'];
-    },
-  ): Promise<'committed' | 'stale'> {
+    input: Omit<CommitAnalysisFailureInput, 'audit'> & { audit?: AuditInput },
+  ): Promise<CommitOutcome> {
     return this.dataSource.transaction(async (manager) => {
       if (!(await this.lockProcessingAnalysis(manager, input.ownerId, input.analysisId))) return 'stale';
       const executionUpdate = await manager.update(
@@ -351,12 +268,7 @@ export class TypeOrmAnalysisRepository implements AnalysisRepository {
         {
           status: RunStatus.Failed,
           errorCode: input.errorCode,
-          attemptCount: input.attemptCount,
-          latencyMs: input.latencyMs,
-          inputTokens: input.inputTokens,
-          outputTokens: input.outputTokens,
-          provider: input.provider,
-          model: input.model,
+          ...executionMetrics(input),
           finishedAt: new Date(),
         },
       );
@@ -376,41 +288,13 @@ export class TypeOrmAnalysisRepository implements AnalysisRepository {
         },
       );
       if (!analysisUpdate.affected) throw new Error('analysis_commit_inconsistent');
-      if (input.audit) await manager.insert(AuditEventEntity, {
-        actorId: input.audit.actorId,
-        action: input.audit.action,
-        resourceType: input.audit.resourceType,
-        resourceId: input.audit.resourceId,
-        result: input.audit.result,
-        correlationId: input.audit.correlationId,
-      });
+      if (input.audit) await manager.insert(AuditEventEntity, auditRow(input.audit));
       return 'committed';
     });
   }
 
   /** @inheritdoc */
-  async commitQuestionSuccess(input: {
-    ownerId: string;
-    analysisId: string;
-    executionId: string;
-    assistantContent: string;
-    assistantResult: QuestionResult;
-    assistantSequence: number;
-    attemptCount: number;
-    latencyMs: number | null;
-    inputTokens: number | null;
-    outputTokens: number | null;
-    provider: string;
-    model: string;
-    audit: {
-      actorId: string | null;
-      action: string;
-      resourceType: string;
-      resourceId: string | null;
-      result: FinishedRunStatus;
-      correlationId: string;
-    };
-  }): Promise<'committed' | 'stale'> {
+  async commitQuestionSuccess(input: CommitQuestionSuccessInput): Promise<CommitOutcome> {
     return this.dataSource.transaction(async (manager) => {
       const executionUpdate = await manager.update(
         AiExecutionEntity,
@@ -418,12 +302,7 @@ export class TypeOrmAnalysisRepository implements AnalysisRepository {
         {
           status: RunStatus.Completed,
           errorCode: null,
-          attemptCount: input.attemptCount,
-          latencyMs: input.latencyMs,
-          inputTokens: input.inputTokens,
-          outputTokens: input.outputTokens,
-          provider: input.provider,
-          model: input.model,
+          ...executionMetrics(input),
           finishedAt: new Date(),
         },
       );
@@ -438,42 +317,13 @@ export class TypeOrmAnalysisRepository implements AnalysisRepository {
         errorCode: null,
         sequence: input.assistantSequence,
       });
-      await manager.insert(AuditEventEntity, {
-        actorId: input.audit.actorId,
-        action: input.audit.action,
-        resourceType: input.audit.resourceType,
-        resourceId: input.audit.resourceId,
-        result: input.audit.result,
-        correlationId: input.audit.correlationId,
-      });
+      await manager.insert(AuditEventEntity, auditRow(input.audit));
       return 'committed';
     });
   }
 
   /** @inheritdoc */
-  async commitQuestionFailure(input: {
-    ownerId: string;
-    analysisId: string;
-    executionId: string;
-    question: string;
-    userMessageStored: boolean;
-    errorCode: string;
-    errorMessage: string;
-    attemptCount: number;
-    latencyMs: number | null;
-    inputTokens: number | null;
-    outputTokens: number | null;
-    provider: string;
-    model: string;
-    audit: {
-      actorId: string | null;
-      action: string;
-      resourceType: string;
-      resourceId: string | null;
-      result: FinishedRunStatus;
-      correlationId: string;
-    };
-  }): Promise<'committed' | 'stale'> {
+  async commitQuestionFailure(input: CommitQuestionFailureInput): Promise<CommitOutcome> {
     return this.dataSource.transaction(async (manager) => {
       const executionUpdate = await manager.update(
         AiExecutionEntity,
@@ -481,23 +331,13 @@ export class TypeOrmAnalysisRepository implements AnalysisRepository {
         {
           status: RunStatus.Failed,
           errorCode: input.errorCode,
-          attemptCount: input.attemptCount,
-          latencyMs: input.latencyMs,
-          inputTokens: input.inputTokens,
-          outputTokens: input.outputTokens,
-          provider: input.provider,
-          model: input.model,
+          ...executionMetrics(input),
           finishedAt: new Date(),
         },
       );
       if (!executionUpdate.affected) return 'stale';
       if (!input.userMessageStored) {
-        const row = await manager
-          .createQueryBuilder(MessageEntity, 'message')
-          .select('COALESCE(MAX(message.sequence), 0)', 'maxSequence')
-          .where('message.analysisId = :analysisId', { analysisId: input.analysisId })
-          .getRawOne<{ maxSequence: string | number | null }>();
-        const sequence = Number(row?.maxSequence ?? 0) + 1;
+        const sequence = await nextSequence(manager, input.analysisId);
         await manager.insert(MessageEntity, {
           analysisId: input.analysisId,
           ownerId: input.ownerId,
@@ -509,12 +349,7 @@ export class TypeOrmAnalysisRepository implements AnalysisRepository {
           sequence,
         });
       }
-      const row = await manager
-        .createQueryBuilder(MessageEntity, 'message')
-        .select('COALESCE(MAX(message.sequence), 0)', 'maxSequence')
-        .where('message.analysisId = :analysisId', { analysisId: input.analysisId })
-        .getRawOne<{ maxSequence: string | number | null }>();
-      const assistantSequence = Number(row?.maxSequence ?? 0) + 1;
+      const assistantSequence = await nextSequence(manager, input.analysisId);
       await manager.insert(MessageEntity, {
         analysisId: input.analysisId,
         ownerId: input.ownerId,
@@ -525,38 +360,17 @@ export class TypeOrmAnalysisRepository implements AnalysisRepository {
         errorCode: input.errorCode,
         sequence: assistantSequence,
       });
-      await manager.insert(AuditEventEntity, {
-        actorId: input.audit.actorId,
-        action: input.audit.action,
-        resourceType: input.audit.resourceType,
-        resourceId: input.audit.resourceId,
-        result: input.audit.result,
-        correlationId: input.audit.correlationId,
-      });
+      await manager.insert(AuditEventEntity, auditRow(input.audit));
       return 'committed';
     });
   }
 
   /** @inheritdoc */
-  async appendMessage(input: {
-    analysisId: string;
-    ownerId: string;
-    role: 'user' | 'assistant';
-    content: string;
-    status: FinishedRunStatus;
-    result: QuestionResult | null;
-    errorCode: string | null;
-    sequence?: number;
-  }): Promise<number> {
+  async appendMessage(input: AppendMessageInput): Promise<number> {
     return this.dataSource.transaction(async (manager) => {
       let sequence = input.sequence;
       if (!sequence) {
-        const row = await manager
-          .createQueryBuilder(MessageEntity, 'message')
-          .select('COALESCE(MAX(message.sequence), 0)', 'maxSequence')
-          .where('message.analysisId = :analysisId', { analysisId: input.analysisId })
-          .getRawOne<{ maxSequence: string | number | null }>();
-        sequence = Number(row?.maxSequence ?? 0) + 1;
+        sequence = await nextSequence(manager, input.analysisId);
       }
       await manager.insert(MessageEntity, {
         analysisId: input.analysisId,
@@ -641,22 +455,8 @@ export class TypeOrmAnalysisRepository implements AnalysisRepository {
   }
 
   /** @inheritdoc */
-  async insertAudit(input: {
-    actorId: string | null;
-    action: string;
-    resourceType: string;
-    resourceId: string | null;
-    result: FinishedRunStatus;
-    correlationId: string;
-  }): Promise<void> {
-    await this.auditEvents.insert({
-      actorId: input.actorId,
-      action: input.action,
-      resourceType: input.resourceType,
-      resourceId: input.resourceId,
-      result: input.result,
-      correlationId: input.correlationId,
-    });
+  async insertAudit(input: AuditInput): Promise<void> {
+    await this.auditEvents.insert(auditRow(input));
   }
 
   /** @inheritdoc */
@@ -665,3 +465,47 @@ export class TypeOrmAnalysisRepository implements AnalysisRepository {
   }
 }
 
+/**
+ * Provider metrics copied onto an execution row when it finishes.
+ * @param input Any input that carries {@link ExecutionMetrics}.
+ */
+function executionMetrics(input: ExecutionMetrics): ExecutionMetrics {
+  return {
+    attemptCount: input.attemptCount,
+    latencyMs: input.latencyMs,
+    inputTokens: input.inputTokens,
+    outputTokens: input.outputTokens,
+    provider: input.provider,
+    model: input.model,
+  };
+}
+
+/**
+ * Audit row with exactly the audited fields, so no other input property reaches the table.
+ * @param audit Actor, action, resource, result and correlation id.
+ */
+function auditRow(audit: AuditInput): AuditInput {
+  return {
+    actorId: audit.actorId,
+    action: audit.action,
+    resourceType: audit.resourceType,
+    resourceId: audit.resourceId,
+    result: audit.result,
+    correlationId: audit.correlationId,
+  };
+}
+
+/**
+ * Next message sequence in the thread, read inside the caller's transaction.
+ * @param manager Transaction manager.
+ * @param analysisId Thread owner.
+ * @returns The current maximum sequence plus one, or 1 for an empty thread.
+ */
+async function nextSequence(manager: EntityManager, analysisId: string): Promise<number> {
+  const row = await manager
+    .createQueryBuilder(MessageEntity, 'message')
+    .select('COALESCE(MAX(message.sequence), 0)', 'maxSequence')
+    .where('message.analysisId = :analysisId', { analysisId })
+    .getRawOne<{ maxSequence: string | number | null }>();
+  return Number(row?.maxSequence ?? 0) + 1;
+}
