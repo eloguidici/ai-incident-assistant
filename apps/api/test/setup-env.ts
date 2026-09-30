@@ -1,0 +1,15 @@
+process.env.DATABASE_URL = 'postgres://app:app@localhost:5432/incident_assistant_test';
+process.env.JWT_SECRET = 'test-jwt-secret-at-least-32-characters-long';
+process.env.WEB_ORIGIN = 'http://127.0.0.1:5173';
+process.env.LLM_PROVIDER = 'mock';
+process.env.OPENAI_API_KEY = '';
+process.env.SEED_DEMO = 'false';
+process.env.ALLOW_SEED_DEMO = 'true';
+process.env.SEED_PASSWORD = 'local-demo-password';
+process.env.COOKIE_SECURE = 'false';
+process.env.E2E_RESET = 'false';
+process.env.FAULT_INJECTION = 'false';
+process.env.LLM_DEADLINE_MS = '2500';
+process.env.LLM_ATTEMPT_TIMEOUT_MS = '800';
+process.env.CONTEXT_CHAR_BUDGET = '12000';
+process.env.PORT = '3001';

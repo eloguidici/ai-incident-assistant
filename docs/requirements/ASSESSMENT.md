@@ -1,5 +1,5 @@
 # Matriz de requisitos y aceptación
-Fuente: PDF Full Stack AI Engineer Assessment recibido el 29/09/2026. Todo está pendiente de implementación. La evidencia indicada es planificada.
+Fuente: PDF Full Stack AI Engineer Assessment recibido el 29/09/2026. La aplicación está implementada. La evidencia ejecutada está en docs/qa/runs/2026-09-29/REPORT.md. Lo que no se corrió figura como BLOCKED o NOT_RUN.
 
 | ID | Exigencia | Entrega y aceptación |
 |---|---|---|

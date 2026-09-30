@@ -1,5 +1,5 @@
 # Explicación de las decisiones
-Estado: diseño inicial. Actualizar contra código y evidencia al cerrar cada tarea.
+Estado: al día con el código del 2026-09-29. Las pruebas ejecutadas están en docs/qa/runs/2026-09-29/REPORT.md.
 ## Qué se entendió de la consigna
 Construir una aplicación pequeña que recibe contenido, permite conversar sobre él y muestra salida estructurada. La evaluación incluye backend/frontend, datos, seguridad, confiabilidad e infraestructura, además de justificar compromisos.
 
@@ -28,5 +28,5 @@ La calidad se mide con casos/rúbrica y muestras reales; mocks validan contratos
 ## Operación
 T09 describe claves en runtime, rotación, IAM y respuesta ante picos. Las cuotas del proveedor y las conexiones DB limitan el escalado. El backend Docker tendrá propuesta de despliegue ECS o serverless coherente con IaC; no se necesita ejecutar infraestructura paga para afirmar que se definió.
 
-## Evidencia y decisiones pendientes
-No hay código ni pruebas de aplicación todavía. ORM/versiones, sesión, límites cuantificados, retención y destino cloud se cierran en tareas. Añadir aquí enlaces a resultados reales, no afirmaciones anticipadas.
+## Evidencia
+ORM: TypeORM y repositorios, ADR-006 (ADR-002 histórico). Sesión: ADR-003. Límites y retención: docs/features/MVP.md y docs/security/DATA_POLICY.md. Destino cloud propuesto: ADR-005, sin apply. Resultados de pruebas: docs/qa/runs/2026-09-29/REPORT.md. La muestra real del modelo no se ejecutó.

@@ -1,0 +1,1 @@
+CREATE DATABASE incident_assistant_test;

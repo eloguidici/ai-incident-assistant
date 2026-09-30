@@ -1,5 +1,5 @@
 # Diseño propuesto
-Estado: diseño, no arquitectura implementada. Stack confirmado en ADR-001: NestJS/Node.js + React + PostgreSQL.
+Estado: implementado el 2026-09-29. Stack en ADR-001. Persistencia, sesión y modelo en ADR-002, ADR-003 y ADR-004. La forma AWS está en ADR-005 y no fue aplicada.
 ## Estructura lógica
 Monolito modular con Auth, Analyses, Conversation, AI y soporte Config/Observability. Backend NestJS/TypeScript, frontend React y PostgreSQL durable, con Docker local.
 CQRS liviano: CreateAnalysis/AddQuestion son comandos; ListAnalyses/GetAnalysis son consultas. Misma DB; sin event sourcing ni infraestructura distribuida por defecto.

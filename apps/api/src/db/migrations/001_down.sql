@@ -1,0 +1,6 @@
+DROP TABLE IF EXISTS audit_events;
+DROP TABLE IF EXISTS ai_executions;
+DROP TABLE IF EXISTS messages;
+DROP TABLE IF EXISTS analyses;
+DROP TABLE IF EXISTS users;
+DROP TABLE IF EXISTS schema_migrations;

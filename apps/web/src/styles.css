@@ -1,0 +1,114 @@
+:root {
+  color: #1f1a17;
+  background: #f3efe6;
+  font-family: "Segoe UI", "Helvetica Neue", sans-serif;
+  line-height: 1.5;
+}
+
+* { box-sizing: border-box; }
+
+body { margin: 0; }
+
+a { color: #8f3d2a; }
+
+.skip {
+  position: absolute;
+  left: 1rem;
+  top: -4rem;
+}
+
+.skip:focus { top: 1rem; background: white; padding: 0.5rem; }
+
+.topbar, main, .narrow {
+  width: min(960px, calc(100% - 2rem));
+  margin: 0 auto;
+}
+
+.topbar {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: center;
+  padding: 1rem 0;
+}
+
+.topbar nav { display: flex; gap: 1rem; }
+
+.eyebrow {
+  margin: 0;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-size: 0.75rem;
+  color: #8f3d2a;
+}
+
+h1 { font-size: 2rem; line-height: 1.2; margin-bottom: 0.5rem; }
+
+.lead { max-width: 42rem; }
+
+form, .result, .list, pre {
+  background: #fffdf8;
+  border: 1px solid #e4dcd0;
+  border-radius: 12px;
+  padding: 1rem;
+}
+
+label { display: grid; gap: 0.35rem; font-weight: 600; margin-bottom: 0.8rem; }
+
+input, textarea, button {
+  font: inherit;
+}
+
+input, textarea {
+  width: 100%;
+  border: 1px solid #d6cdc2;
+  border-radius: 8px;
+  padding: 0.7rem;
+  background: white;
+}
+
+button, .session button {
+  background: #8f3d2a;
+  color: white;
+  border: 0;
+  border-radius: 999px;
+  padding: 0.65rem 1rem;
+  cursor: pointer;
+}
+
+button:disabled { opacity: 0.6; cursor: wait; }
+
+button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visible {
+  outline: 3px solid #1f1a17;
+  outline-offset: 2px;
+}
+
+.error { color: #9f1239; }
+
+.status { color: #1f6b4a; }
+
+.meta { color: #57534e; font-size: 0.92rem; }
+
+.list { list-style: none; padding: 0; }
+
+.list a, .thread { display: grid; gap: 0.2rem; }
+
+.thread { list-style: none; padding: 0; }
+
+pre {
+  white-space: pre-wrap;
+  font-family: Consolas, "Courier New", monospace;
+}
+
+blockquote {
+  margin: 0;
+  padding-left: 0.8rem;
+  border-left: 3px solid #8f3d2a;
+}
+
+.session { display: flex; gap: 0.7rem; align-items: center; }
+
+@media (max-width: 720px) {
+  .topbar { flex-direction: column; align-items: flex-start; }
+  h1 { font-size: 1.6rem; }
+}

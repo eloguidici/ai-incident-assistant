@@ -25,7 +25,7 @@ F05 fallo proveedor -> mensaje seguro -> reintento controlado.
 F06 usuario ajeno intenta acceso -> denegación consistente sin filtrar contenido.
 
 ## Resultado propuesto
-summary, category, suggestedSeverity, evidence, hypotheses, missingInformation. Evidence contiene fragmentos contrastables con entrada; no URLs inventadas. Catálogos/enums y schema exacto se cierran en T02.
+summary, category, suggestedSeverity, evidence, hypotheses, missingInformation y uncertainty. Las citas tienen que existir en el texto. El esquema cerrado está en docs/features/MVP.md.
 ## Datos sensibles
 Usar fixtures sintéticos. Definir política de envío al proveedor, retención/borrado y logs en T02/T08 antes de afirmar privacidad implementada.
 ## Éxito
