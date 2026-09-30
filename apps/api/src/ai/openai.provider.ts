@@ -47,7 +47,7 @@ export class OpenAiProvider {
         outputTokens: response.usage?.completion_tokens ?? null,
       };
     } catch (error) {
-      throw mapOpenAiError(error);
+      throw mapOpenAiSdkError(error);
     }
   }
 }
@@ -57,7 +57,7 @@ export class OpenAiProvider {
  * @param error Anything thrown by the SDK call.
  * @returns A ProviderRequestError. Unknown errors become `network`.
  */
-function mapOpenAiError(error: unknown): ProviderRequestError {
+export function mapOpenAiSdkError(error: unknown): ProviderRequestError {
   if (error instanceof OpenAI.APIConnectionTimeoutError) {
     return new ProviderRequestError('timeout', 'The provider did not respond in time.');
   }

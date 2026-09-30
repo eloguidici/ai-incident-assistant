@@ -2,6 +2,7 @@ node_modules/
 dist/
 .env
 .env.local
+open-router-key.txt
 *.log
 qa-artifacts/
 playwright-report/

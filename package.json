@@ -21,6 +21,8 @@
     "qa:seed": "npm run seed:test -w @app/api",
     "qa:eval": "npm run eval -w @app/api",
     "qa:ai:live": "npm run live -w @app/api",
+    "qa:ai:live-openrouter": "npm run live-openrouter -w @app/api",
+    "qa:openrouter:ping": "node --use-system-ca apps/api/scripts/openrouter-ping.mjs",
     "qa:smoke": "npm run build -w @app/api && playwright test --project=e2e qa/e2e/smoke.spec.ts",
     "qa:e2e": "npm run build -w @app/api && playwright test --project=e2e",
     "qa:e2e:headed": "npm run build -w @app/api && playwright test --project=e2e --headed",

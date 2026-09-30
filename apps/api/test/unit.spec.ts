@@ -42,6 +42,15 @@ describe('pure rules', () => {
     process.env.OPENAI_API_KEY = '';
   });
 
+  it('requires a key when the provider is openrouter', () => {
+    const previousProvider = process.env.LLM_PROVIDER;
+    process.env.LLM_PROVIDER = 'openrouter';
+    process.env.OPENROUTER_API_KEY = '';
+    expect(() => loadAppConfig()).toThrow(/OPENROUTER_API_KEY/);
+    process.env.LLM_PROVIDER = previousProvider;
+    process.env.OPENROUTER_API_KEY = '';
+  });
+
   it('versions the prompt and drops the oldest context', () => {
     const prompt = buildAnalysisPrompt('incident text long enough for the prompt');
     expect(prompt.promptVersion).toBe(ANALYSIS_PROMPT_VERSION);

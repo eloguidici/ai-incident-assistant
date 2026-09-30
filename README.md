@@ -4,7 +4,7 @@ Aplicación para que un analista autenticado pegue el texto de un incidente, rec
 ## Arquitectura
 Monolito NestJS/TypeScript. React habla con una API REST. PostgreSQL guarda usuarios, análisis, mensajes, ejecuciones y auditoría. Los casos de uso de escritura (`crear`, `reintentar`, `preguntar`) están separados de las lecturas (`listar`, `detalle`).
 
-La llamada al modelo sigue este camino: caso de uso, `PromptBuilder`, `LlmProvider`, `OutputValidator`, persistencia. La transacción de base no permanece abierta durante la llamada de red. Hay un proveedor `mock` determinístico y un proveedor `openai` detrás del mismo contrato. El SDK de OpenAI se usa directo, con `maxRetries: 0`: el único reintento lo decide la aplicación.
+La llamada al modelo sigue este camino: caso de uso, `PromptBuilder`, `LlmProvider`, `OutputValidator`, persistencia. La transacción de base no permanece abierta durante la llamada de red. Hay un proveedor `mock` determinístico y proveedores reales (`openai`, `openrouter`) detrás del mismo contrato. El SDK de OpenAI (u OpenRouter vía API compatible) se usa directo, con `maxRetries: 0`: el único reintento lo decide la aplicación.
 
 ## Decisiones y límites
 - Texto, no carga de archivos. Máximo 8000 caracteres; una pregunta, 1000.
@@ -15,7 +15,7 @@ La llamada al modelo sigue este camino: caso de uso, `PromptBuilder`, `LlmProvid
 - Timeout total configurable (`LLM_DEADLINE_MS`, 20 s en local) y como máximo un reintento ante red, 429 o 5xx. Un timeout no prueba que el proveedor no haya cobrado la solicitud.
 - Retención local: 30 días por defecto. Al arrancar y cada hora se borran los análisis vencidos. La retención del proveedor de IA no la controla esta aplicación.
 - No hay streaming de tokens, RAG ni herramientas con efectos.
-- La calidad del mock no certifica al modelo real. La muestra con proveedor real queda bloqueada si no hay `OPENAI_API_KEY`.
+- La calidad del mock no certifica al modelo real. Las muestras con proveedor real quedan bloqueadas si falta la clave del proveedor elegido (`OPENAI_API_KEY` o `OPENROUTER_API_KEY`).
 
 El detalle está en [docs/architecture/RATIONALE.md](docs/architecture/RATIONALE.md), [docs/features/MVP.md](docs/features/MVP.md) y [docs/security/DATA_POLICY.md](docs/security/DATA_POLICY.md).
 
@@ -40,7 +40,7 @@ Abrí http://127.0.0.1:5173. Usuarios locales, solo para esta base de demostraci
 - `analyst.b@example.test`
 - contraseña: `local-demo-password`
 
-Esos valores están en `.env.example`. No sirven fuera de esta base local. Para usar OpenAI, en `.env` poné `LLM_PROVIDER=openai` y `OPENAI_API_KEY` sin commitear el archivo.
+Esos valores están en `.env.example`. No sirven fuera de esta base local. Para OpenAI: `LLM_PROVIDER=openai` y `OPENAI_API_KEY`. Para OpenRouter: `LLM_PROVIDER=openrouter`, `OPENROUTER_API_KEY` y opcionalmente `OPENROUTER_MODEL`. No commitees `.env`.
 
 Si `npm run qa:ai:live` termina con `Provider: kind=network` pero `curl` autenticado a `https://api.openai.com/v1/models` responde 200, la clave suele estar bien y Node no confía en la cadena TLS (antivirus, VPN o `NODE_EXTRA_CA_CERTS` apuntando a un PEM incorrecto). Corregí el almacén de certificados de Windows o quitá esa variable y volvé a ejecutar el comando.
 
@@ -58,7 +58,8 @@ Ese comando construye las imágenes. En esta sesión `docker build` de la API fa
 | `npm test` | Unitarias e integración contra PostgreSQL en el puerto 5432 | PASS, 18 tests |
 | `npm run build` | Typecheck y build de API y web | PASS |
 | `npm run qa:eval` | Rúbrica sobre el proveedor mock | PASS, 5 fixtures |
-| `npm run qa:ai:live` | Una muestra real | BLOCKED, sin `OPENAI_API_KEY` |
+| `npm run qa:ai:live` | Una muestra real (OpenAI) | Requiere `OPENAI_API_KEY` |
+| `npm run qa:ai:live-openrouter` | Una muestra real (OpenRouter) | Requiere `OPENROUTER_API_KEY` |
 | `npm run qa:e2e` | Login, análisis, pregunta, historial, error, HTML y aislamiento en Chrome | PASS, 3 tests |
 | `npm run qa:demo` | Recorrido con video | PASS. El video queda en `qa-artifacts/`, fuera de Git |
 | `npm run check:web-docs` | El build de React no incluye documentos internos | PASS |

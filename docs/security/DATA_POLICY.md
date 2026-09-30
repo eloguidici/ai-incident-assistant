@@ -15,7 +15,7 @@ Estado: implementada en la aplicación local. La retención del proveedor extern
 Contraseña en claro, clave del proveedor, cuerpo crudo devuelto por el modelo, prompt completo, cookies y encabezado `Authorization`. Los logs solo aceptan una lista cerrada de campos (`msg`, `status`, `correlationId`, `latencyMs`, `provider`, `model`, `promptVersion`, `attempts`, `errorCode`, ids). Un test de integración envía un texto con un marcador y comprueba que no aparece en `console.log`.
 
 ## Proveedor
-Con `LLM_PROVIDER=openai` el incidente sale del proceso hacia la API configurada. Esa copia sigue la política del proveedor, no `RETENTION_DAYS`. Con `mock` no hay llamada externa.
+Con `LLM_PROVIDER=openai` o `openrouter` el incidente sale del proceso hacia la API configurada. Esa copia sigue la política del proveedor, no `RETENTION_DAYS`. Con `mock` no hay llamada externa.
 
 ## Borrado
 `AnalysesService.purgeExpired` corre al iniciar y cada hora. También se puede provocar en tests. El caso de integración marca `expires_at` en el pasado y comprueba el 404 posterior. No es un job de nube.

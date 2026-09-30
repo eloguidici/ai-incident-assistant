@@ -3,6 +3,7 @@ process.env.JWT_SECRET = 'test-jwt-secret-at-least-32-characters-long';
 process.env.WEB_ORIGIN = 'http://127.0.0.1:5173';
 process.env.LLM_PROVIDER = 'mock';
 process.env.OPENAI_API_KEY = '';
+process.env.OPENROUTER_API_KEY = '';
 process.env.SEED_DEMO = 'false';
 process.env.ALLOW_SEED_DEMO = 'true';
 process.env.SEED_PASSWORD = 'local-demo-password';

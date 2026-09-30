@@ -24,7 +24,7 @@ export interface AuthConfig {
 }
 
 export interface LlmConfig {
-  provider: 'mock' | 'openai';
+  provider: 'mock' | 'openai' | 'openrouter';
   apiKey: string;
   model: string;
   deadlineMs: number;
@@ -104,9 +104,11 @@ export const authConfig = defineConfigSlice<AuthConfig>({
 export const llmConfig = defineConfigSlice<LlmConfig>({
   name: 'llm',
   schema: Joi.object({
-    LLM_PROVIDER: Joi.string().valid('mock', 'openai').required(),
+    LLM_PROVIDER: Joi.string().valid('mock', 'openai', 'openrouter').required(),
     OPENAI_API_KEY: Joi.string().allow('').optional(),
     OPENAI_MODEL: Joi.string().min(1).default('gpt-4o-mini'),
+    OPENROUTER_API_KEY: Joi.string().allow('').optional(),
+    OPENROUTER_MODEL: Joi.string().min(1).default('openai/gpt-4o-mini'),
     LLM_DEADLINE_MS: Joi.number().integer().min(500).max(120000).default(20000),
     LLM_ATTEMPT_TIMEOUT_MS: Joi.number().integer().min(200).max(120000).default(12000),
     LLM_MAX_OUTPUT_TOKENS: Joi.number().integer().min(256).max(16384).default(4096),
@@ -117,18 +119,30 @@ export const llmConfig = defineConfigSlice<LlmConfig>({
     FAULT_INJECTION: flag,
   }).custom((env: Record<string, unknown>, helpers) => {
     const openAiKey = typeof env.OPENAI_API_KEY === 'string' ? env.OPENAI_API_KEY : '';
+    const openRouterKey = typeof env.OPENROUTER_API_KEY === 'string' ? env.OPENROUTER_API_KEY : '';
     if (env.LLM_PROVIDER === 'openai' && openAiKey.length < 10) {
       return helpers.message({ custom: 'OPENAI_API_KEY is required when LLM_PROVIDER=openai' });
+    }
+    if (env.LLM_PROVIDER === 'openrouter' && openRouterKey.length < 10) {
+      return helpers.message({ custom: 'OPENROUTER_API_KEY is required when LLM_PROVIDER=openrouter' });
     }
     if (Number(env.LLM_ATTEMPT_TIMEOUT_MS) > Number(env.LLM_DEADLINE_MS)) {
       return helpers.message({ custom: 'LLM_ATTEMPT_TIMEOUT_MS cannot exceed LLM_DEADLINE_MS' });
     }
     return env;
   }),
-  map: (env) => ({
-    provider: env.LLM_PROVIDER as LlmConfig['provider'],
-    apiKey: (env.OPENAI_API_KEY as string | undefined) ?? '',
-    model: env.OPENAI_MODEL as string,
+  map: (env) => {
+    const provider = env.LLM_PROVIDER as LlmConfig['provider'];
+    const apiKey =
+      provider === 'openrouter'
+        ? ((env.OPENROUTER_API_KEY as string | undefined) ?? '')
+        : ((env.OPENAI_API_KEY as string | undefined) ?? '');
+    const model =
+      provider === 'openrouter' ? (env.OPENROUTER_MODEL as string) : (env.OPENAI_MODEL as string);
+    return {
+    provider,
+    apiKey,
+    model,
     deadlineMs: env.LLM_DEADLINE_MS as number,
     attemptTimeoutMs: env.LLM_ATTEMPT_TIMEOUT_MS as number,
     maxOutputTokens: env.LLM_MAX_OUTPUT_TOKENS as number,
@@ -137,7 +151,8 @@ export const llmConfig = defineConfigSlice<LlmConfig>({
     questionMax: env.QUESTION_MAX as number,
     maxInflight: env.MAX_INFLIGHT_LLM as number,
     faultInjection: env.FAULT_INJECTION as boolean,
-  }),
+  };
+  },
 });
 
 /** Hourly caps for analyses and follow-up questions. */

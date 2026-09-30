@@ -3,6 +3,7 @@ import { CqrsModule } from '@nestjs/cqrs';
 import { LlmGateway, type LlmProvider } from '../ai/gateway';
 import { MockProvider } from '../ai/mock.provider';
 import { OpenAiProvider } from '../ai/openai.provider';
+import { OpenRouterProvider } from '../ai/openrouter.provider';
 import { getConfigToken } from '../config';
 import { llmConfig, type LlmConfig } from '../config/slices';
 import { AddQuestionHandler } from './commands/add-question.handler';
@@ -28,8 +29,11 @@ import { AnalysesService } from './analyses.service';
     {
       provide: 'LLM_PROVIDER',
       inject: [getConfigToken(llmConfig)],
-      useFactory: (llmSettings: LlmConfig): LlmProvider =>
-        llmSettings.provider === 'openai' ? new OpenAiProvider(llmSettings) : new MockProvider(),
+      useFactory: (llmSettings: LlmConfig): LlmProvider => {
+        if (llmSettings.provider === 'openai') return new OpenAiProvider(llmSettings);
+        if (llmSettings.provider === 'openrouter') return new OpenRouterProvider(llmSettings);
+        return new MockProvider();
+      },
     },
     {
       provide: LlmGateway,
