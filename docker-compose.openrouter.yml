@@ -1,0 +1,11 @@
+# Optional override for a bounded real OpenRouter run (T11-D).
+# Usage (from repo root, with OPENROUTER_API_KEY in `.env`, never commit keys):
+#   docker compose -f docker-compose.yml -f docker-compose.openrouter.yml up --build -d
+services:
+  api:
+    environment:
+      LLM_PROVIDER: openrouter
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
+      OPENROUTER_MODEL: ${OPENROUTER_MODEL:-openai/gpt-4o-mini}
+      LLM_DEADLINE_MS: "45000"
+      LLM_ATTEMPT_TIMEOUT_MS: "20000"

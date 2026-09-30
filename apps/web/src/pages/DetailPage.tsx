@@ -16,16 +16,23 @@ export function DetailPage() {
 
   useEffect(() => {
     const controller = new AbortController();
+    let active = true;
     setError(null);
     setDetail(null);
     api<AnalysisDetail>(`/api/analyses/${id}`, { signal: controller.signal })
-      .then(setDetail)
+      .then((loadedDetail) => {
+        if (!active || controller.signal.aborted) return;
+        setDetail(loadedDetail);
+      })
       .catch((failure: unknown) => {
-        if (failure instanceof DOMException && failure.name === 'AbortError') return;
+        if (!active || (failure instanceof DOMException && failure.name === 'AbortError')) return;
         setDetail(null);
         setError(failure instanceof ApiError ? failure.message : 'The analysis could not be opened.');
       });
-    return () => controller.abort();
+    return () => {
+      active = false;
+      controller.abort();
+    };
   }, [id]);
 
   /**

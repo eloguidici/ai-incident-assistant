@@ -20,15 +20,22 @@ export function HistoryPage() {
 
   useEffect(() => {
     const controller = new AbortController();
+    let active = true;
     setError(null);
     setPage(null);
     api<HistoryPageResponse>(`/api/analyses?limit=${PAGE_SIZE}&offset=${offset}`, { signal: controller.signal })
-      .then((response) => setPage(response))
+      .then((response) => {
+        if (!active || controller.signal.aborted) return;
+        setPage(response);
+      })
       .catch((failure: unknown) => {
-        if (failure instanceof DOMException && failure.name === 'AbortError') return;
+        if (!active || (failure instanceof DOMException && failure.name === 'AbortError')) return;
         setError(failure instanceof ApiError ? failure.message : 'The history could not be loaded.');
       });
-    return () => controller.abort();
+    return () => {
+      active = false;
+      controller.abort();
+    };
   }, [offset]);
 
   if (error) return <p className="error" role="alert">{error}</p>;

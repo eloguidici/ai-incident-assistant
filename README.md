@@ -53,8 +53,10 @@ The web image serves React at http://localhost:8080 and proxies `/api/` to the A
 | `npm run typecheck` | API and frontend type checks |
 | `npm run build` | Compile API and build React |
 | `npm run test:coverage` | Unit and PostgreSQL integration tests |
+| `npm run test:web` | Focused React/Vitest checks (mocked HTTP) |
 | `npm run qa:eval` | Deterministic mock evaluation fixtures |
 | `npm run qa:e2e` | Browser workflows using the configured test environment |
+| `npm run qa:e2e:compose` | Browser checks against `docker compose` nginx on :8080 |
 | `npm run qa:demo` | Browser demonstration with video artifacts |
 | `npm run qa:ai:live` | OpenAI sample using a local key |
 | `npm run qa:ai:live-openrouter` | OpenRouter sample using a local key |
