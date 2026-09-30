@@ -18,6 +18,7 @@ export async function createApplication() {
     bodyParser: false,
     logger: false,
   });
+  app.enableShutdownHooks();
   const settings = app.get<AppConfig>(getConfigToken(appConfig));
   const expressApp = app.getHttpAdapter().getInstance() as Express;
   if (settings.trustProxy) expressApp.set('trust proxy', 1);

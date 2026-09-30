@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Query, Req, Res, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Param, Post, Query, Req, Res, UseGuards } from '@nestjs/common';
 import { ApiBody, ApiCookieAuth, ApiOperation, ApiParam, ApiQuery, ApiResponse, ApiSecurity, ApiTags } from '@nestjs/swagger';
 import type { Request, Response } from 'express';
 import { z } from 'zod';
@@ -66,6 +66,7 @@ export class AnalysesController {
    * @throws AppError VALIDATION_ERROR when the body has any other field.
    */
   @Post()
+  @HttpCode(200)
   @ApiSecurity('csrf')
   @ApiOperation({ summary: 'Analyze incident text with the configured LLM provider' })
   @ApiBody({ type: CreateAnalysisRequestDto })
@@ -113,6 +114,7 @@ export class AnalysesController {
    * @throws AppError VALIDATION_ERROR when the body has any other field.
    */
   @Post(':id/messages')
+  @HttpCode(200)
   @ApiSecurity('csrf')
   @ApiOperation({ summary: 'Ask a follow-up question about the original incident text' })
   @ApiParam({ name: 'id', format: 'uuid' })
@@ -149,6 +151,7 @@ export class AnalysesController {
    * @throws AppError NOT_FOUND or CONFLICT. See {@link RetryAnalysisHandler.execute}.
    */
   @Post(':id/retry')
+  @HttpCode(200)
   @ApiSecurity('csrf')
   @ApiOperation({ summary: 'Retry a failed analysis' })
   @ApiParam({ name: 'id', format: 'uuid' })
@@ -173,9 +176,10 @@ export class AnalysesController {
    */
   private async withDeadline<T>(response: Response, run: (signal: AbortSignal) => Promise<T>): Promise<T> {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), this.llmSettings.deadlineMs);
+    const deadlineAt = Date.now() + this.llmSettings.deadlineMs;
+    const timer = setTimeout(() => controller.abort('deadline'), Math.max(0, deadlineAt - Date.now()));
     const onClose = () => {
-      if (!response.writableEnded) controller.abort();
+      if (!response.writableEnded) controller.abort('client');
     };
     response.on('close', onClose);
     try {

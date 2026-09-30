@@ -1,6 +1,6 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { api, ApiError, RunStatus, type AnalysisDetail } from '../api';
+import { api, ApiError, RunStatus, type AnalysisDetail, type QuestionResult } from '../api';
 import { ResultView } from '../components/ResultView';
 
 /**
@@ -14,28 +14,18 @@ export function DetailPage() {
   const [question, setQuestion] = useState('');
   const [pending, setPending] = useState(false);
 
-  /**
-   * Fetches the analysis for the current id. On failure it clears the detail and shows the API message.
-   * @returns A promise that settles after the state is updated. It never rejects.
-   */
-  function fetchDetail(): Promise<void> {
-    return api<AnalysisDetail>(`/api/analyses/${id}`)
+  useEffect(() => {
+    const controller = new AbortController();
+    setError(null);
+    setDetail(null);
+    api<AnalysisDetail>(`/api/analyses/${id}`, { signal: controller.signal })
       .then(setDetail)
       .catch((failure: unknown) => {
+        if (failure instanceof DOMException && failure.name === 'AbortError') return;
         setDetail(null);
         setError(failure instanceof ApiError ? failure.message : 'The analysis could not be opened.');
-      })
-      .then(() => undefined);
-  }
-
-  function load(): Promise<void> {
-    setError(null);
-    return fetchDetail();
-  }
-
-  useEffect(() => {
-    void load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+      });
+    return () => controller.abort();
   }, [id]);
 
   /**
@@ -55,7 +45,11 @@ export function DetailPage() {
       setQuestion('');
     } catch (failure) {
       setError(failure instanceof ApiError ? failure.message : 'The question could not be sent.');
-      await fetchDetail();
+      try {
+        setDetail(await api<AnalysisDetail>(`/api/analyses/${id}`));
+      } catch {
+        /* keep the last good detail */
+      }
     } finally {
       setPending(false);
     }
@@ -69,7 +63,11 @@ export function DetailPage() {
       setDetail(await api<AnalysisDetail>(`/api/analyses/${id}/retry`, { method: 'POST', body: '{}' }));
     } catch (failure) {
       setError(failure instanceof ApiError ? failure.message : 'The retry could not be started.');
-      await fetchDetail();
+      try {
+        setDetail(await api<AnalysisDetail>(`/api/analyses/${id}`));
+      } catch {
+        /* keep the last good detail */
+      }
     } finally {
       setPending(false);
     }
@@ -86,6 +84,11 @@ export function DetailPage() {
         Prompt {detail.promptVersion ?? 'no version'} · model {detail.model ?? 'no model'} · expires{' '}
         {new Date(detail.expiresAt).toLocaleDateString('en-US')}
       </p>
+      {error ? (
+        <p className="error" role="alert" data-testid="action-error">
+          {error}
+        </p>
+      ) : null}
       <h2>Submitted text</h2>
       <pre data-testid="source-text">{detail.sourceText}</pre>
       {detail.status === RunStatus.Failed ? (
@@ -103,8 +106,11 @@ export function DetailPage() {
         {detail.messages.map((message) => (
           <li key={message.id} data-testid={`message-${message.status}`}>
             <span className="meta">{message.role === 'user' ? 'Analyst' : 'Assistant'} · {message.status}</span>
-            <p>{message.content}</p>
-            {message.status === RunStatus.Completed && message.result ? <ResultView result={message.result} /> : null}
+            {message.role === 'assistant' && message.status === RunStatus.Completed && message.result ? (
+              <ThreadAnswer result={message.result} />
+            ) : (
+              <p>{message.content}</p>
+            )}
           </li>
         ))}
       </ol>
@@ -114,11 +120,6 @@ export function DetailPage() {
             Question about this incident
             <textarea data-testid="question-input" value={question} onChange={(event) => setQuestion(event.target.value)} required />
           </label>
-          {error ? (
-            <p className="error" role="alert">
-              {error}
-            </p>
-          ) : null}
           {pending ? <p className="status">Asking…</p> : null}
           <button type="submit" disabled={pending || question.trim().length === 0}>
             Ask
@@ -129,5 +130,21 @@ export function DetailPage() {
         <Link to="/history">Back to history</Link>
       </p>
     </section>
+  );
+}
+
+/**
+ * Shows the assistant answer once, with optional structured detail behind a disclosure.
+ * @param result Validated question output from the API.
+ */
+function ThreadAnswer({ result }: { result: QuestionResult }) {
+  return (
+    <div className="thread-answer">
+      <p data-testid="assistant-answer">{result.answer}</p>
+      <details>
+        <summary>Evidence, hypotheses, and uncertainty</summary>
+        <ResultView result={result} hideAnswer testId="thread-result-detail" />
+      </details>
+    </div>
   );
 }

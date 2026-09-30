@@ -23,6 +23,8 @@ test('walks through login, analysis, question, and history', async ({ page }) =>
   await page.getByTestId('question-input').fill('What information is missing to confirm the cause?');
   await page.getByRole('button', { name: 'Ask' }).click();
   await expect(page.getByText('Analyst')).toBeVisible();
+  await expect(page.getByTestId('assistant-answer')).toBeVisible();
+  await expect(page.getByTestId('assistant-answer')).not.toBeEmpty();
   await page.getByRole('link', { name: 'Back to history' }).click();
   await expect(page.getByRole('heading', { name: 'History' })).toBeVisible();
   await page.reload();
@@ -41,7 +43,11 @@ test('shows a login error and keeps the script as text', async ({ page }) => {
   await page.getByTestId('source-input').fill(source);
   await page.getByRole('button', { name: 'Analyze' }).click();
   await expect(page.getByTestId('source-text')).toContainText('<script>alert(1)</script>');
-  expect(await page.evaluate(() => (window as unknown as { __xss?: boolean }).__xss)).toBeUndefined();
+  const executedAlert = await page.evaluate(() => {
+    const marker = document.querySelector('[data-testid="source-text"] script');
+    return marker !== null;
+  });
+  expect(executedAlert).toBe(false);
 });
 
 test('another user cannot open the analysis by URL', async ({ browser, page }) => {

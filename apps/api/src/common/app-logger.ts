@@ -12,6 +12,22 @@ export class AppLogger {
    * @param fields Allowlisted structured fields (see {@link logSafe}).
    */
   info(fields: Record<string, unknown>): void {
-    logSafe(fields);
+    logSafe(fields, 'info');
+  }
+
+  /**
+   * Writes one JSON log line at warn level after redaction.
+   * @param fields Allowlisted structured fields (see {@link logSafe}).
+   */
+  warn(fields: Record<string, unknown>): void {
+    logSafe(fields, 'warn');
+  }
+
+  /**
+   * Writes one JSON log line at error level after redaction.
+   * @param fields Allowlisted structured fields (see {@link logSafe}).
+   */
+  error(fields: Record<string, unknown>): void {
+    logSafe(fields, 'error');
   }
 }

@@ -237,8 +237,8 @@ export class TypeOrmAnalysisRepository implements AnalysisRepository {
     outputTokens: number | null;
     provider: string;
     model: string;
-  }): Promise<void> {
-    await this.executions.update(
+  }): Promise<boolean> {
+    const updated = await this.executions.update(
       {
         id: input.executionId,
         ownerId: input.ownerId,
@@ -256,6 +256,291 @@ export class TypeOrmAnalysisRepository implements AnalysisRepository {
         finishedAt: new Date(),
       },
     );
+    return (updated.affected ?? 0) > 0;
+  }
+
+  /** @inheritdoc */
+  async commitAnalysisSuccess(input: {
+    ownerId: string;
+    analysisId: string;
+    executionId: string;
+    result: AnalysisResult;
+    promptVersion: string;
+    provider: string;
+    model: string;
+    attemptCount: number;
+    latencyMs: number | null;
+    inputTokens: number | null;
+    outputTokens: number | null;
+    audit: {
+      actorId: string | null;
+      action: string;
+      resourceType: string;
+      resourceId: string | null;
+      result: FinishedRunStatus;
+      correlationId: string;
+    };
+    injectMidTransactionFailure?: boolean;
+  }): Promise<'committed' | 'stale'> {
+    return this.dataSource.transaction(async (manager) => {
+      const executionUpdate = await manager.update(
+        AiExecutionEntity,
+        { id: input.executionId, ownerId: input.ownerId, status: RunStatus.Processing },
+        {
+          status: RunStatus.Completed,
+          errorCode: null,
+          attemptCount: input.attemptCount,
+          latencyMs: input.latencyMs,
+          inputTokens: input.inputTokens,
+          outputTokens: input.outputTokens,
+          provider: input.provider,
+          model: input.model,
+          finishedAt: new Date(),
+        },
+      );
+      if (!executionUpdate.affected) return 'stale';
+      const analysisUpdate = await manager.update(
+        AnalysisEntity,
+        { id: input.analysisId, ownerId: input.ownerId, status: RunStatus.Processing },
+        {
+          status: RunStatus.Completed,
+          result: input.result,
+          errorCode: null,
+          errorMessage: null,
+          promptVersion: input.promptVersion,
+          provider: input.provider,
+          model: input.model,
+          updatedAt: new Date(),
+        },
+      );
+      if (!analysisUpdate.affected) throw new Error('analysis_commit_inconsistent');
+      if (input.injectMidTransactionFailure) throw new Error('injected-write-failure');
+      await manager.insert(AuditEventEntity, {
+        actorId: input.audit.actorId,
+        action: input.audit.action,
+        resourceType: input.audit.resourceType,
+        resourceId: input.audit.resourceId,
+        result: input.audit.result,
+        correlationId: input.audit.correlationId,
+      });
+      return 'committed';
+    });
+  }
+
+  /** @inheritdoc */
+  async commitAnalysisFailure(input: {
+    ownerId: string;
+    analysisId: string;
+    executionId: string;
+    errorCode: string;
+    errorMessage: string;
+    promptVersion: string;
+    provider: string;
+    model: string;
+    attemptCount: number;
+    latencyMs: number | null;
+    inputTokens: number | null;
+    outputTokens: number | null;
+    audit: {
+      actorId: string | null;
+      action: string;
+      resourceType: string;
+      resourceId: string | null;
+      result: FinishedRunStatus;
+      correlationId: string;
+    };
+  }): Promise<'committed' | 'stale'> {
+    return this.dataSource.transaction(async (manager) => {
+      const executionUpdate = await manager.update(
+        AiExecutionEntity,
+        { id: input.executionId, ownerId: input.ownerId, status: RunStatus.Processing },
+        {
+          status: RunStatus.Failed,
+          errorCode: input.errorCode,
+          attemptCount: input.attemptCount,
+          latencyMs: input.latencyMs,
+          inputTokens: input.inputTokens,
+          outputTokens: input.outputTokens,
+          provider: input.provider,
+          model: input.model,
+          finishedAt: new Date(),
+        },
+      );
+      if (!executionUpdate.affected) return 'stale';
+      const analysisUpdate = await manager.update(
+        AnalysisEntity,
+        { id: input.analysisId, ownerId: input.ownerId, status: RunStatus.Processing },
+        {
+          status: RunStatus.Failed,
+          result: null,
+          errorCode: input.errorCode,
+          errorMessage: input.errorMessage,
+          promptVersion: input.promptVersion,
+          provider: input.provider,
+          model: input.model,
+          updatedAt: new Date(),
+        },
+      );
+      if (!analysisUpdate.affected) throw new Error('analysis_commit_inconsistent');
+      await manager.insert(AuditEventEntity, {
+        actorId: input.audit.actorId,
+        action: input.audit.action,
+        resourceType: input.audit.resourceType,
+        resourceId: input.audit.resourceId,
+        result: input.audit.result,
+        correlationId: input.audit.correlationId,
+      });
+      return 'committed';
+    });
+  }
+
+  /** @inheritdoc */
+  async commitQuestionSuccess(input: {
+    ownerId: string;
+    analysisId: string;
+    executionId: string;
+    assistantContent: string;
+    assistantResult: QuestionResult;
+    assistantSequence: number;
+    attemptCount: number;
+    latencyMs: number | null;
+    inputTokens: number | null;
+    outputTokens: number | null;
+    provider: string;
+    model: string;
+    audit: {
+      actorId: string | null;
+      action: string;
+      resourceType: string;
+      resourceId: string | null;
+      result: FinishedRunStatus;
+      correlationId: string;
+    };
+  }): Promise<'committed' | 'stale'> {
+    return this.dataSource.transaction(async (manager) => {
+      const executionUpdate = await manager.update(
+        AiExecutionEntity,
+        { id: input.executionId, ownerId: input.ownerId, status: RunStatus.Processing },
+        {
+          status: RunStatus.Completed,
+          errorCode: null,
+          attemptCount: input.attemptCount,
+          latencyMs: input.latencyMs,
+          inputTokens: input.inputTokens,
+          outputTokens: input.outputTokens,
+          provider: input.provider,
+          model: input.model,
+          finishedAt: new Date(),
+        },
+      );
+      if (!executionUpdate.affected) return 'stale';
+      await manager.insert(MessageEntity, {
+        analysisId: input.analysisId,
+        ownerId: input.ownerId,
+        role: MessageRole.Assistant,
+        content: input.assistantContent,
+        status: RunStatus.Completed,
+        result: input.assistantResult,
+        errorCode: null,
+        sequence: input.assistantSequence,
+      });
+      await manager.insert(AuditEventEntity, {
+        actorId: input.audit.actorId,
+        action: input.audit.action,
+        resourceType: input.audit.resourceType,
+        resourceId: input.audit.resourceId,
+        result: input.audit.result,
+        correlationId: input.audit.correlationId,
+      });
+      return 'committed';
+    });
+  }
+
+  /** @inheritdoc */
+  async commitQuestionFailure(input: {
+    ownerId: string;
+    analysisId: string;
+    executionId: string;
+    question: string;
+    userMessageStored: boolean;
+    errorCode: string;
+    errorMessage: string;
+    attemptCount: number;
+    latencyMs: number | null;
+    inputTokens: number | null;
+    outputTokens: number | null;
+    provider: string;
+    model: string;
+    audit: {
+      actorId: string | null;
+      action: string;
+      resourceType: string;
+      resourceId: string | null;
+      result: FinishedRunStatus;
+      correlationId: string;
+    };
+  }): Promise<'committed' | 'stale'> {
+    return this.dataSource.transaction(async (manager) => {
+      const executionUpdate = await manager.update(
+        AiExecutionEntity,
+        { id: input.executionId, ownerId: input.ownerId, status: RunStatus.Processing },
+        {
+          status: RunStatus.Failed,
+          errorCode: input.errorCode,
+          attemptCount: input.attemptCount,
+          latencyMs: input.latencyMs,
+          inputTokens: input.inputTokens,
+          outputTokens: input.outputTokens,
+          provider: input.provider,
+          model: input.model,
+          finishedAt: new Date(),
+        },
+      );
+      if (!executionUpdate.affected) return 'stale';
+      if (!input.userMessageStored) {
+        const row = await manager
+          .createQueryBuilder(MessageEntity, 'message')
+          .select('COALESCE(MAX(message.sequence), 0)', 'maxSequence')
+          .where('message.analysisId = :analysisId', { analysisId: input.analysisId })
+          .getRawOne<{ maxSequence: string | number | null }>();
+        const sequence = Number(row?.maxSequence ?? 0) + 1;
+        await manager.insert(MessageEntity, {
+          analysisId: input.analysisId,
+          ownerId: input.ownerId,
+          role: MessageRole.User,
+          content: input.question,
+          status: RunStatus.Completed,
+          result: null,
+          errorCode: null,
+          sequence,
+        });
+      }
+      const row = await manager
+        .createQueryBuilder(MessageEntity, 'message')
+        .select('COALESCE(MAX(message.sequence), 0)', 'maxSequence')
+        .where('message.analysisId = :analysisId', { analysisId: input.analysisId })
+        .getRawOne<{ maxSequence: string | number | null }>();
+      const assistantSequence = Number(row?.maxSequence ?? 0) + 1;
+      await manager.insert(MessageEntity, {
+        analysisId: input.analysisId,
+        ownerId: input.ownerId,
+        role: MessageRole.Assistant,
+        content: input.errorMessage,
+        status: RunStatus.Failed,
+        result: null,
+        errorCode: input.errorCode,
+        sequence: assistantSequence,
+      });
+      await manager.insert(AuditEventEntity, {
+        actorId: input.audit.actorId,
+        action: input.audit.action,
+        resourceType: input.audit.resourceType,
+        resourceId: input.audit.resourceId,
+        result: input.audit.result,
+        correlationId: input.audit.correlationId,
+      });
+      return 'committed';
+    });
   }
 
   /** @inheritdoc */

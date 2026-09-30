@@ -46,6 +46,7 @@ export class AddQuestionHandler {
         `You exceeded the hourly question limit. Try again in ${questionRateLimit.retryAfterSeconds} seconds.`,
       );
     }
+    await this.shared.ensureQuestionContext(command.owner.id, command.analysisId, ownedAnalysis.sourceText, command.question);
     let executionId: string;
     try {
       const started = await this.analyses.insertExecution({
@@ -63,14 +64,27 @@ export class AddQuestionHandler {
       this.shared.refundQuestionRateLimit(command.owner.id);
       this.shared.rethrowUniqueAsConflict(error, 'A question is already in progress for this analysis.');
     }
-    return this.shared.completeQuestion(
-      command.owner,
-      command.analysisId,
-      ownedAnalysis.sourceText,
-      command.question,
-      command.correlationId,
-      command.signal,
-      executionId,
-    );
+    try {
+      return await this.shared.completeQuestion(
+        command.owner,
+        command.analysisId,
+        ownedAnalysis.sourceText,
+        command.question,
+        command.correlationId,
+        command.signal,
+        executionId,
+      );
+    } catch (error) {
+      if (error instanceof AppError && error.errorCode === ErrorCode.ContextLimit) {
+        await this.shared.abortQuestionExecution(
+          executionId,
+          command.owner.id,
+          ErrorCode.ContextLimit,
+          command.correlationId,
+          command.analysisId,
+        );
+      }
+      throw error;
+    }
   }
 }

@@ -33,9 +33,14 @@ export function redactFields(fields: Record<string, unknown>): Record<string, st
 }
 
 /**
- * Writes one JSON log line at info level after redaction.
+ * Writes one JSON log line after redaction.
+ * @param level Severity label printed with the line.
  * @param fields Same input as {@link redactFields}.
  */
-export function logSafe(fields: Record<string, unknown>): void {
-  console.log(JSON.stringify({ level: 'info', ...redactFields(fields) }));
+export function logSafe(fields: Record<string, unknown>, level: 'info' | 'warn' | 'error' = 'info'): void {
+  const payload = { level, ts: new Date().toISOString(), ...redactFields(fields) };
+  const line = JSON.stringify(payload);
+  if (level === 'error') console.error(line);
+  else if (level === 'warn') console.warn(line);
+  else console.log(line);
 }

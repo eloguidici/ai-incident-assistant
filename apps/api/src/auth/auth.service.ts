@@ -46,13 +46,12 @@ export class AuthService implements OnModuleInit {
         `Too many sign-in attempts. Try again in ${loginAttempt.retryAfterSeconds} seconds.`,
       );
     }
-    this.loginLimiter.refund(loginRateKey);
     const user = await this.users.findByEmail(email.toLowerCase());
     const passwordMatches = await bcrypt.compare(password, user?.passwordHash ?? this.dummyHash);
     if (!user || !passwordMatches) {
-      this.loginLimiter.consume(loginRateKey, this.authSettings.loginMaxAttempts, 15 * 60 * 1000);
       throw new AppError(ErrorCode.InvalidCredentials, 401, 'Invalid credentials.');
     }
+    this.loginLimiter.refund(loginRateKey);
     const sessionUser = { id: user.id, email: user.email };
     const token = signSession(sessionUser, this.authSettings);
     const csrfToken = crypto.randomUUID().replace(/-/g, '') + crypto.randomUUID().replace(/-/g, '');

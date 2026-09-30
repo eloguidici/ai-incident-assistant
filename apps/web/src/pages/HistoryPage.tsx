@@ -2,23 +2,32 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api, ApiError, type AnalysisListItem } from '../api';
 
+const PAGE_SIZE = 20;
+
+type HistoryPageResponse = {
+  items: AnalysisListItem[];
+  page: { limit: number; offset: number; total: number };
+};
+
 /**
  * Lists the analyst's analyses, newest first, with an empty state when there are none.
  * @returns The list, the empty state, a loading message, or an error alert.
  */
 export function HistoryPage() {
-  const [analyses, setAnalyses] = useState<AnalysisListItem[] | null>(null);
+  const [page, setPage] = useState<HistoryPageResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [offset, setOffset] = useState(0);
 
   useEffect(() => {
-    api<{ items: AnalysisListItem[] }>('/api/analyses')
-      .then((analysisPage) => setAnalyses(analysisPage.items))
+    setError(null);
+    api<HistoryPageResponse>(`/api/analyses?limit=${PAGE_SIZE}&offset=${offset}`)
+      .then(setPage)
       .catch((failure: unknown) => setError(failure instanceof ApiError ? failure.message : 'The history could not be loaded.'));
-  }, []);
+  }, [offset]);
 
   if (error) return <p className="error" role="alert">{error}</p>;
-  if (!analyses) return <p className="status">Loading history…</p>;
-  if (analyses.length === 0) {
+  if (!page) return <p className="status">Loading history…</p>;
+  if (page.items.length === 0 && page.page.total === 0) {
     return (
       <section data-testid="empty-history">
         <h1>There are no analyses yet</h1>
@@ -28,11 +37,17 @@ export function HistoryPage() {
     );
   }
 
+  const canPrev = offset > 0;
+  const canNext = offset + PAGE_SIZE < page.page.total;
+
   return (
     <section>
       <h1>History</h1>
+      <p className="meta" data-testid="history-page-meta">
+        Showing {offset + 1}–{Math.min(offset + page.items.length, page.page.total)} of {page.page.total}
+      </p>
       <ul className="list">
-        {analyses.map((analysis) => (
+        {page.items.map((analysis) => (
           <li key={analysis.id}>
             <Link to={`/history/${analysis.id}`}>
               <strong>{analysis.summary || 'Analysis without a summary'}</strong>
@@ -44,6 +59,14 @@ export function HistoryPage() {
           </li>
         ))}
       </ul>
+      <div className="pager">
+        <button type="button" disabled={!canPrev} onClick={() => setOffset((value) => Math.max(0, value - PAGE_SIZE))}>
+          Previous
+        </button>
+        <button type="button" disabled={!canNext} onClick={() => setOffset((value) => value + PAGE_SIZE)}>
+          Next
+        </button>
+      </div>
     </section>
   );
 }

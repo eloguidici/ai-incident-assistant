@@ -71,7 +71,8 @@ export class LlmGateway {
         attempts += 1;
         const remaining = deadlineAt - Date.now();
         if (parentSignal.aborted || remaining < 200) {
-          throw new ProviderRequestError(parentSignal.aborted ? 'cancelled' : 'timeout', 'The total time budget ran out.');
+          const kind = parentSignal.aborted ? parentAbortKind(parentSignal) : 'timeout';
+          throw new ProviderRequestError(kind, 'The total time budget ran out.');
         }
         const attemptMs = Math.min(this.llmSettings.attemptTimeoutMs, remaining);
         const attemptController = new AbortController();
@@ -85,7 +86,7 @@ export class LlmGateway {
           );
           return { response, attempts, latencyMs: Date.now() - started };
         } catch (error) {
-          const mapped = asProviderError(error, parentSignal.aborted, attemptController.signal.aborted);
+          const mapped = asProviderError(error, parentSignal.aborted, attemptController.signal.aborted, parentSignal);
           const budgetLeft = deadlineAt - Date.now();
           const waitMs = retryBackoffMs(mapped.retryAfterMs);
           const canRetry = attempts < 2 && isRetryable(mapped.kind) && !parentSignal.aborted && budgetLeft > waitMs + 200;
@@ -111,8 +112,14 @@ export class LlmGateway {
  * @param attemptAborted True when only this attempt's timer fired.
  * @returns `cancelled` for the caller, `timeout` when the attempt timer fired, otherwise the original or a network error.
  */
-function asProviderError(error: unknown, parentAborted: boolean, attemptAborted: boolean): ProviderRequestError {
-  if (parentAborted) return new ProviderRequestError('cancelled', 'The request was cancelled.');
+function parentAbortKind(signal: AbortSignal): 'cancelled' | 'timeout' {
+  return signal.reason === 'deadline' ? 'timeout' : 'cancelled';
+}
+
+function asProviderError(error: unknown, parentAborted: boolean, attemptAborted: boolean, parentSignal: AbortSignal): ProviderRequestError {
+  if (parentAborted) {
+    return new ProviderRequestError(parentAbortKind(parentSignal), parentAbortKind(parentSignal) === 'timeout' ? 'The total time budget ran out.' : 'The request was cancelled.');
+  }
   if (error instanceof ProviderRequestError) {
     if (error.kind === 'cancelled' && attemptAborted) return new ProviderRequestError('timeout', 'The attempt exceeded the time limit.');
     return error;
@@ -129,16 +136,21 @@ function asProviderError(error: unknown, parentAborted: boolean, attemptAborted:
  */
 function delay(ms: number, signal: AbortSignal): Promise<void> {
   return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => resolve(), ms);
     const onAbort = () => {
       clearTimeout(timer);
-      reject(new ProviderRequestError('cancelled', 'The request was cancelled.'));
+      signal.removeEventListener('abort', onAbort);
+      reject(new ProviderRequestError(parentAbortKind(signal), 'The request was cancelled.'));
     };
     if (signal.aborted) {
       onAbort();
       return;
     }
-    signal.addEventListener('abort', onAbort, { once: true });
+    signal.addEventListener('abort', onAbort);
+    const timer = setTimeout(() => {
+      clearTimeout(timer);
+      signal.removeEventListener('abort', onAbort);
+      resolve();
+    }, ms);
   });
 }
 

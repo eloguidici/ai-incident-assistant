@@ -91,7 +91,100 @@ export interface AnalysisRepository {
     outputTokens: number | null;
     provider: string;
     model: string;
-  }): Promise<void>;
+  }): Promise<boolean>;
+
+  commitAnalysisSuccess(input: {
+    ownerId: string;
+    analysisId: string;
+    executionId: string;
+    result: AnalysisResult;
+    promptVersion: string;
+    provider: string;
+    model: string;
+    attemptCount: number;
+    latencyMs: number | null;
+    inputTokens: number | null;
+    outputTokens: number | null;
+    audit: {
+      actorId: string | null;
+      action: string;
+      resourceType: string;
+      resourceId: string | null;
+      result: FinishedRunStatus;
+      correlationId: string;
+    };
+    injectMidTransactionFailure?: boolean;
+  }): Promise<'committed' | 'stale'>;
+
+  commitAnalysisFailure(input: {
+    ownerId: string;
+    analysisId: string;
+    executionId: string;
+    errorCode: string;
+    errorMessage: string;
+    promptVersion: string;
+    provider: string;
+    model: string;
+    attemptCount: number;
+    latencyMs: number | null;
+    inputTokens: number | null;
+    outputTokens: number | null;
+    audit: {
+      actorId: string | null;
+      action: string;
+      resourceType: string;
+      resourceId: string | null;
+      result: FinishedRunStatus;
+      correlationId: string;
+    };
+  }): Promise<'committed' | 'stale'>;
+
+  commitQuestionSuccess(input: {
+    ownerId: string;
+    analysisId: string;
+    executionId: string;
+    assistantContent: string;
+    assistantResult: QuestionResult;
+    assistantSequence: number;
+    attemptCount: number;
+    latencyMs: number | null;
+    inputTokens: number | null;
+    outputTokens: number | null;
+    provider: string;
+    model: string;
+    audit: {
+      actorId: string | null;
+      action: string;
+      resourceType: string;
+      resourceId: string | null;
+      result: FinishedRunStatus;
+      correlationId: string;
+    };
+  }): Promise<'committed' | 'stale'>;
+
+  commitQuestionFailure(input: {
+    ownerId: string;
+    analysisId: string;
+    executionId: string;
+    question: string;
+    userMessageStored: boolean;
+    errorCode: string;
+    errorMessage: string;
+    attemptCount: number;
+    latencyMs: number | null;
+    inputTokens: number | null;
+    outputTokens: number | null;
+    provider: string;
+    model: string;
+    audit: {
+      actorId: string | null;
+      action: string;
+      resourceType: string;
+      resourceId: string | null;
+      result: FinishedRunStatus;
+      correlationId: string;
+    };
+  }): Promise<'committed' | 'stale'>;
 
   appendMessage(input: {
     analysisId: string;

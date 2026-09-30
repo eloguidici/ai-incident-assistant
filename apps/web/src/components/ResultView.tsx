@@ -5,11 +5,19 @@ import type { AnalysisResult, QuestionResult } from '../api';
  * @param result Analysis result, or a question result whose answer is shown first.
  * @returns The result article.
  */
-export function ResultView({ result }: { result: AnalysisResult | QuestionResult }) {
+export function ResultView({
+  result,
+  hideAnswer = false,
+  testId = 'analysis-result',
+}: {
+  result: AnalysisResult | QuestionResult;
+  hideAnswer?: boolean;
+  testId?: string;
+}) {
   const answer = 'answer' in result ? result.answer : null;
   return (
-    <article className="result" data-testid="analysis-result">
-      {answer ? (
+    <article className="result" data-testid={testId}>
+      {answer && !hideAnswer ? (
         <section>
           <h2>Answer</h2>
           <p>{answer}</p>

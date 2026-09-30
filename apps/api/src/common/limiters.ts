@@ -38,7 +38,8 @@ export class SlidingWindowLimiter {
    */
   private prune(key: string, windowMs: number, now: number): Bucket {
     const bucket = (this.hits.get(key) ?? []).filter((timestamp) => now - timestamp < windowMs);
-    this.hits.set(key, bucket);
+    if (bucket.length === 0) this.hits.delete(key);
+    else this.hits.set(key, bucket);
     return bucket;
   }
 }

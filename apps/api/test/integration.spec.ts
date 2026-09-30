@@ -3,7 +3,7 @@ import { DataSource } from 'typeorm';
 import jwt from 'jsonwebtoken';
 import request from 'supertest';
 import { MockFaultTag } from '../src/ai/mock-fault-tags';
-import { ANALYSIS_PROMPT_VERSION } from '../src/ai/contracts';
+import { ANALYSIS_PROMPT_VERSION, type AnalysisResult } from '../src/ai/contracts';
 import { createApplication } from '../src/main';
 import { ErrorCode } from '../src/common/constants/error-code';
 import { CsrfHeaderName, SessionCookieName } from '../src/common/constants/http';
@@ -282,6 +282,116 @@ describe('API with PostgreSQL', () => {
     expect(deleted).toBeGreaterThan(0);
     const missing = await agent.get(`/api/analyses/${created.body.id}`);
     expect(missing.status).toBe(404);
+  });
+
+  const sampleResult: AnalysisResult = {
+    summary: 'Payments outage',
+    category: 'availability',
+    suggestedSeverity: 'high',
+    evidence: [{ quote: 'payments service returned HTTP 503', note: 'Observed in the incident text.' }],
+    hypotheses: [{ statement: 'Load balancer health checks failed.', confidence: 'medium' }],
+    missingInformation: ['Deployment timeline'],
+    uncertainty: 'Root cause not confirmed.',
+  };
+
+  it('N01 rolls back a mid-transaction commit without marking the analysis completed', async () => {
+    const { userId } = await asUser(userA);
+    const repo = app.get<AnalysisRepository>(ANALYSIS_REPOSITORY);
+    const reserved = await repo.reserveProcessingAnalysisWithExecution({
+      ownerId: userId,
+      sourceText: `${incident} rollback probe`,
+      expiresAt: new Date(Date.now() + 86400000),
+      kind: 'analysis',
+      promptVersion: ANALYSIS_PROMPT_VERSION,
+      provider: 'mock',
+      model: 'mock-incident-v1',
+      correlationId: 'n01-rollback',
+    });
+    await expect(
+      repo.commitAnalysisSuccess({
+        ownerId: userId,
+        analysisId: reserved.analysisId,
+        executionId: reserved.executionId,
+        result: sampleResult,
+        promptVersion: ANALYSIS_PROMPT_VERSION,
+        provider: 'mock',
+        model: 'mock-incident-v1',
+        attemptCount: 1,
+        latencyMs: 10,
+        inputTokens: 1,
+        outputTokens: 1,
+        audit: {
+          actorId: userId,
+          action: 'analysis.create',
+          resourceType: 'analysis',
+          resourceId: reserved.analysisId,
+          result: RunStatus.Completed,
+          correlationId: 'n01-rollback',
+        },
+        injectMidTransactionFailure: true,
+      }),
+    ).rejects.toThrow('injected-write-failure');
+    const dataSource = app.get(DataSource);
+    const rows = await dataSource.query<{ status: string; result: unknown }[]>(
+      `select status, result from analyses where id = $1`,
+      [reserved.analysisId],
+    );
+    expect(rows[0]?.status).toBe(RunStatus.Processing);
+    expect(rows[0]?.result).toBeNull();
+    expect(await countProcessingExecutions(dataSource)).toBeGreaterThanOrEqual(1);
+  });
+
+  it('N03 stale execution commit does not overwrite a newer completed analysis', async () => {
+    const { agent, csrf, userId } = await asUser(userB);
+    const failed = await agent
+      .post('/api/analyses')
+      .set(CsrfHeaderName, csrf)
+      .send({ sourceText: `${incident} stale-run ${MockFaultTag.ServerTwice}` });
+    expect(failed.status).toBe(502);
+    const analysisId = failed.body.error.analysisId as string;
+    const beforeRetry = await agent.get(`/api/analyses/${analysisId}`);
+    const staleExecutionId = beforeRetry.body.executions[0].id as string;
+    const retried = await agent.post(`/api/analyses/${analysisId}/retry`).set(CsrfHeaderName, csrf).send({});
+    expect(retried.ok).toBe(true);
+    expect(retried.body.status).toBe(RunStatus.Completed);
+    const repo = app.get<AnalysisRepository>(ANALYSIS_REPOSITORY);
+    const staleCommit = await repo.commitAnalysisSuccess({
+      ownerId: userId,
+      analysisId,
+      executionId: staleExecutionId,
+      result: { ...sampleResult, summary: 'Stale overwrite attempt' },
+      promptVersion: ANALYSIS_PROMPT_VERSION,
+      provider: 'mock',
+      model: 'mock-incident-v1',
+      attemptCount: 1,
+      latencyMs: 1,
+      inputTokens: 1,
+      outputTokens: 1,
+      audit: {
+        actorId: userId,
+        action: 'analysis.create',
+        resourceType: 'analysis',
+        resourceId: analysisId,
+        result: RunStatus.Completed,
+        correlationId: 'n03-stale',
+      },
+    });
+    expect(staleCommit).toBe('stale');
+    const reloaded = await agent.get(`/api/analyses/${analysisId}`);
+    expect(reloaded.body.result.summary).not.toBe('Stale overwrite attempt');
+    expect(reloaded.body.status).toBe(RunStatus.Completed);
+  });
+
+  it('N04 rejects part of a concurrent login burst before password work', async () => {
+    const attempts = Array.from({ length: 12 }, () =>
+      request(app.getHttpServer()).post('/api/auth/login').send({ email: userA, password: 'wrong-password' }),
+    );
+    const responses = await Promise.all(attempts);
+    const rateLimited = responses.filter((response) => response.status === 429);
+    const unauthorized = responses.filter((response) => response.status === 401);
+    expect(rateLimited.length).toBeGreaterThan(0);
+    expect(unauthorized.length).toBeGreaterThan(0);
+    expect(rateLimited.length + unauthorized.length).toBe(12);
   });
 
   it('rolls back the test migration and applies it again', async () => {

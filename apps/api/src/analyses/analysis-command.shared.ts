@@ -76,6 +76,23 @@ export class AnalysisCommandShared {
   }
 
   /**
+   * Ensures the incident, thread, and question fit the context budget before reserving a question execution.
+   * @throws AppError CONTEXT_LIMIT when the model must not be called.
+   */
+  async ensureQuestionContext(ownerId: string, analysisId: string, sourceText: string, question: string): Promise<void> {
+    const history = await this.analyses.listMessages(analysisId, ownerId);
+    const contextWindow = selectContext(
+      sourceText,
+      history.map((message) => ({ role: message.role, content: message.content })),
+      question,
+      this.llmSettings.contextCharBudget,
+    );
+    if (contextWindow.rejected) {
+      throw new AppError(ErrorCode.ContextLimit, 413, 'The incident and the question exceed the context budget. The model was not called.');
+    }
+  }
+
+  /**
    * Consumes one analysis slot for the owner.
    * @returns When not ok, caller must not proceed and should throw RATE_LIMITED.
    */
@@ -111,6 +128,34 @@ export class AnalysisCommandShared {
   }
 
   /**
+   * Marks a reserved question execution as failed without calling the model.
+   * @param executionId Reserved row to close.
+   */
+  async abortQuestionExecution(
+    executionId: string,
+    ownerId: string,
+    errorCode: string,
+    correlationId: string,
+    analysisId: string,
+  ): Promise<void> {
+    const closed = await this.analyses.finishExecution({
+      executionId,
+      ownerId,
+      status: RunStatus.Failed,
+      errorCode,
+      attemptCount: 0,
+      latencyMs: null,
+      inputTokens: null,
+      outputTokens: null,
+      provider: this.llmSettings.provider,
+      model: this.modelName(),
+    });
+    if (!closed) {
+      this.logger.info({ msg: LogEvent.PersistFailure, errorCode: PersistenceErrorCode.DbWriteFailed, correlationId, analysisId });
+    }
+  }
+
+  /**
    * Runs the model after a processing analysis was reserved.
    * @param executionId Execution row to finish on success or failure.
    * @returns Completed detail.
@@ -123,44 +168,61 @@ export class AnalysisCommandShared {
     signal: AbortSignal,
     executionId: string,
   ): Promise<AnalysisDetailResult> {
+    const deadlineAt = Date.now() + this.llmSettings.deadlineMs;
     let outcome: LlmOutcome | undefined;
+    let persisted = false;
     try {
-      if (this.llmSettings.faultInjection && sourceText.includes(MockFaultTag.DbFailAfter)) {
-        outcome = await this.gateway.complete(buildAnalysisPrompt(sourceText), signal, Date.now() + this.llmSettings.deadlineMs);
-        validateAnalysis(outcome.response.rawText, sourceText);
-        throw new Error('injected-write-failure');
-      }
-      outcome = await this.gateway.complete(buildAnalysisPrompt(sourceText), signal, Date.now() + this.llmSettings.deadlineMs);
+      outcome = await this.gateway.complete(buildAnalysisPrompt(sourceText), signal, deadlineAt);
       const validatedAnalysis = validateAnalysis(outcome.response.rawText, sourceText);
-      await this.analyses.saveCompletedAnalysis({
+      const commit = await this.analyses.commitAnalysisSuccess({
         ownerId: owner.id,
         analysisId,
+        executionId,
         result: validatedAnalysis,
         promptVersion: ANALYSIS_PROMPT_VERSION,
         provider: outcome.response.provider,
         model: outcome.response.model,
+        attemptCount: outcome.attempts,
+        latencyMs: outcome.latencyMs,
+        inputTokens: outcome.response.inputTokens,
+        outputTokens: outcome.response.outputTokens,
+        audit: this.auditPayload(owner.id, AuditAction.AnalysisCreate, analysisId, RunStatus.Completed, correlationId),
+        injectMidTransactionFailure:
+          this.llmSettings.faultInjection && sourceText.includes(MockFaultTag.DbFailAfter),
       });
-      await this.finishExecution(executionId, owner.id, RunStatus.Completed, null, outcome);
-      await this.audit(owner.id, AuditAction.AnalysisCreate, AuditResourceType.Analysis, analysisId, RunStatus.Completed, correlationId);
-      const detail = await this.loadDetail(owner.id, analysisId);
-      if (!detail) throw new AppError(ErrorCode.NotFound, 404, 'That analysis was not found.');
-      return detail;
+      if (commit === 'stale') {
+        throw new AppError(ErrorCode.Conflict, 409, 'This analysis run is no longer active.');
+      }
+      persisted = true;
+      return await this.loadDetailOrThrow(owner.id, analysisId);
     } catch (error) {
       if (error instanceof AppError && error.errorCode === ErrorCode.Conflict) throw error;
-      const appError = this.toAppError(error, analysisId);
+      if (persisted) {
+        this.logger.info({ msg: LogEvent.PersistFailure, errorCode: PersistenceErrorCode.DbWriteFailed, correlationId, analysisId });
+        return await this.loadDetailOrThrow(owner.id, analysisId);
+      }
+      const appError = this.toAppError(error, analysisId, outcome);
       try {
-        await this.analyses.saveFailedAnalysis({
+        const commit = await this.analyses.commitAnalysisFailure({
           ownerId: owner.id,
           analysisId,
+          executionId,
           errorCode: appError.errorCode,
           errorMessage: appError.message,
           promptVersion: ANALYSIS_PROMPT_VERSION,
-          provider: this.llmSettings.provider,
-          model: this.modelName(),
+          provider: outcome?.response.provider ?? this.llmSettings.provider,
+          model: outcome?.response.model ?? this.modelName(),
+          attemptCount: this.attemptCount(outcome, error),
+          latencyMs: outcome?.latencyMs ?? null,
+          inputTokens: outcome?.response.inputTokens ?? null,
+          outputTokens: outcome?.response.outputTokens ?? null,
+          audit: this.auditPayload(owner.id, AuditAction.AnalysisCreate, analysisId, RunStatus.Failed, correlationId),
         });
-        await this.finishExecution(executionId, owner.id, RunStatus.Failed, appError.errorCode, outcome, error);
-        await this.audit(owner.id, AuditAction.AnalysisCreate, AuditResourceType.Analysis, analysisId, RunStatus.Failed, correlationId);
-      } catch {
+        if (commit === 'stale') {
+          throw new AppError(ErrorCode.Conflict, 409, 'This analysis run is no longer active.');
+        }
+      } catch (inner) {
+        if (inner instanceof AppError) throw inner;
         this.logger.info({ msg: LogEvent.PersistFailure, errorCode: PersistenceErrorCode.DbWriteFailed, correlationId, analysisId });
       }
       throw appError;
@@ -179,31 +241,30 @@ export class AnalysisCommandShared {
     outcome: LlmOutcome | undefined,
     correlationId: string,
     executionId: string,
+    userMessageStored: boolean,
   ): Promise<void> {
     try {
-      if (!(await this.analyses.hasUserMessage(analysisId, question))) {
-        await this.analyses.appendMessage({
-          analysisId,
-          ownerId,
-          role: MessageRole.User,
-          content: question,
-          status: RunStatus.Completed,
-          result: null,
-          errorCode: null,
-        });
-      }
-      await this.analyses.appendMessage({
-        analysisId,
+      const commit = await this.analyses.commitQuestionFailure({
         ownerId,
-        role: MessageRole.Assistant,
-        content: appError.message,
-        status: RunStatus.Failed,
-        result: null,
+        analysisId,
+        executionId,
+        question,
+        userMessageStored,
         errorCode: appError.errorCode,
+        errorMessage: appError.message,
+        attemptCount: this.attemptCount(outcome, appError),
+        latencyMs: outcome?.latencyMs ?? null,
+        inputTokens: outcome?.response.inputTokens ?? null,
+        outputTokens: outcome?.response.outputTokens ?? null,
+        provider: outcome?.response.provider ?? this.llmSettings.provider,
+        model: outcome?.response.model ?? this.modelName(),
+        audit: this.auditPayload(ownerId, AuditAction.QuestionAdd, analysisId, RunStatus.Failed, correlationId),
       });
-      await this.finishExecution(executionId, ownerId, RunStatus.Failed, appError.errorCode, outcome, appError);
-      await this.audit(ownerId, AuditAction.QuestionAdd, AuditResourceType.Analysis, analysisId, RunStatus.Failed, correlationId);
-    } catch {
+      if (commit === 'stale') {
+        throw new AppError(ErrorCode.Conflict, 409, 'This question run is no longer active.');
+      }
+    } catch (error) {
+      if (error instanceof AppError) throw error;
       this.logger.info({ msg: LogEvent.PersistFailure, errorCode: PersistenceErrorCode.DbWriteFailed, correlationId, analysisId });
     }
   }
@@ -221,19 +282,13 @@ export class AnalysisCommandShared {
     signal: AbortSignal,
     executionId: string,
   ): Promise<AnalysisDetailResult> {
-    const history = await this.analyses.listMessages(analysisId, owner.id);
-    const contextWindow = selectContext(
-      sourceText,
-      history.map((message) => ({ role: message.role, content: message.content })),
-      question,
-      this.llmSettings.contextCharBudget,
-    );
-    if (contextWindow.rejected) {
-      throw new AppError(ErrorCode.ContextLimit, 413, 'The incident and the question exceed the context budget. The model was not called.');
-    }
+    await this.ensureQuestionContext(owner.id, analysisId, sourceText, question);
+    const deadlineAt = Date.now() + this.llmSettings.deadlineMs;
     let outcome: LlmOutcome | undefined;
+    let persisted = false;
+    let userSequence = 0;
     try {
-      const sequence = await this.analyses.appendMessage({
+      userSequence = await this.analyses.appendMessage({
         analysisId,
         ownerId: owner.id,
         role: MessageRole.User,
@@ -242,33 +297,62 @@ export class AnalysisCommandShared {
         result: null,
         errorCode: null,
       });
+      const history = await this.analyses.listMessages(analysisId, owner.id);
+      const contextWindow = selectContext(
+        sourceText,
+        history.map((message) => ({ role: message.role, content: message.content })),
+        question,
+        this.llmSettings.contextCharBudget,
+      );
       const prompt = buildQuestionPrompt(sourceText, contextWindow.history, question);
-      outcome = await this.gateway.complete(prompt, signal, Date.now() + this.llmSettings.deadlineMs);
+      outcome = await this.gateway.complete(prompt, signal, deadlineAt);
       const validatedAnswer = validateQuestion(outcome.response.rawText, sourceText);
-      await this.analyses.appendMessage({
-        analysisId,
+      const commit = await this.analyses.commitQuestionSuccess({
         ownerId: owner.id,
-        role: MessageRole.Assistant,
-        content: validatedAnswer.answer,
-        status: RunStatus.Completed,
-        result: validatedAnswer,
-        errorCode: null,
-        sequence: sequence + 1,
+        analysisId,
+        executionId,
+        assistantContent: validatedAnswer.answer,
+        assistantResult: validatedAnswer,
+        assistantSequence: userSequence + 1,
+        attemptCount: outcome.attempts,
+        latencyMs: outcome.latencyMs,
+        inputTokens: outcome.response.inputTokens,
+        outputTokens: outcome.response.outputTokens,
+        provider: outcome.response.provider,
+        model: outcome.response.model,
+        audit: this.auditPayload(owner.id, AuditAction.QuestionAdd, analysisId, RunStatus.Completed, correlationId),
       });
-      await this.finishExecution(executionId, owner.id, RunStatus.Completed, null, outcome);
-      await this.audit(owner.id, AuditAction.QuestionAdd, AuditResourceType.Analysis, analysisId, RunStatus.Completed, correlationId);
-      const detail = await this.loadDetail(owner.id, analysisId);
-      if (!detail) throw new AppError(ErrorCode.NotFound, 404, 'That analysis was not found.');
-      return detail;
+      if (commit === 'stale') {
+        throw new AppError(ErrorCode.Conflict, 409, 'This question run is no longer active.');
+      }
+      persisted = true;
+      return await this.loadDetailOrThrow(owner.id, analysisId);
     } catch (error) {
       if (error instanceof AppError && error.errorCode === ErrorCode.Conflict) throw error;
-      const appError = this.toAppError(error, analysisId);
-      await this.recordQuestionFailure(owner.id, analysisId, question, appError, outcome, correlationId, executionId);
+      if (persisted) {
+        this.logger.info({ msg: LogEvent.PersistFailure, errorCode: PersistenceErrorCode.DbWriteFailed, correlationId, analysisId });
+        return await this.loadDetailOrThrow(owner.id, analysisId);
+      }
+      const appError = this.toAppError(error, analysisId, outcome);
+      await this.recordQuestionFailure(
+        owner.id,
+        analysisId,
+        question,
+        appError,
+        outcome,
+        correlationId,
+        executionId,
+        userSequence > 0,
+      );
       throw appError;
     }
   }
 
-  toAppError(error: unknown, analysisId: string): AppError {
+  /**
+   * @param outcome Provider metrics when the model was called.
+   * @param error Original failure, used for attempt counts on provider errors.
+   */
+  toAppError(error: unknown, analysisId: string, _outcome?: LlmOutcome): AppError {
     if (error instanceof AppError) return error;
     if (error instanceof ProviderRequestError) return providerFailure(error, analysisId);
     if (error instanceof OutputValidationError) {
@@ -295,27 +379,33 @@ export class AnalysisCommandShared {
     throw error;
   }
 
-  private async finishExecution(
-    executionId: string,
-    ownerId: string,
-    status: FinishedRunStatus,
-    errorCode: string | null,
-    outcome?: LlmOutcome,
-    error?: unknown,
+  private attemptCount(outcome: LlmOutcome | undefined, error: unknown): number {
+    if (outcome) return outcome.attempts;
+    if (error instanceof ProviderRequestError) return error.attempts;
+    return 1;
+  }
+
+  private auditPayload(
+    actorId: string,
+    action: string,
+    resourceId: string,
+    result: FinishedRunStatus,
+    correlationId: string,
   ) {
-    const attempts = outcome?.attempts ?? (error instanceof ProviderRequestError ? error.attempts : 1);
-    await this.analyses.finishExecution({
-      executionId,
-      ownerId,
-      status,
-      errorCode,
-      attemptCount: attempts,
-      latencyMs: outcome?.latencyMs ?? null,
-      inputTokens: outcome?.response.inputTokens ?? null,
-      outputTokens: outcome?.response.outputTokens ?? null,
-      provider: outcome?.response.provider ?? this.llmSettings.provider,
-      model: outcome?.response.model ?? this.modelName(),
-    });
+    return {
+      actorId,
+      action,
+      resourceType: AuditResourceType.Analysis,
+      resourceId,
+      result,
+      correlationId,
+    };
+  }
+
+  private async loadDetailOrThrow(ownerId: string, analysisId: string): Promise<AnalysisDetailResult> {
+    const detail = await this.loadDetail(ownerId, analysisId);
+    if (!detail) throw new AppError(ErrorCode.NotFound, 404, 'That analysis was not found.');
+    return detail;
   }
 
   private ensureText(text: string, maxLength: number, emptyMessage: string, tooLongMessage: string): void {
@@ -323,16 +413,5 @@ export class AnalysisCommandShared {
     if (text.trim().length > maxLength) {
       throw new AppError(ErrorCode.ValidationError, 400, `${tooLongMessage} Maximum: ${maxLength} characters.`);
     }
-  }
-
-  private async audit(
-    actorId: string | null,
-    action: string,
-    resourceType: string,
-    resourceId: string | null,
-    result: FinishedRunStatus,
-    correlationId: string,
-  ) {
-    await this.analyses.insertAudit({ actorId, action, resourceType, resourceId, result, correlationId });
   }
 }
