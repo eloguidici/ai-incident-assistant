@@ -1,5 +1,6 @@
 import OpenAI from 'openai';
 import type { LlmConfig } from '../config/slices';
+import { findTlsTrustDetail } from './network-cause';
 import { ProviderRequestError, type LlmRequest, type LlmResponse } from './contracts';
 
 export class OpenAiProvider {
@@ -71,6 +72,15 @@ function mapOpenAiError(error: unknown): ProviderRequestError {
     const retryAfterHeader = error.headers?.get?.('retry-after');
     const retryAfterSeconds = retryAfterHeader ? Number(retryAfterHeader) : Number.NaN;
     return new ProviderRequestError('rate_limit', 'The provider limited the request.', 429, Number.isFinite(retryAfterSeconds) ? retryAfterSeconds * 1000 : undefined);
+  }
+  if (error instanceof OpenAI.APIConnectionError) {
+    const tlsDetail = findTlsTrustDetail(error);
+    const message = tlsDetail
+      ? `TLS trust failed while reaching the provider: ${tlsDetail}`
+      : 'The provider could not be reached.';
+    const mapped = new ProviderRequestError('network', message);
+    mapped.cause = error;
+    return mapped;
   }
   if (error instanceof OpenAI.APIError) {
     const status = typeof error.status === 'number' ? error.status : undefined;

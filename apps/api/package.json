@@ -16,7 +16,7 @@
     "seed:test": "tsx src/cli.ts seed-test",
     "reset": "tsx src/cli.ts reset",
     "eval": "tsx src/evaluation/run.ts",
-    "live": "tsx src/evaluation/live.ts"
+    "live": "node --use-system-ca --import tsx src/evaluation/live.ts"
   },
   "dependencies": {
     "@nestjs/common": "^11.1.6",

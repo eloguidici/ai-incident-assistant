@@ -22,10 +22,12 @@ export function buildAnalysisPrompt(source: string): LlmRequest {
         role: 'system',
         content: `${SYSTEM_RULES}
 Version: ${ANALYSIS_PROMPT_VERSION}
-Keys: summary, category, suggestedSeverity, evidence, hypotheses, missingInformation, uncertainty.
+Return one JSON object with these keys only: summary, category, suggestedSeverity, evidence, hypotheses, missingInformation, uncertainty.
 category: availability | performance | security | data | unknown.
 suggestedSeverity: low | medium | high | critical | unknown.
-evidence: {quote, note}. hypotheses: {statement, confidence} with confidence low | medium | high.`,
+evidence, hypotheses, and missingInformation must be JSON arrays (use [] when empty, never a single object or string).
+evidence items: {quote, note}. hypotheses items: {statement, confidence} with confidence low | medium | high.
+missingInformation items: short strings describing what is still unknown.`,
       },
       { role: 'user', content: `Incident:\n<<<INCIDENT\n${source}\nINCIDENT>>>` },
     ],
@@ -49,7 +51,8 @@ export function buildQuestionPrompt(source: string, history: { role: string; con
         role: 'system',
         content: `${SYSTEM_RULES}
 Version: ${QUESTION_PROMPT_VERSION}
-Keys: answer, summary, category, suggestedSeverity, evidence, hypotheses, missingInformation, uncertainty.
+Return one JSON object with keys: answer, summary, category, suggestedSeverity, evidence, hypotheses, missingInformation, uncertainty.
+evidence, hypotheses, and missingInformation must be JSON arrays (use [] when empty).
 answer addresses the analyst's question using only the incident and without asserting unquoted causes.`,
       },
       {

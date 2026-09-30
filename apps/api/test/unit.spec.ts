@@ -1,3 +1,4 @@
+import { findTlsTrustDetail } from '../src/ai/network-cause';
 import { ProviderRequestError } from '../src/ai/contracts';
 import { LlmGateway } from '../src/ai/gateway';
 import { resolveQuestionContextWindow } from '../src/analyses/question-context';
@@ -16,6 +17,15 @@ import { scoreAnalysis } from '../src/evaluation/rubric';
 const baseEnv = () => loadAppConfig().get(llmConfig);
 
 describe('pure rules', () => {
+  it('detects TLS trust failures in nested causes', () => {
+    const root = new Error('Connection error.', {
+      cause: new Error('fetch failed', {
+        cause: Object.assign(new Error('unable to verify the first certificate'), { code: 'UNABLE_TO_VERIFY_LEAF_SIGNATURE' }),
+      }),
+    });
+    expect(findTlsTrustDetail(root)).toContain('UNABLE_TO_VERIFY_LEAF_SIGNATURE');
+  });
+
   it('rejects incomplete configuration without printing secrets', () => {
     const previousJwtSecret = process.env.JWT_SECRET;
     process.env.JWT_SECRET = 'short';

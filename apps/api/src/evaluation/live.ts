@@ -4,10 +4,29 @@ import { loadEnvFiles } from '../config/dotenv';
 import { envSearchRoots, loadAppConfig } from '../config/env';
 import { llmConfig } from '../config/slices';
 import { buildAnalysisPrompt } from '../ai/prompt';
-import { validateAnalysis } from '../ai/validate';
+import { OutputValidationError, validateAnalysis } from '../ai/validate';
+import OpenAI from 'openai';
 import { OpenAiProvider } from '../ai/openai.provider';
+import { findTlsTrustDetail, formatCauseChain } from '../ai/network-cause';
+import { ProviderRequestError } from '../ai/contracts';
 import { FIXTURES } from './fixtures';
 import { RubricOutcome, rubricOutcomeOf, scoreAnalysis } from './rubric';
+
+function redactSecrets(text: string): string {
+  return text.replace(/sk-[A-Za-z0-9_-]+/g, '[REDACTED]');
+}
+
+/**
+ * Prints nested `error.cause` messages without credentials.
+ * @param error Root failure from the live run.
+ */
+function logErrorChain(error: unknown): void {
+  let current: unknown = error;
+  for (let depth = 0; depth < 5 && current instanceof Error; depth += 1) {
+    console.error(`  cause[${depth}]: ${redactSecrets(current.message)}`);
+    current = current.cause;
+  }
+}
 
 /**
  * Runs one clear-outage fixture against the real OpenAI provider and writes qa-artifacts/live/REPORT.md.
@@ -35,8 +54,19 @@ async function main(): Promise<void> {
     const score = scoreAnalysis(fixture, result);
     outcome = rubricOutcomeOf(score.pass);
     detail = score.checks.map((check) => `${check.name}=${rubricOutcomeOf(check.pass)}`).join(', ');
-  } catch {
+    if (!score.pass) {
+      const failed = score.checks.filter((check) => !check.pass).map((check) => check.name);
+      console.error(`Rubric failed checks: ${failed.join(', ')}`);
+    }
+  } catch (error: unknown) {
     outcome = RubricOutcome.Fail;
+    if (error instanceof OutputValidationError) {
+      detail = `validation: ${error.message}`;
+      console.error(`Validation: ${error.message}`);
+    } else if (error instanceof Error) {
+      detail = `error: ${redactSecrets(error.message)}`;
+      console.error(`Unexpected: ${redactSecrets(error.message)}`);
+    }
   }
   const report = [
     '# Live sample',
@@ -60,7 +90,58 @@ async function main(): Promise<void> {
   process.exit(outcome === RubricOutcome.Pass ? 0 : 1);
 }
 
-main().catch(() => {
+main().catch((error: unknown) => {
   console.error('FAIL: the live sample could not be completed. The credential is not printed.');
+  if (error instanceof ProviderRequestError) {
+    console.error(`Provider: kind=${error.kind} attempts=${error.attempts ?? 'n/a'} status=${error.status ?? 'n/a'}`);
+    console.error(`  detail: ${redactSecrets(error.message)}`);
+    if (error.kind === 'network') {
+      console.error(
+        '  hint: Node could not complete HTTPS to api.openai.com (often TLS/CA, VPN, or antivirus). ' +
+          'If curl returns 200 but this fails, fix trust store or remove a bad NODE_EXTRA_CA_CERTS.',
+      );
+    }
+    if (error.kind === 'auth') {
+      console.error('  hint: Regenerate OPENAI_API_KEY in the OpenAI dashboard and update .env (not committed).');
+    }
+    logErrorChain(error);
+    if (error.kind === 'network' || findTlsTrustDetail(error)) {
+      printTlsOperatorHints(findTlsTrustDetail(error));
+    }
+  } else if (error instanceof OpenAI.APIError) {
+    console.error(`OpenAI: ${error.constructor.name} status=${error.status ?? 'n/a'}`);
+    if (error instanceof Error) {
+      console.error(`  detail: ${redactSecrets(error.message)}`);
+      logErrorChain(error);
+    }
+  } else if (error instanceof Error) {
+    console.error(`Error: ${error.constructor.name} — ${redactSecrets(error.message)}`);
+    logErrorChain(error);
+    const tlsDetail = findTlsTrustDetail(error);
+    if (tlsDetail) {
+      printTlsOperatorHints(tlsDetail);
+    }
+  }
+  const chain = formatCauseChain(error);
+  if (chain) {
+    console.error(`Cause chain: ${chain}`);
+  }
   process.exit(1);
 });
+
+/**
+ * Prints Windows-friendly TLS hints when Node cannot verify api.openai.com but curl often still works.
+ * @param tlsDetail Optional detail from {@link findTlsTrustDetail}.
+ */
+function printTlsOperatorHints(tlsDetail?: string): void {
+  if (tlsDetail) {
+    console.error(`TLS detail: ${tlsDetail}`);
+  }
+  const extraCa = process.env.NODE_EXTRA_CA_CERTS;
+  console.error(
+    `TLS env: NODE_EXTRA_CA_CERTS=${extraCa ? 'SET (check the file matches your HTTPS inspector)' : 'unset'}, NODE_OPTIONS=${process.env.NODE_OPTIONS ?? 'unset'}`,
+  );
+  console.error(
+    'If curl.exe reaches OpenAI but Node fails on certificates, use npm run qa:ai:live (node --use-system-ca) or NODE_OPTIONS=--use-system-ca for dev:api. Remove or fix a wrong NODE_EXTRA_CA_CERTS.',
+  );
+}

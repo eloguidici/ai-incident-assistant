@@ -42,6 +42,8 @@ Abrí http://127.0.0.1:5173. Usuarios locales, solo para esta base de demostraci
 
 Esos valores están en `.env.example`. No sirven fuera de esta base local. Para usar OpenAI, en `.env` poné `LLM_PROVIDER=openai` y `OPENAI_API_KEY` sin commitear el archivo.
 
+Si `npm run qa:ai:live` termina con `Provider: kind=network` pero `curl` autenticado a `https://api.openai.com/v1/models` responde 200, la clave suele estar bien y Node no confía en la cadena TLS (antivirus, VPN o `NODE_EXTRA_CA_CERTS` apuntando a un PEM incorrecto). Corregí el almacén de certificados de Windows o quitá esa variable y volvé a ejecutar el comando.
+
 El stack completo, con la web publicada por nginx en http://localhost:8080, es:
 
 ```powershell
@@ -62,6 +64,10 @@ Ese comando construye las imágenes. En esta sesión `docker build` de la API fa
 | `npm run check:web-docs` | El build de React no incluye documentos internos | PASS |
 
 `npm run qa:e2e` necesita Docker con Postgres en 5432 y Chrome instalado. Playwright no pudo descargar su propio Chromium por un error de certificado TLS; usa el Chrome del sistema (`channel: chrome`).
+
+### Operaciones: OpenAI y TLS en Windows
+
+Si `npm run qa:ai:live` falla con `Provider: kind=network` pero `curl.exe https://api.openai.com/v1/models` con tu clave devuelve **200**, Node no confía en la misma cadena TLS (antivirus, inspección HTTPS o un `NODE_EXTRA_CA_CERTS` incorrecto). El script `qa:ai:live` arranca Node con `--use-system-ca` para alinear el almacén con Windows. Para la API en desarrollo con `LLM_PROVIDER=openai`, podés usar `set NODE_OPTIONS=--use-system-ca` en la misma terminal antes de `npm run dev:api`, o corregir/eliminar `NODE_EXTRA_CA_CERTS` si apunta a una CA obsoleta.
 
 ## Infraestructura
 `infra/terraform` describe ECS Fargate, un balanceador, RDS PostgreSQL 16 y secretos en Secrets Manager. No se ejecutó `terraform apply`. `terraform init` descargó el provider AWS 5.100.0. `terraform validate` falló porque ese plugin no respondió; no quedó demostrado que el HCL esté libre de errores. No hay claves dentro del código de Terraform.
