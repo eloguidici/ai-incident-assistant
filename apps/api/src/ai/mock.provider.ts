@@ -15,8 +15,8 @@ export function resetMockState(): void {
  * @returns The incident text, or an empty string when the delimiters are missing.
  */
 function incidentOf(promptText: string): string {
-  const match = promptText.match(/<<<INCIDENT\n([\s\S]*?)\nINCIDENT>>>/);
-  return match?.[1] ?? '';
+  const match = promptText.match(/<<<INCIDENT id=([0-9a-f]+)\n([\s\S]*?)\nINCIDENT id=\1>>>/);
+  return match?.[2] ?? '';
 }
 
 /**
@@ -112,6 +112,8 @@ export class MockProvider {
    */
   async complete(request: LlmRequest, signal: AbortSignal): Promise<LlmResponse> {
     const requestText = requestTextOf(request);
+    // Block ids are random per request; strip them so a retried request maps to the same fault counter.
+    const callKey = requestText.replace(/\b[0-9a-f]{24}\b/g, '*');
     if (requestText.includes(MockFaultTag.ShouldNotRun)) {
       throw new ProviderRequestError('permanent', 'The provider should not have been called.');
     }
@@ -121,13 +123,13 @@ export class MockProvider {
     if (requestText.includes(MockFaultTag.Auth)) throw new ProviderRequestError('auth', 'credential rejected', 401);
     if (requestText.includes(MockFaultTag.RateLimit)) throw new ProviderRequestError('rate_limit', '429', 429, 30);
     if (requestText.includes(MockFaultTag.ServerOnce)) {
-      const seen = (onceCalls.get(requestText) ?? 0) + 1;
-      onceCalls.set(requestText, seen);
+      const seen = (onceCalls.get(callKey) ?? 0) + 1;
+      onceCalls.set(callKey, seen);
       if (seen === 1) throw new ProviderRequestError('server', '500', 500);
     }
     if (requestText.includes(MockFaultTag.ServerTwice)) {
-      const seen = (onceCalls.get(`twice:${requestText}`) ?? 0) + 1;
-      onceCalls.set(`twice:${requestText}`, seen);
+      const seen = (onceCalls.get(`twice:${callKey}`) ?? 0) + 1;
+      onceCalls.set(`twice:${callKey}`, seen);
       if (seen <= 2) throw new ProviderRequestError('server', '500', 500);
     }
     if (requestText.includes(MockFaultTag.Server)) throw new ProviderRequestError('server', '500', 500);
