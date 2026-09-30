@@ -1,4 +1,5 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject } from '@nestjs/common';
+import { CommandHandler, ICommandHandler } from '@nestjs/cqrs';
 import { QUESTION_PROMPT_VERSION } from '../../ai/contracts';
 import { ErrorCode } from '../../common/constants/error-code';
 import { AppError } from '../../common/http';
@@ -10,11 +11,11 @@ import type { AnalysisRepository } from '../../db/repositories/analysis.reposito
 import { ANALYSIS_REPOSITORY } from '../../db/repositories/tokens';
 import { AnalysisCommandShared } from '../analysis-command.shared';
 import type { AnalysisDetailResult } from '../analysis-detail.types';
-import type { AddQuestionCommand } from './add-question.types';
+import { AddQuestionCommand } from './add-question.types';
 
 /** CQRS command handler: appends a follow-up question and calls the model. */
-@Injectable()
-export class AddQuestionHandler {
+@CommandHandler(AddQuestionCommand)
+export class AddQuestionHandler implements ICommandHandler<AddQuestionCommand> {
   /**
    * @param llmSettings Provider and model copied into the execution row.
    * @param analyses Persistence port for messages and executions.
@@ -75,15 +76,14 @@ export class AddQuestionHandler {
         executionId,
       );
     } catch (error) {
-      if (error instanceof AppError && error.errorCode === ErrorCode.ContextLimit) {
-        await this.shared.abortQuestionExecution(
-          executionId,
-          command.owner.id,
-          ErrorCode.ContextLimit,
-          command.correlationId,
-          command.analysisId,
-        );
-      }
+      if (error instanceof AppError && error.errorCode === ErrorCode.Conflict) throw error;
+      await this.shared.abortQuestionExecution(
+        executionId,
+        command.owner.id,
+        error instanceof AppError ? error.errorCode : ErrorCode.Internal,
+        command.correlationId,
+        command.analysisId,
+      );
       throw error;
     }
   }

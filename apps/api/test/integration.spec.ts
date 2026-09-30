@@ -68,6 +68,17 @@ describe('API with PostgreSQL', () => {
     expect(stale.body.error.code).toBe(ErrorCode.SessionExpired);
   });
 
+  it('returns 413 when the JSON body exceeds the 32KB limit', async () => {
+    const { agent, csrf } = await asUser(userA);
+    const oversized = await agent
+      .post('/api/analyses')
+      .set(CsrfHeaderName, csrf)
+      .set('Content-Type', 'application/json')
+      .send(`{"sourceText":"${'a'.repeat(40_000)}"}`);
+    expect(oversized.status).toBe(413);
+    expect(oversized.body.error.code).toBe(ErrorCode.PayloadTooLarge);
+  });
+
   it('Q02 Q03 creates an analysis and rejects invalid input without treating it as success', async () => {
     const { agent, csrf } = await asUser(userA);
     const empty = await agent.post('/api/analyses').set(CsrfHeaderName, csrf).send({ sourceText: '   ' });

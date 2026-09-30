@@ -18,9 +18,16 @@ export type ListAnalysesResult = {
   page: { limit: number; offset: number; total: number };
 };
 
-/** Input for the list-analyses query after HTTP validation. */
-export type ListAnalysesQuery = {
-  ownerId: string;
-  limit: number;
-  offset: number;
-};
+/** CQRS query: paginated analysis list for one owner. */
+export class ListAnalysesQuery {
+  /**
+   * @param ownerId Authenticated analyst id.
+   * @param limit Page size after HTTP validation.
+   * @param offset Rows to skip after HTTP validation.
+   */
+  constructor(
+    public readonly ownerId: string,
+    public readonly limit: number,
+    public readonly offset: number,
+  ) {}
+}

@@ -4,6 +4,7 @@ import cookieParser from 'cookie-parser';
 import { json, type Express } from 'express';
 import { AppModule } from './app.module';
 import { correlationMiddleware, csrfMiddleware } from './common/http';
+import { payloadLimitErrorHandler } from './common/payload-limit.middleware';
 import { getConfigToken } from './config';
 import { ConfigValidationError } from './config/core';
 import { appConfig, type AppConfig } from './config/slices';
@@ -25,6 +26,7 @@ export async function createApplication() {
   app.use(correlationMiddleware);
   app.use(cookieParser());
   app.use(json({ limit: '32kb' }));
+  app.use(payloadLimitErrorHandler);
   app.use(csrfMiddleware);
   app.setGlobalPrefix('api');
   app.enableCors({ origin: settings.webOrigin, credentials: true });

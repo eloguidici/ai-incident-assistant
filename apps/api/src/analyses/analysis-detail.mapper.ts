@@ -1,4 +1,3 @@
-import type { AnalysisResult, QuestionResult } from '../ai/contracts';
 import type { AnalysisRepository } from '../db/repositories/analysis.repository';
 import type { AnalysisDetailResult } from './analysis-detail.types';
 
@@ -9,7 +8,7 @@ export function mapAnalysisDetail(loaded: NonNullable<Awaited<ReturnType<Analysi
     id: row.id,
     status: row.status,
     sourceText: row.sourceText,
-    result: (row.result as AnalysisResult | null) ?? null,
+    result: row.result ?? null,
     errorCode: row.errorCode,
     errorMessage: row.errorMessage,
     promptVersion: row.promptVersion,
@@ -23,7 +22,7 @@ export function mapAnalysisDetail(loaded: NonNullable<Awaited<ReturnType<Analysi
       role: message.role,
       content: message.content,
       status: message.status,
-      result: (message.result as QuestionResult | null) ?? null,
+      result: message.result ?? null,
       errorCode: message.errorCode,
       sequence: message.sequence,
       createdAt: message.createdAt.toISOString(),

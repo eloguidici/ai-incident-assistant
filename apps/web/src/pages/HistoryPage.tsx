@@ -19,10 +19,16 @@ export function HistoryPage() {
   const [offset, setOffset] = useState(0);
 
   useEffect(() => {
+    const controller = new AbortController();
     setError(null);
-    api<HistoryPageResponse>(`/api/analyses?limit=${PAGE_SIZE}&offset=${offset}`)
-      .then(setPage)
-      .catch((failure: unknown) => setError(failure instanceof ApiError ? failure.message : 'The history could not be loaded.'));
+    setPage(null);
+    api<HistoryPageResponse>(`/api/analyses?limit=${PAGE_SIZE}&offset=${offset}`, { signal: controller.signal })
+      .then((response) => setPage(response))
+      .catch((failure: unknown) => {
+        if (failure instanceof DOMException && failure.name === 'AbortError') return;
+        setError(failure instanceof ApiError ? failure.message : 'The history could not be loaded.');
+      });
+    return () => controller.abort();
   }, [offset]);
 
   if (error) return <p className="error" role="alert">{error}</p>;

@@ -1,10 +1,11 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { MockFaultTag } from '../ai/mock-fault-tags';
 import { buildAnalysisPrompt, buildQuestionPrompt } from '../ai/prompt';
-import { selectContext } from '../ai/context';
-import { OutputValidationError, validateAnalysis, validateQuestion } from '../ai/validate';
-import { LlmGateway, providerFailure, type LlmOutcome } from '../ai/gateway';
-import { ANALYSIS_PROMPT_VERSION, ProviderRequestError } from '../ai/contracts';
+import { validateAnalysis, validateQuestion } from '../ai/validate';
+import { orchestrationAttemptCount, toOrchestrationAppError } from './analysis-orchestration.errors';
+import { resolveQuestionContextWindow } from './question-context';
+import { LlmGateway, type LlmOutcome } from '../ai/gateway';
+import { ANALYSIS_PROMPT_VERSION } from '../ai/contracts';
 import { ErrorCode } from '../common/constants/error-code';
 import { LogEvent } from '../common/constants/log-event';
 import { AppError, isUniqueViolation } from '../common/http';
@@ -81,15 +82,7 @@ export class AnalysisCommandShared {
    */
   async ensureQuestionContext(ownerId: string, analysisId: string, sourceText: string, question: string): Promise<void> {
     const history = await this.analyses.listMessages(analysisId, ownerId);
-    const contextWindow = selectContext(
-      sourceText,
-      history.map((message) => ({ role: message.role, content: message.content })),
-      question,
-      this.llmSettings.contextCharBudget,
-    );
-    if (contextWindow.rejected) {
-      throw new AppError(ErrorCode.ContextLimit, 413, 'The incident and the question exceed the context budget. The model was not called.');
-    }
+    resolveQuestionContextWindow(sourceText, history, question, this.llmSettings.contextCharBudget);
   }
 
   /**
@@ -201,7 +194,7 @@ export class AnalysisCommandShared {
         this.logger.info({ msg: LogEvent.PersistFailure, errorCode: PersistenceErrorCode.DbWriteFailed, correlationId, analysisId });
         return await this.loadDetailOrThrow(owner.id, analysisId);
       }
-      const appError = this.toAppError(error, analysisId, outcome);
+      const appError = toOrchestrationAppError(error, analysisId, outcome);
       try {
         const commit = await this.analyses.commitAnalysisFailure({
           ownerId: owner.id,
@@ -212,7 +205,7 @@ export class AnalysisCommandShared {
           promptVersion: ANALYSIS_PROMPT_VERSION,
           provider: outcome?.response.provider ?? this.llmSettings.provider,
           model: outcome?.response.model ?? this.modelName(),
-          attemptCount: this.attemptCount(outcome, error),
+          attemptCount: orchestrationAttemptCount(outcome, error),
           latencyMs: outcome?.latencyMs ?? null,
           inputTokens: outcome?.response.inputTokens ?? null,
           outputTokens: outcome?.response.outputTokens ?? null,
@@ -252,7 +245,7 @@ export class AnalysisCommandShared {
         userMessageStored,
         errorCode: appError.errorCode,
         errorMessage: appError.message,
-        attemptCount: this.attemptCount(outcome, appError),
+        attemptCount: orchestrationAttemptCount(outcome, appError),
         latencyMs: outcome?.latencyMs ?? null,
         inputTokens: outcome?.response.inputTokens ?? null,
         outputTokens: outcome?.response.outputTokens ?? null,
@@ -282,12 +275,18 @@ export class AnalysisCommandShared {
     signal: AbortSignal,
     executionId: string,
   ): Promise<AnalysisDetailResult> {
-    await this.ensureQuestionContext(owner.id, analysisId, sourceText, question);
     const deadlineAt = Date.now() + this.llmSettings.deadlineMs;
     let outcome: LlmOutcome | undefined;
     let persisted = false;
     let userSequence = 0;
     try {
+      const priorHistory = await this.analyses.listMessages(analysisId, owner.id);
+      const contextWindow = resolveQuestionContextWindow(
+        sourceText,
+        priorHistory,
+        question,
+        this.llmSettings.contextCharBudget,
+      );
       userSequence = await this.analyses.appendMessage({
         analysisId,
         ownerId: owner.id,
@@ -297,13 +296,6 @@ export class AnalysisCommandShared {
         result: null,
         errorCode: null,
       });
-      const history = await this.analyses.listMessages(analysisId, owner.id);
-      const contextWindow = selectContext(
-        sourceText,
-        history.map((message) => ({ role: message.role, content: message.content })),
-        question,
-        this.llmSettings.contextCharBudget,
-      );
       const prompt = buildQuestionPrompt(sourceText, contextWindow.history, question);
       outcome = await this.gateway.complete(prompt, signal, deadlineAt);
       const validatedAnswer = validateQuestion(outcome.response.rawText, sourceText);
@@ -333,7 +325,7 @@ export class AnalysisCommandShared {
         this.logger.info({ msg: LogEvent.PersistFailure, errorCode: PersistenceErrorCode.DbWriteFailed, correlationId, analysisId });
         return await this.loadDetailOrThrow(owner.id, analysisId);
       }
-      const appError = this.toAppError(error, analysisId, outcome);
+      const appError = toOrchestrationAppError(error, analysisId, outcome);
       await this.recordQuestionFailure(
         owner.id,
         analysisId,
@@ -348,41 +340,12 @@ export class AnalysisCommandShared {
     }
   }
 
-  /**
-   * @param outcome Provider metrics when the model was called.
-   * @param error Original failure, used for attempt counts on provider errors.
-   */
-  toAppError(error: unknown, analysisId: string, _outcome?: LlmOutcome): AppError {
-    if (error instanceof AppError) return error;
-    if (error instanceof ProviderRequestError) return providerFailure(error, analysisId);
-    if (error instanceof OutputValidationError) {
-      return new AppError(
-        ErrorCode.InvalidOutput,
-        422,
-        'The model output did not match the contract and is not shown as a result.',
-        analysisId,
-      );
-    }
-    return new AppError(
-      ErrorCode.DataNotSaved,
-      500,
-      'The result could not be saved. It was not marked as successful.',
-      analysisId,
-    );
-  }
-
   /** @throws AppError when a unique index blocks concurrent processing. */
   rethrowUniqueAsConflict(error: unknown, message: string): never {
     if (isUniqueViolation(error)) {
       throw new AppError(ErrorCode.Conflict, 409, message);
     }
     throw error;
-  }
-
-  private attemptCount(outcome: LlmOutcome | undefined, error: unknown): number {
-    if (outcome) return outcome.attempts;
-    if (error instanceof ProviderRequestError) return error.attempts;
-    return 1;
   }
 
   private auditPayload(

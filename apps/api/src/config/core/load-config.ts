@@ -26,21 +26,21 @@ export function loadConfig(options: LoadConfigOptions): ConfigRegistry {
 
     names.add(slice.name);
 
-    const { error, value } = slice.schema.validate(source, {
+    const validation = slice.schema.validate(source, {
       abortEarly: options.abortEarly ?? false,
       allowUnknown: options.allowUnknown ?? true,
       convert: true,
     });
 
-    if (error) {
+    if (validation.error) {
       throw new ConfigValidationError(
         slice.name,
-        error.message,
-        error.details.map((detail) => detail.message),
+        validation.error.message,
+        validation.error.details.map((detail) => detail.message),
       );
     }
 
-    registry.set(slice, slice.map(value as Record<string, unknown>));
+    registry.set(slice, slice.map(validation.value as Record<string, unknown>));
   }
 
   return registry;

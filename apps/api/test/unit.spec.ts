@@ -1,4 +1,6 @@
+import { ProviderRequestError } from '../src/ai/contracts';
 import { LlmGateway } from '../src/ai/gateway';
+import { resolveQuestionContextWindow } from '../src/analyses/question-context';
 import { buildAnalysisPrompt } from '../src/ai/prompt';
 import { MockProvider, resetMockState } from '../src/ai/mock.provider';
 import { ANALYSIS_PROMPT_VERSION } from '../src/ai/contracts';
@@ -86,6 +88,41 @@ describe('pure rules', () => {
     });
     expect(redactedLog).toEqual({ msg: 'request', status: 200 });
     expect(JSON.stringify(redactedLog)).not.toContain('TOKEN-PII');
+  });
+
+  it('plans question context from prior history before the new user message is stored', () => {
+    const window = resolveQuestionContextWindow(
+      'source text long enough',
+      [{ role: 'user', content: 'earlier question' }],
+      'What failed?',
+      400,
+    );
+    expect(window.history).toHaveLength(1);
+    expect(window.history[0].content).toBe('earlier question');
+  });
+
+  it('rejects retry backoff wait when the parent signal is already aborted', async () => {
+    const env = baseEnv();
+    let calls = 0;
+    const flaky = {
+      providerName: 'flaky',
+      async complete() {
+        calls += 1;
+        if (calls === 1) throw new ProviderRequestError('server', 'temporary');
+        return {
+          rawText: '{}',
+          provider: 'flaky',
+          model: 'flaky-1',
+          inputTokens: 1,
+          outputTokens: 1,
+        };
+      },
+    };
+    const gateway = new LlmGateway(env, flaky);
+    const controller = new AbortController();
+    controller.abort('client');
+    const prompt = buildAnalysisPrompt('incident text long enough for the prompt');
+    await expect(gateway.complete(prompt, controller.signal, Date.now() + 5000)).rejects.toMatchObject({ kind: 'cancelled' });
   });
 
   it('limits bursts and concurrency', () => {

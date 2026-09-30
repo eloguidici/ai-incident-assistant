@@ -18,14 +18,15 @@ export class AuthGuard implements CanActivate {
    * @returns True after `request.user` is set.
    * @throws AppError UNAUTHENTICATED or SESSION_EXPIRED.
    */
-  async canActivate(context: ExecutionContext): Promise<boolean> {
+  canActivate(context: ExecutionContext): boolean {
     const request = context.switchToHttp().getRequest<Request>();
-    const token = request.cookies?.[SessionCookieName];
+    const cookies = request.cookies as Record<string, unknown> | undefined;
+    const token = cookies?.[SessionCookieName];
     if (!token || typeof token !== 'string') {
       throw new AppError(ErrorCode.Unauthenticated, 401, 'You need to sign in.');
     }
     try {
-      request.user = await verifySession(token, this.authSettings.jwtSecret);
+      request.user = verifySession(token, this.authSettings.jwtSecret);
       return true;
     } catch (error) {
       if (error instanceof jwt.TokenExpiredError) {

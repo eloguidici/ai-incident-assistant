@@ -34,8 +34,8 @@ export function ResultView({
         <h2>Evidence</h2>
         {result.evidence.length === 0 ? <p>There are no quotes grounded in the text.</p> : null}
         <ul>
-          {result.evidence.map((evidenceItem) => (
-            <li key={evidenceItem.quote}>
+          {result.evidence.map((evidenceItem, index) => (
+            <li key={`${index}-${evidenceItem.quote}`}>
               <blockquote>{evidenceItem.quote}</blockquote>
               <p>{evidenceItem.note}</p>
             </li>
@@ -46,8 +46,8 @@ export function ResultView({
         <h2>Hypotheses</h2>
         {result.hypotheses.length === 0 ? <p>No hypotheses.</p> : null}
         <ul>
-          {result.hypotheses.map((hypothesis) => (
-            <li key={hypothesis.statement}>
+          {result.hypotheses.map((hypothesis, index) => (
+            <li key={`${index}-${hypothesis.statement}`}>
               {hypothesis.statement} <span className="meta">Confidence {hypothesis.confidence}.</span>
             </li>
           ))}
@@ -57,8 +57,8 @@ export function ResultView({
         <h2>Missing information</h2>
         {result.missingInformation.length === 0 ? <p>No missing information was recorded.</p> : null}
         <ul>
-          {result.missingInformation.map((missingFact) => (
-            <li key={missingFact}>{missingFact}</li>
+          {result.missingInformation.map((missingFact, index) => (
+            <li key={`${index}-${missingFact}`}>{missingFact}</li>
           ))}
         </ul>
       </section>

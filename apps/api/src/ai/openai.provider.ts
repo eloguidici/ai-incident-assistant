@@ -73,8 +73,9 @@ function mapOpenAiError(error: unknown): ProviderRequestError {
     return new ProviderRequestError('rate_limit', 'The provider limited the request.', 429, Number.isFinite(retryAfterSeconds) ? retryAfterSeconds * 1000 : undefined);
   }
   if (error instanceof OpenAI.APIError) {
-    if (error.status && error.status >= 500) return new ProviderRequestError('server', 'The provider failed.', error.status);
-    return new ProviderRequestError('permanent', 'The provider rejected the request.', error.status);
+    const status = typeof error.status === 'number' ? error.status : undefined;
+    if (status !== undefined && status >= 500) return new ProviderRequestError('server', 'The provider failed.', status);
+    return new ProviderRequestError('permanent', 'The provider rejected the request.', status);
   }
   if (error instanceof Error && error.name === 'AbortError') {
     return new ProviderRequestError('cancelled', 'The request was cancelled.');

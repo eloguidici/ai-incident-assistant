@@ -8,6 +8,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint src test --max-warnings=0",
     "test": "jest --runInBand",
+    "test:coverage": "jest --runInBand --coverage",
     "test:unit": "jest --runInBand --testPathPatterns=unit",
     "migrate": "tsx src/cli.ts migrate",
     "rollback": "tsx src/cli.ts rollback",
@@ -20,6 +21,7 @@
   "dependencies": {
     "@nestjs/common": "^11.1.6",
     "@nestjs/core": "^11.1.6",
+    "@nestjs/cqrs": "^11.0.3",
     "@nestjs/platform-express": "^11.1.6",
     "@nestjs/swagger": "^11.4.7",
     "@nestjs/typeorm": "^11.0.0",

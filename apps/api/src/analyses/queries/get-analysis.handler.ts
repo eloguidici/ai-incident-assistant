@@ -1,13 +1,13 @@
-import { Injectable } from '@nestjs/common';
+import { IQueryHandler, QueryHandler } from '@nestjs/cqrs';
 import { ErrorCode } from '../../common/constants/error-code';
 import { AppError } from '../../common/http';
 import { AnalysisCommandShared } from '../analysis-command.shared';
 import type { AnalysisDetailResult } from '../analysis-detail.types';
-import type { GetAnalysisQuery } from './get-analysis.types';
+import { GetAnalysisQuery } from './get-analysis.types';
 
 /** CQRS query handler: loads one analysis detail for the owner. */
-@Injectable()
-export class GetAnalysisHandler {
+@QueryHandler(GetAnalysisQuery)
+export class GetAnalysisHandler implements IQueryHandler<GetAnalysisQuery> {
   /** @param shared Loads and maps persistence detail without LLM calls. */
   constructor(private readonly shared: AnalysisCommandShared) {}
 

@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { CqrsModule } from '@nestjs/cqrs';
 import { LlmGateway, type LlmProvider } from '../ai/gateway';
 import { MockProvider } from '../ai/mock.provider';
 import { OpenAiProvider } from '../ai/openai.provider';
@@ -14,6 +15,7 @@ import { GetAnalysisHandler } from './queries/get-analysis.handler';
 import { AnalysesService } from './analyses.service';
 
 @Module({
+  imports: [CqrsModule],
   controllers: [AnalysesController],
   providers: [
     AnalysesService,

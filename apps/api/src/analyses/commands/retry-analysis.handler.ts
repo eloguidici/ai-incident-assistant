@@ -1,4 +1,5 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject } from '@nestjs/common';
+import { CommandHandler, ICommandHandler } from '@nestjs/cqrs';
 import { ANALYSIS_PROMPT_VERSION } from '../../ai/contracts';
 import { ErrorCode } from '../../common/constants/error-code';
 import { AppError } from '../../common/http';
@@ -9,11 +10,11 @@ import type { AnalysisRepository } from '../../db/repositories/analysis.reposito
 import { ANALYSIS_REPOSITORY } from '../../db/repositories/tokens';
 import { AnalysisCommandShared } from '../analysis-command.shared';
 import type { AnalysisDetailResult } from '../analysis-detail.types';
-import type { RetryAnalysisCommand } from './retry-analysis.types';
+import { RetryAnalysisCommand } from './retry-analysis.types';
 
 /** CQRS command handler: retries a failed analysis with a new execution. */
-@Injectable()
-export class RetryAnalysisHandler {
+@CommandHandler(RetryAnalysisCommand)
+export class RetryAnalysisHandler implements ICommandHandler<RetryAnalysisCommand> {
   /**
    * @param llmSettings Provider and model copied into the execution row.
    * @param analyses Persistence port for compare-and-set retry reservation.

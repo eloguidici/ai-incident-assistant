@@ -1,4 +1,5 @@
 import { Body, Controller, Get, HttpCode, Param, Post, Query, Req, Res, UseGuards } from '@nestjs/common';
+import { CommandBus, QueryBus } from '@nestjs/cqrs';
 import { ApiBody, ApiCookieAuth, ApiOperation, ApiParam, ApiQuery, ApiResponse, ApiSecurity, ApiTags } from '@nestjs/swagger';
 import type { Request, Response } from 'express';
 import { z } from 'zod';
@@ -10,11 +11,11 @@ import { AppError } from '../common/http';
 import { InjectConfig } from '../config';
 import { llmConfig, type LlmConfig } from '../config/slices';
 import { ApiErrorResponseDto, AnalysisDetailResponseDto, CreateAnalysisRequestDto, ListAnalysesResponseDto, QuestionRequestDto } from '../openapi/dtos';
-import { AddQuestionHandler } from './commands/add-question.handler';
-import { CreateAnalysisHandler } from './commands/create-analysis.handler';
-import { RetryAnalysisHandler } from './commands/retry-analysis.handler';
-import { ListAnalysesHandler } from './queries/list-analyses.handler';
-import { GetAnalysisHandler } from './queries/get-analysis.handler';
+import { AddQuestionCommand } from './commands/add-question.types';
+import { CreateAnalysisCommand } from './commands/create-analysis.types';
+import { RetryAnalysisCommand } from './commands/retry-analysis.types';
+import { GetAnalysisQuery } from './queries/get-analysis.types';
+import { ListAnalysesQuery } from './queries/list-analyses.types';
 
 const createSchema = z.object({ sourceText: z.string() }).strict();
 const questionSchema = z.object({ question: z.string() }).strict();
@@ -33,11 +34,8 @@ export class AnalysesController {
    * @param llmSettings Supplies the model deadline used to abort each request.
    */
   constructor(
-    private readonly listAnalyses: ListAnalysesHandler,
-    private readonly getAnalysis: GetAnalysisHandler,
-    private readonly createAnalysis: CreateAnalysisHandler,
-    private readonly addQuestion: AddQuestionHandler,
-    private readonly retryAnalysis: RetryAnalysisHandler,
+    private readonly queryBus: QueryBus,
+    private readonly commandBus: CommandBus,
     @InjectConfig(llmConfig) private readonly llmSettings: LlmConfig,
   ) {}
 
@@ -56,7 +54,7 @@ export class AnalysesController {
   @ApiResponse({ status: 401, type: ApiErrorResponseDto })
   list(@Req() request: Request, @Query() query: Record<string, unknown>) {
     const page = readPage(query);
-    return this.listAnalyses.execute({ ownerId: request.user!.id, limit: page.limit, offset: page.offset });
+    return this.queryBus.execute(new ListAnalysesQuery(request.user!.id, page.limit, page.offset));
   }
 
   /**
@@ -74,6 +72,7 @@ export class AnalysesController {
   @ApiResponse({ status: 400, type: ApiErrorResponseDto })
   @ApiResponse({ status: 401, type: ApiErrorResponseDto })
   @ApiResponse({ status: 403, type: ApiErrorResponseDto })
+  @ApiResponse({ status: 413, type: ApiErrorResponseDto })
   @ApiResponse({ status: 409, type: ApiErrorResponseDto })
   @ApiResponse({ status: 422, type: ApiErrorResponseDto })
   @ApiResponse({ status: 429, type: ApiErrorResponseDto })
@@ -83,12 +82,9 @@ export class AnalysesController {
     const createBody = createSchema.safeParse(body);
     if (!createBody.success) throw new AppError(ErrorCode.ValidationError, 400, 'The body must contain only sourceText.');
     return this.withDeadline(response, (signal) =>
-      this.createAnalysis.execute({
-        owner: request.user!,
-        sourceText: createBody.data.sourceText.trim(),
-        correlationId: request.correlationId,
-        signal,
-      }),
+      this.commandBus.execute(
+        new CreateAnalysisCommand(request.user!, createBody.data.sourceText.trim(), request.correlationId, signal),
+      ),
     );
   }
 
@@ -104,7 +100,7 @@ export class AnalysesController {
   @ApiResponse({ status: 401, type: ApiErrorResponseDto })
   @ApiResponse({ status: 404, type: ApiErrorResponseDto })
   get(@Req() request: Request, @Param('id') id: string) {
-    return this.getAnalysis.execute({ ownerId: request.user!.id, analysisId: parseAnalysisId(id) });
+    return this.queryBus.execute(new GetAnalysisQuery(request.user!.id, parseAnalysisId(id)));
   }
 
   /**
@@ -135,13 +131,15 @@ export class AnalysesController {
     const questionBody = questionSchema.safeParse(body);
     if (!questionBody.success) throw new AppError(ErrorCode.ValidationError, 400, 'The body must contain only question.');
     return this.withDeadline(response, (signal) =>
-      this.addQuestion.execute({
-        owner: request.user!,
-        analysisId: parseAnalysisId(id),
-        question: questionBody.data.question.trim(),
-        correlationId: request.correlationId,
-        signal,
-      }),
+      this.commandBus.execute(
+        new AddQuestionCommand(
+          request.user!,
+          parseAnalysisId(id),
+          questionBody.data.question.trim(),
+          request.correlationId,
+          signal,
+        ),
+      ),
     );
   }
 
@@ -160,12 +158,9 @@ export class AnalysesController {
   @ApiResponse({ status: 409, type: ApiErrorResponseDto })
   retry(@Req() request: Request, @Res({ passthrough: true }) response: Response, @Param('id') id: string) {
     return this.withDeadline(response, (signal) =>
-      this.retryAnalysis.execute({
-        owner: request.user!,
-        analysisId: parseAnalysisId(id),
-        correlationId: request.correlationId,
-        signal,
-      }),
+      this.commandBus.execute(
+        new RetryAnalysisCommand(request.user!, parseAnalysisId(id), request.correlationId, signal),
+      ),
     );
   }
 

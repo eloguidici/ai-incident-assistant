@@ -1,13 +1,14 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject } from '@nestjs/common';
+import { IQueryHandler, QueryHandler } from '@nestjs/cqrs';
 import { AnalysisListExcerptLength } from '../../common/constants/pagination';
 import type { AnalysisRepository } from '../../db/repositories/analysis.repository';
 import { ANALYSIS_REPOSITORY } from '../../db/repositories/tokens';
 import { readSeverity, readSummary } from '../analysis-list.helpers';
-import type { ListAnalysesQuery, ListAnalysesResult } from './list-analyses.types';
+import { ListAnalysesQuery, type ListAnalysesResult } from './list-analyses.types';
 
 /** CQRS query handler: lists analyses for one owner (reference vertical for R00-B). */
-@Injectable()
-export class ListAnalysesHandler {
+@QueryHandler(ListAnalysesQuery)
+export class ListAnalysesHandler implements IQueryHandler<ListAnalysesQuery> {
   /** @param analyses Persistence port for list and count queries. */
   constructor(@Inject(ANALYSIS_REPOSITORY) private readonly analyses: AnalysisRepository) {}
 

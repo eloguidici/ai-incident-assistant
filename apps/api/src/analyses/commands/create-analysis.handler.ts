@@ -1,4 +1,5 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject } from '@nestjs/common';
+import { CommandHandler, ICommandHandler } from '@nestjs/cqrs';
 import { ANALYSIS_PROMPT_VERSION } from '../../ai/contracts';
 import { ErrorCode } from '../../common/constants/error-code';
 import { AppError } from '../../common/http';
@@ -9,11 +10,11 @@ import type { AnalysisRepository } from '../../db/repositories/analysis.reposito
 import { ANALYSIS_REPOSITORY } from '../../db/repositories/tokens';
 import { AnalysisCommandShared } from '../analysis-command.shared';
 import type { AnalysisDetailResult } from '../analysis-detail.types';
-import type { CreateAnalysisCommand } from './create-analysis.types';
+import { CreateAnalysisCommand } from './create-analysis.types';
 
 /** CQRS command handler: reserves a processing analysis and runs the model. */
-@Injectable()
-export class CreateAnalysisHandler {
+@CommandHandler(CreateAnalysisCommand)
+export class CreateAnalysisHandler implements ICommandHandler<CreateAnalysisCommand> {
   /**
    * @param llmSettings Provider and model copied into the execution row.
    * @param analyses Persistence port for transactional reservation.

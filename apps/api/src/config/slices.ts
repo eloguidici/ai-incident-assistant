@@ -116,7 +116,8 @@ export const llmConfig = defineConfigSlice<LlmConfig>({
     MAX_INFLIGHT_LLM: Joi.number().integer().min(1).max(100).default(4),
     FAULT_INJECTION: flag,
   }).custom((env: Record<string, unknown>, helpers) => {
-    if (env.LLM_PROVIDER === 'openai' && String(env.OPENAI_API_KEY ?? '').length < 10) {
+    const openAiKey = typeof env.OPENAI_API_KEY === 'string' ? env.OPENAI_API_KEY : '';
+    if (env.LLM_PROVIDER === 'openai' && openAiKey.length < 10) {
       return helpers.message({ custom: 'OPENAI_API_KEY is required when LLM_PROVIDER=openai' });
     }
     if (Number(env.LLM_ATTEMPT_TIMEOUT_MS) > Number(env.LLM_DEADLINE_MS)) {

@@ -136,18 +136,28 @@ function asProviderError(error: unknown, parentAborted: boolean, attemptAborted:
  */
 function delay(ms: number, signal: AbortSignal): Promise<void> {
   return new Promise((resolve, reject) => {
-    const onAbort = () => {
-      clearTimeout(timer);
-      signal.removeEventListener('abort', onAbort);
-      reject(new ProviderRequestError(parentAbortKind(signal), 'The request was cancelled.'));
-    };
     if (signal.aborted) {
-      onAbort();
+      reject(
+        new ProviderRequestError(
+          parentAbortKind(signal),
+          parentAbortKind(signal) === 'timeout' ? 'The total time budget ran out.' : 'The request was cancelled.',
+        ),
+      );
       return;
     }
+    const handles: { timer?: ReturnType<typeof setTimeout> } = {};
+    const onAbort = (): void => {
+      if (handles.timer !== undefined) clearTimeout(handles.timer);
+      signal.removeEventListener('abort', onAbort);
+      reject(
+        new ProviderRequestError(
+          parentAbortKind(signal),
+          parentAbortKind(signal) === 'timeout' ? 'The total time budget ran out.' : 'The request was cancelled.',
+        ),
+      );
+    };
     signal.addEventListener('abort', onAbort);
-    const timer = setTimeout(() => {
-      clearTimeout(timer);
+    handles.timer = setTimeout(() => {
       signal.removeEventListener('abort', onAbort);
       resolve();
     }, ms);

@@ -12,6 +12,7 @@
     "lint": "npm run lint -w @app/api && npm run lint -w @app/web",
     "typecheck": "npm run typecheck -w @app/api && npm run typecheck -w @app/web",
     "test": "npm run test -w @app/api",
+    "test:coverage": "npm run test:coverage -w @app/api",
     "test:unit": "npm run test:unit -w @app/api",
     "db:migrate": "npm run migrate -w @app/api",
     "db:rollback": "npm run rollback -w @app/api",
