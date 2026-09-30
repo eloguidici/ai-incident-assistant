@@ -65,26 +65,14 @@ export class AddQuestionHandler implements ICommandHandler<AddQuestionCommand> {
       this.shared.refundQuestionRateLimit(command.owner.id);
       this.shared.rethrowUniqueAsConflict(error, 'A question is already in progress for this analysis.');
     }
-    try {
-      return await this.shared.completeQuestion(
-        command.owner,
-        command.analysisId,
-        ownedAnalysis.sourceText,
-        command.question,
-        command.correlationId,
-        command.signal,
-        executionId,
-      );
-    } catch (error) {
-      if (error instanceof AppError && error.errorCode === ErrorCode.Conflict) throw error;
-      await this.shared.abortQuestionExecution(
-        executionId,
-        command.owner.id,
-        error instanceof AppError ? error.errorCode : ErrorCode.Internal,
-        command.correlationId,
-        command.analysisId,
-      );
-      throw error;
-    }
+    return await this.shared.completeQuestion(
+      command.owner,
+      command.analysisId,
+      ownedAnalysis.sourceText,
+      command.question,
+      command.correlationId,
+      command.signal,
+      executionId,
+    );
   }
 }

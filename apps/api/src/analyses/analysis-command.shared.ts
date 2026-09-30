@@ -121,34 +121,6 @@ export class AnalysisCommandShared {
   }
 
   /**
-   * Marks a reserved question execution as failed without calling the model.
-   * @param executionId Reserved row to close.
-   */
-  async abortQuestionExecution(
-    executionId: string,
-    ownerId: string,
-    errorCode: string,
-    correlationId: string,
-    analysisId: string,
-  ): Promise<void> {
-    const closed = await this.analyses.finishExecution({
-      executionId,
-      ownerId,
-      status: RunStatus.Failed,
-      errorCode,
-      attemptCount: 0,
-      latencyMs: null,
-      inputTokens: null,
-      outputTokens: null,
-      provider: this.llmSettings.provider,
-      model: this.modelName(),
-    });
-    if (!closed) {
-      this.logger.info({ msg: LogEvent.PersistFailure, errorCode: PersistenceErrorCode.DbWriteFailed, correlationId, analysisId });
-    }
-  }
-
-  /**
    * Runs the model after a processing analysis was reserved.
    * @param executionId Execution row to finish on success or failure.
    * @returns Completed detail.

@@ -151,6 +151,8 @@ describe('pure rules', () => {
     expect(rejectedAttempt.ok).toBe(false);
     limiter.refund('user');
     expect(limiter.consume('user', 1, 60_000).ok).toBe(true);
+    limiter.consume('other-user', 1, 1_000, 0);
+    expect(limiter.consume('other-user', 1, 1_000, 5_000).ok).toBe(true);
     const inflight = new InflightLimiter(1);
     expect(inflight.tryEnter()).toBe(true);
     expect(inflight.tryEnter()).toBe(false);
