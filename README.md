@@ -1,6 +1,7 @@
 # AI Incident Assistant
 Aplicación para que un analista autenticado pegue el texto de un incidente, reciba un análisis estructurado y haga preguntas sobre ese mismo texto. El resultado separa citas, hipótesis e información faltante. No ejecuta acciones sobre otros sistemas.
 
+
 ## Arquitectura
 Monolito NestJS/TypeScript. React habla con una API REST. PostgreSQL guarda usuarios, análisis, mensajes, ejecuciones y auditoría. Los casos de uso de escritura (`crear`, `reintentar`, `preguntar`) están separados de las lecturas (`listar`, `detalle`).
 
