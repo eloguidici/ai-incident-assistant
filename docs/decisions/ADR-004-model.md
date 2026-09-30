@@ -1,10 +1,20 @@
-# ADR-004 — Integración del modelo
-Fecha: 2026-09-29. Estado: aceptado.
-## Decisión
-Contrato `LlmProvider` con tres implementaciones: `mock`, `openai` y `openrouter` (API compatible en `https://openrouter.ai/api/v1`). Prompts `incident-analysis.v1` e `incident-question.v1`. La salida pasa por Zod y por una comprobación de citas. El SDK oficial de OpenAI se configura con `maxRetries: 0`. La aplicación reintenta como máximo una vez si el error es timeout de intento, 429, 5xx o red, y si todavía entra en `LLM_DEADLINE_MS`.
-## Motivo
-El flujo es una sola llamada con JSON. Un framework de orquestación no aporta en este alcance. Dejar el reintento en un solo lugar evita multiplicarlo con el del SDK.
-## Alternativa
-Aceptar cualquier JSON bien formado mostraría citas inventadas como si fueran evidencia. Reintentar errores de esquema gastaría otra llamada sin garantía de corrección.
-## Límite
-No hay streaming. Cancelar el `AbortSignal` no deshace una solicitud que el proveedor ya haya procesado. El mock no mide calidad del modelo. `gpt-4o-mini` es el default por costo y salida JSON; no hay una comparación medida contra otro modelo.
+# ADR-004: Model integration
+
+
+Date: 2026-09-29. Status: accepted.
+
+## Decision
+
+An `LlmProvider` contract with three implementations: `mock`, `openai` and `openrouter` (compatible API at `https://openrouter.ai/api/v1`). Prompts `incident-analysis.v1` and `incident-question.v1`. User content is sent in data blocks bound to a random per-request id. Output goes through Zod and a quote check. The official OpenAI SDK is configured with `maxRetries: 0`. The application retries at most once if the error is an attempt timeout, 429, 5xx or network error, and only if it still fits within `LLM_DEADLINE_MS`.
+
+## Reason
+
+The flow is a single call returning JSON. An orchestration framework adds nothing at this scope. Keeping retries in one place avoids multiplying them with the SDK's own.
+
+## Alternative
+
+Accepting any well-formed JSON would show invented quotes as evidence. Retrying schema errors would spend another call with no guarantee of a correct result.
+
+## Limit
+
+No streaming. Cancelling the `AbortSignal` does not undo a request the provider has already processed. The mock does not measure model quality. `gpt-4o-mini` is the default for cost and JSON output; there is no measured comparison against another model.

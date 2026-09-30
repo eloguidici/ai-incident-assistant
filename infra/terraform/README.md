@@ -1,5 +1,6 @@
 # AWS infrastructure proposal
 
+
 This is an infrastructure definition for assessment section 3.1, which allows AWS or a simulated proposal. It has not been deployed. Local application verification remains separate from cloud validation.
 
 ## What the files describe
@@ -27,7 +28,7 @@ terraform -chdir=infra/terraform validate
 
 `init` downloads the pinned provider and checks package integrity. `validate` checks configuration and provider schema; it does not create AWS resources or prove that credentials, DNS, images or secrets work. These checks do not need application API keys. Do not disable TLS or checksum verification if a download fails.
 
-`plan` previews changes in a concrete environment and may query AWS. `apply` performs changes and can incur charges. Neither is part of the validation-only procedure above. A successful `validate` is not a deployment certification. The exact results and environment belong in the latest QA report.
+`plan` previews changes in a concrete environment and may query AWS. `apply` performs changes and can incur charges. Neither is part of the validation-only procedure above. A successful `validate` is not a deployment certification. CI runs `fmt -check`, `init -backend=false` and `validate` on every push.
 
 ## Prerequisites for a future deployment
 

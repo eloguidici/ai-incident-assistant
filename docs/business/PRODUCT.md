@@ -1,32 +1,44 @@
-# Negocio y alcance
-## Problema y actores
-Analista técnico necesita ordenar información incompleta de un incidente. Usuario autenticado es dueño de su contenido; IA propone análisis, humano verifica. Evaluador debe reproducir el flujo.
+# Business and scope
 
-## Alcance MVP
-Login, pegar texto, generar análisis estructurado, consultar historial/detalle y hacer preguntas/refinamientos sobre ese mismo contenido.
-No carga PDF/OCR inicialmente; el assessment admite texto. No voz, scraping, herramientas con efectos, monitoreo real, RAG ni múltiples agentes obligatorios.
 
-## Reglas
-B01: cada análisis y mensaje pertenece a un usuario; servidor deriva identidad de sesión.
-B02: sólo propietario lee, modifica o pregunta sobre análisis; listados tampoco filtran datos ajenos.
-B03: entrada validada y tamaño/contexto limitados antes de llamar modelo.
-B04: hechos/evidencias separados de hipótesis; texto insuficiente produce incertidumbre explícita.
-B05: salida debe validar contra esquema; salida inválida no se muestra como éxito.
-B06: fallos visibles y recuperables; reintento explícito no borra resultado previo.
-B07: proveedor/modelo/promptVersion se registran por ejecución; logs operativos no contienen texto completo.
-B08: no ejecutar acciones sobre sistemas externos.
+## Problem and actors
 
-## Flujos
-F01 login -> sesión -> acceso.
-F02 texto -> validación -> ejecución -> resultado persistido o fallo visible.
-F03 historial propio -> detalle -> recuperación tras reinicio.
-F04 pregunta -> contexto acotado y propio -> respuesta -> historial.
-F05 fallo proveedor -> mensaje seguro -> reintento controlado.
-F06 usuario ajeno intenta acceso -> denegación consistente sin filtrar contenido.
+A technical analyst needs to organize incomplete information about an incident. The authenticated user owns their content; the AI proposes an analysis and a human verifies it. The evaluator must be able to reproduce the flow.
 
-## Resultado propuesto
-summary, category, suggestedSeverity, evidence, hypotheses, missingInformation y uncertainty. Las citas tienen que existir en el texto. El esquema cerrado está en docs/features/MVP.md.
-## Datos sensibles
-Usar fixtures sintéticos. Definir política de envío al proveedor, retención/borrado y logs en T02/T08 antes de afirmar privacidad implementada.
-## Éxito
-Evaluador levanta aplicación con instrucciones, analiza contenido, pregunta, conserva historial y comprueba aislamiento y errores. No se promete diagnóstico correcto automático.
+## MVP scope
+
+Login, paste text, generate a structured analysis, browse history and detail, and ask follow-up questions about the same content.
+
+No PDF upload or OCR; the assessment accepts text. No voice, scraping, tools with side effects, real monitoring, RAG or multiple agents.
+
+## Rules
+
+- **B01:** every analysis and message belongs to a user; the server derives identity from the session.
+- **B02:** only the owner reads, changes or asks about an analysis; lists do not leak other users' data either.
+- **B03:** input is validated, and size and context are limited before the model is called.
+- **B04:** facts and evidence are separated from hypotheses; insufficient text produces explicit uncertainty.
+- **B05:** output must validate against the schema; invalid output is never shown as success.
+- **B06:** failures are visible and recoverable; an explicit retry does not delete a previous result.
+- **B07:** provider, model and prompt version are recorded per execution; operational logs do not contain the full text.
+- **B08:** no actions are executed on external systems.
+
+## Flows
+
+- **F01:** login -> session -> access.
+- **F02:** text -> validation -> execution -> persisted result or visible failure.
+- **F03:** own history -> detail -> still available after a restart.
+- **F04:** question -> bounded context of the user's own analysis -> answer -> history.
+- **F05:** provider failure -> safe message -> controlled retry.
+- **F06:** another user tries to access -> consistent denial without leaking content.
+
+## Result
+
+`summary`, `category`, `suggestedSeverity`, `evidence`, `hypotheses`, `missingInformation` and `uncertainty`. Quotes must exist in the text. The closed schema is in [MVP](../features/MVP.md).
+
+## Sensitive data
+
+Use synthetic fixtures. Sending data to the provider, retention, deletion and logging are defined in the [data policy](../security/DATA_POLICY.md).
+
+## Success
+
+The evaluator starts the application from the instructions, analyzes content, asks questions, keeps history and checks isolation and errors. Automatic correct diagnosis is not promised.

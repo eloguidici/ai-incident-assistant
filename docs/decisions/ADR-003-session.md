@@ -1,10 +1,20 @@
-# ADR-003 — Sesión
-Fecha: 2026-09-29. Estado: aceptado.
-## Decisión
-JWT HS256 en la cookie `ia_session` (`HttpOnly`, `SameSite=Lax`). Una segunda cookie `ia_csrf`, legible por la página, debe coincidir con el encabezado `X-CSRF-Token` en cada POST salvo el login. CORS solo acepta `WEB_ORIGIN` y credenciales.
-## Motivo
-El navegador necesita sobrevivir a una recarga sin guardar el token en `localStorage`. La cookie de sesión no es leíble por JavaScript. El CSRF cubre los POST same-site del formulario.
-## Alternativa
-Un Bearer solo en memoria se pierde al recargar. Un Bearer en `localStorage` queda expuesto a cualquier script de la página.
-## Límite
-`COOKIE_SECURE` es false en HTTP local y true en el diseño AWS. No hay refresh token. La expiración por defecto es 8 horas. Un JWT vencido responde `SESSION_EXPIRED`.
+# ADR-003: Session
+
+
+Date: 2026-09-29. Status: accepted.
+
+## Decision
+
+HS256 JWT in the `ia_session` cookie (`HttpOnly`, `SameSite=Lax`). A second cookie, `ia_csrf`, readable by the page, must match the `X-CSRF-Token` header on every POST except login. CORS accepts only `WEB_ORIGIN` with credentials.
+
+## Reason
+
+The browser session must survive a reload without storing the token in `localStorage`. JavaScript cannot read the session cookie. The CSRF check covers same-site form POSTs.
+
+## Alternative
+
+A Bearer token kept only in memory is lost on reload. A Bearer token in `localStorage` is exposed to any script on the page.
+
+## Limit
+
+`COOKIE_SECURE` is false on local HTTP and true in the AWS design behind HTTPS. There is no refresh token. Default expiry is 8 hours. An expired JWT returns `SESSION_EXPIRED`. Logout clears the cookies but does not revoke an issued token.

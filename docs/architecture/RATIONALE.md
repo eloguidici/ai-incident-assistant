@@ -1,32 +1,42 @@
-# Explicación de las decisiones
-Estado: al día con el código del 2026-09-29. Las pruebas ejecutadas están en docs/qa/runs/2026-09-29/REPORT.md.
-## Qué se entendió de la consigna
-Construir una aplicación pequeña que recibe contenido, permite conversar sobre él y muestra salida estructurada. La evaluación incluye backend/frontend, datos, seguridad, confiabilidad e infraestructura, además de justificar compromisos.
+# Rationale
 
-## Por qué este caso
-El análisis de incidentes permite resumir y clasificar texto, separar evidencia de hipótesis y pedir información faltante. Cubre los tres comportamientos sin OCR ni carga de documentos. Texto es una entrada admitida por el PDF.
 
-| Decisión | Motivo | Costo o límite |
+This document explains the main decisions and what each one costs. Test evidence is in the dated reports under [process/qa-runs](../../process/qa-runs/).
+
+## What the assessment asks
+
+Build a small application that receives content, lets the user converse about it and shows structured output. The evaluation covers backend and frontend, data, security, reliability and infrastructure, and asks for the trade-offs to be justified.
+
+## Why this use case
+
+Incident analysis requires summarizing and classifying text, separating evidence from hypotheses and asking for missing information. It covers the three suggested behaviors without OCR or document upload. Text is an accepted input in the assessment.
+
+| Decision | Reason | Cost or limit |
 |---|---|---|
-| NestJS/TypeScript | Node está permitido; módulos, DI y validación conocidos | Evitar capas/decoradores innecesarios |
-| React | Requisito y flujo claro de entrada/resultados | Estados de error/carga deben integrarse realmente |
-| PostgreSQL | Opción admitida; relaciones y consistencia de usuarios/análisis/mensajes | Migraciones e índices deben mantenerse |
-| Monolito modular | Un despliegue y límites claros para un caso pequeño | No ofrece aislamiento operativo por módulo |
-| CQRS liviano | Separar lectura de orquestación de escrituras y pruebas | Más archivos; no justificar event sourcing ni dos DB |
-| SDK detrás de contrato | Hacer visible la invocación y permitir sustitución | Implementar límites/errores explícitos |
-| Prompt versionado y schema | Poder rastrear cambios y rechazar formato inválido | Formato válido no garantiza veracidad |
-| Evidencias e incertidumbre | Facilitar revisión humana | No elimina alucinaciones ni valida causalidad |
-| Docker local | Reproducir API/base y persistencia | Docker solo no satisface IaC AWS |
+| NestJS/TypeScript | Node is preferred; known modules, dependency injection and validation | Avoid unnecessary layers and decorators |
+| React | Required; clear input and results flow | Error and loading states must be integrated for real |
+| PostgreSQL | Allowed option; relations and consistency for users, analyses and messages | Migrations and indexes must be maintained |
+| Modular monolith | One deployment and clear boundaries for a small case | No operational isolation per module |
+| Lightweight CQRS | Separate reads from write orchestration and its tests | More files; does not justify event sourcing or two databases |
+| SDK behind a contract | Makes the invocation visible and replaceable | Limits and errors must be implemented explicitly |
+| Versioned prompt and schema | Changes can be traced and invalid formats rejected | Valid format does not guarantee truth |
+| Evidence and uncertainty | Makes human review easier | Does not remove hallucinations or validate causality |
+| Local Docker | Reproduce API, database and persistence | Docker alone does not satisfy AWS infrastructure as code |
 
-## Alcance deliberado
-Sin RAG, voz, scraping, herramientas con efectos ni multiagentes obligatorios. No se necesitan para este caso y el PDF los omite o trata como bonus. Mostrar estado real de procesamiento; no simular streaming ni pasos internos de razonamiento.
+## Deliberate scope
 
-## Datos y límites de IA
-T02/T08 concretan qué se guarda y qué no, plazos de conservación, PII, envío a proveedor y borrado. Auditoría responde quién hizo qué/cuándo/con qué resultado; logs describen salud técnica. Ambos pueden usar correlation ID y excluir payload sensible.
-La calidad se mide con casos/rúbrica y muestras reales; mocks validan contratos. Cambios de prompt/modelo se comparan antes de publicar; errores del modelo requieren feedback, investigación y posible rollback.
+No RAG, voice, scraping, tools with side effects or multiple agents. They are not needed for this case and the assessment omits them or treats them as bonus. The UI shows the real processing state; it does not simulate streaming or internal reasoning steps.
 
-## Operación
-T09 describe claves en runtime, rotación, IAM y respuesta ante picos. Las cuotas del proveedor y las conexiones DB limitan el escalado. El backend Docker tendrá propuesta de despliegue ECS o serverless coherente con IaC; no se necesita ejecutar infraestructura paga para afirmar que se definió.
+## Data and AI limits
 
-## Evidencia
-ORM: TypeORM y repositorios, ADR-006 (ADR-002 histórico). Sesión: ADR-003. Límites y retención: docs/features/MVP.md y docs/security/DATA_POLICY.md. Destino cloud propuesto: ADR-005, sin apply. Resultados de pruebas: docs/qa/runs/2026-09-29/REPORT.md. La muestra real del modelo no se ejecutó.
+The [data policy](../security/DATA_POLICY.md) defines what is stored and what is not, retention, PII, what is sent to the provider and deletion. The audit trail answers who did what, when and with which result; logs describe technical health. Both use a correlation id and exclude sensitive payloads.
+
+Quality is measured with cases, a rubric and real samples; mocks validate contracts. Prompt or model changes are compared before release; model errors call for feedback, investigation and a possible rollback.
+
+## Operation
+
+The [Terraform guide](../../infra/terraform/README.md) describes runtime keys, rotation, IAM and the response to bursts. Provider quotas and database connections limit scaling. The Docker images have an ECS deployment proposal consistent with the infrastructure code; paid infrastructure does not need to run to show that it was defined.
+
+## Evidence
+
+ORM: TypeORM and repositories, [ADR-006](../decisions/ADR-006-typeorm-repository.md) ([ADR-002](../decisions/ADR-002-persistence.md) is historical). Session: [ADR-003](../decisions/ADR-003-session.md). Limits and retention: [MVP](../features/MVP.md) and [data policy](../security/DATA_POLICY.md). Proposed cloud target: [ADR-005](../decisions/ADR-005-aws.md), not applied. Test runs, including live-model samples: [process/qa-runs](../../process/qa-runs/).

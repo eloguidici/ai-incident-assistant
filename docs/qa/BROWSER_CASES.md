@@ -1,31 +1,31 @@
-# Casos de navegador y API
-Fecha: 2026-09-29. Automatización: Playwright con Chrome instalado, más Jest contra PostgreSQL. No se descargó el Chromium de Playwright por un fallo TLS del entorno.
+# Browser and API cases
 
-| ID | Caso | Resultado | Dónde |
+
+Snapshot from 2026-09-29. Automation: Playwright with installed Chrome, plus Jest against PostgreSQL. Later runs are in [process/qa-runs](../../process/qa-runs/).
+
+| ID | Case | Result | Where |
 |---|---|---|---|
-| B01 | Login válido | PASS | `qa/e2e/smoke.spec.ts` |
-| B02 | Login inválido | PASS | el mismo archivo. Sesión vencida: PASS en Jest, no en el navegador |
-| B03 | Historial vacío | PASS | e2e, después de reset de la base de test |
-| B04 | Incidente válido y resultado | PASS | e2e y Jest |
-| B05 | Vacío y texto largo | PASS en API. En la UI el botón queda deshabilitado y el textarea tiene `maxLength` |
-| B06 | Evidencias, hipótesis, faltantes | PASS | e2e muestra evidencias e incertidumbre |
-| B07 | Pregunta | PASS | e2e y Jest |
-| B08 | Recarga del historial | PASS | e2e hace reload |
-| B09 | Reinicio de Postgres | PASS | fila presente después de `docker restart`. No se repitió desde el navegador |
-| B10 | Usuario B no abre el análisis de A | PASS | e2e y Jest |
-| B11 | Timeout | PASS en API con `[MOCK:timeout]`, deadline de test 2,5 s. No se filmó en el navegador |
-| B12 | 429/5xx | PASS en API para 500 y auth. 429 del proveedor no tiene un caso de navegador |
-| B13 | JSON o esquema inválido | PASS en API |
-| B14 | Doble envío concurrente | PASS en API: 409 y 504. No hay un doble click de UI automatizado |
-| B15 | Contexto sobre el presupuesto | Cubierto por test unitario de `selectContext`. No hay caso HTTP con el presupuesto bajo en la suite actual |
-| B16 | HTML/script visible como texto | PASS | e2e comprueba el texto y que no aparece `window.__xss` |
-| B17 | Teclado y viewport chico | NOT_RUN como caso dedicado. Los controles son nativos y el CSS tiene un corte a 720 px |
-| B18 | Cancelación al desconectar | NOT_RUN de punta a punta. El servidor aborta si la respuesta se cierra antes de terminar |
-| B19 | Dos preguntas simultáneas | El índice único responde 409. No hay un test que dispare las dos preguntas a la vez |
-| B20 | Logs sin secreto ni texto | PASS en Jest |
-| B21 | `/docs/` no publica el markdown | PASS parcial: `check:web-docs` no encuentra los documentos en `apps/web/dist`. No se inspeccionó la imagen nginx |
-| B22 | Proveedor real | BLOCKED | sin clave |
-| B23 | Fallo de base después del modelo | NOT_RUN. El código marca `DATA_NOT_SAVED` si la escritura falla; no se inyectó esa falla en la suite |
-| B24 | Retención | PASS en Jest: un análisis vencido desaparece y el resto del mecanismo horario queda en el proceso |
-
-Un video de `qa:demo` se pidió en esta sesión. Si el comando no figura como PASS en el reporte, el video no se certificó.
+| B01 | Valid login | PASS | `qa/e2e/smoke.spec.ts` |
+| B02 | Invalid login | PASS | Same file. Expired session: PASS in Jest, not in the browser |
+| B03 | Empty history | PASS | e2e, after resetting the test database |
+| B04 | Valid incident and result | PASS | e2e and Jest |
+| B05 | Empty and long text | PASS in the API. In the UI the button stays disabled and the textarea has `maxLength` | |
+| B06 | Evidence, hypotheses, missing information | PASS | e2e shows evidence and uncertainty |
+| B07 | Question | PASS | e2e and Jest |
+| B08 | History reload | PASS | e2e reloads the page |
+| B09 | Postgres restart | PASS | Row present after `docker restart`. Not repeated from the browser |
+| B10 | User B cannot open A's analysis | PASS | e2e and Jest |
+| B11 | Timeout | PASS in the API with `[MOCK:timeout]` and a 2.5 s test deadline. Not recorded in the browser | |
+| B12 | 429/5xx | PASS in the API for 500 and auth. The provider's 429 has no browser case | |
+| B13 | Invalid JSON or schema | PASS in the API | |
+| B14 | Concurrent double submit | PASS in the API: 409 and 504. No automated UI double click | |
+| B15 | Context over budget | Covered by the `selectContext` unit test and the context-limit integration test | |
+| B16 | HTML/script shown as text | PASS | e2e checks the text and that `window.__xss` does not appear |
+| B17 | Keyboard and small viewport | NOT_RUN as a dedicated case. Controls are native and the CSS has a 720 px breakpoint | |
+| B18 | Cancellation on disconnect | NOT_RUN end to end. The server aborts if the response closes before finishing | |
+| B19 | Two simultaneous questions | The unique index returns 409 | |
+| B20 | Logs without secrets or text | PASS in Jest | |
+| B21 | `/docs/` does not publish the markdown | Partial PASS: `check:web-docs` finds no documents in `apps/web/dist` | |
+| B22 | Real provider | BLOCKED on 2026-09-29 (no key); later live samples in process/qa-runs | |
+| B23 | Database failure after the model | Covered later by rollback and failure-orchestration tests | |
+| B24 | Retention | PASS in Jest: an expired analysis disappears and the rest remain | |

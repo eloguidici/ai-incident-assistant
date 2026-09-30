@@ -1,34 +1,35 @@
-# Matriz de requisitos y aceptación
-Fuente: PDF Full Stack AI Engineer Assessment recibido el 29/09/2026. La aplicación está implementada. La evidencia ejecutada está en docs/qa/runs/2026-09-29/REPORT.md. Lo que no se corrió figura como BLOCKED o NOT_RUN.
+# Requirements and acceptance matrix
 
-| ID | Exigencia | Entrega y aceptación |
+
+Source: Full Stack AI Engineer Assessment PDF, received on 2026-09-29. The application is implemented. Executed evidence is in [process/qa-runs](../../process/qa-runs/). Anything not run is marked BLOCKED or NOT_RUN there.
+
+| ID | Requirement | Delivery and acceptance |
 |---|---|---|
-| R01 | Contenido: texto o documentos | Formulario de texto; entrada vacía/excesiva rechazada. El PDF permite elegir texto sin carga de archivos. |
-| R02 | Interactuar sobre el contenido | Preguntas y refinamientos vinculados al análisis; límites de contexto y ownership. |
-| R03 | Resultados estructurados | Esquema validado en servidor y representación clara en React. |
-| R04 | Node preferido o Java | NestJS sobre Node.js confirmado en ADR-001. |
-| R05 | API REST o GraphQL | REST documentada con contratos y errores. |
-| R06 | Endpoint IA | Una llamada real configurable y adaptador determinístico para tests. Mock no reemplaza la demostración real de integración. |
-| R07 | PostgreSQL, MongoDB o DynamoDB | PostgreSQL seleccionado; Docker local. Probar persistencia tras reinicio. |
-| R08 | Autenticación JWT o similar | Login; sesión válida/vencida; autorización por propietario. |
-| R09 | Separación IA | Construcción de prompt, invocación y postprocesamiento separadas. |
-| R10 | Cambio proveedor | Contrato común + real/mock; test de sustitución, sin imponer múltiples proveedores reales. |
-| R11 | Versionado/config de prompt | Prompt versionado; guardar versión y modelo con resultado. |
-| R12 | Seguridad de entrada y costos | Implementar límites básicos; explicar mitigación de injection, presupuestos y rate limits productivos. |
-| R13 | React, dos páginas | Nueva entrada e historial/detalle, además de login; estados vacío/cargando/error. |
-| R14 | Estado IA y refinamiento | Estado procesando/completado/fallido; re-preguntar. Streaming opcional, no fingir tokens. |
-| R15 | Incertidumbre | Evidencias vs hipótesis; datos faltantes; no inventar certeza ni fuentes. |
-| R16 | Datos y arquitectura | Qué se guarda/no, retención, PII, logs y auditoría documentados. |
-| R17 | Evaluación | Calidad, regresiones y respuesta incorrecta en producción explicadas; fixtures de ejemplo recomendados. |
-| R18 | AWS o mock + IaC | Terraform o CloudFormation coherente con arquitectura; documentar si no se desplegó. |
-| R19 | Secretos/config | Sin claves reales en repo, imágenes, frontend o logs; ubicación/rotación/escalado explicados. |
-| R20 | Repositorio y README | Decisiones, diseño IA, trade-offs, limitaciones e instrucciones locales verificadas. |
+| R01 | Content: text or documents | Text form; empty or oversized input rejected. The assessment allows text without file upload. |
+| R02 | Interact with the content | Questions and refinements linked to the analysis; context limits and ownership. |
+| R03 | Structured outputs | Schema validated on the server and shown clearly in React. |
+| R04 | Node (preferred) or Java | NestJS on Node.js, confirmed in ADR-001. |
+| R05 | REST or GraphQL API | Documented REST with contracts and errors (OpenAPI). |
+| R06 | AI endpoint | A configurable real call and a deterministic adapter for tests. The mock does not replace a real integration sample. |
+| R07 | PostgreSQL, MongoDB or DynamoDB | PostgreSQL, run locally in Docker. Persistence after restart tested. |
+| R08 | JWT or similar authentication | Login; valid and expired sessions; authorization by owner. |
+| R09 | AI separation | Prompt construction, invocation and post-processing separated. |
+| R10 | Provider switch | Common contract with mock, OpenAI and OpenRouter implementations. |
+| R11 | Prompt versioning or configuration | Versioned prompt; version and model stored with each result. |
+| R12 | Input safety and costs | Basic limits implemented; injection mitigation, budgets and production rate limits explained in the README. |
+| R13 | React, two pages | New analysis and history/detail, plus login; empty, loading and error states. |
+| R14 | AI status and refinement | Processing, completed and failed states; ask again and retry. Streaming is optional and tokens are not faked. |
+| R15 | Uncertainty | Evidence vs hypotheses; missing information; no invented certainty or sources. |
+| R16 | Data and architecture | What is stored and what is not, retention, PII, logs and audit documented. |
+| R17 | Evaluation | Quality, regressions and wrong answers in production explained; example fixtures included. |
+| R18 | AWS or mock + IaC | Terraform consistent with the architecture; documented as not deployed. |
+| R19 | Secrets and configuration | No real keys in the repository, images, frontend or logs; location, rotation and scaling explained. |
+| R20 | Repository and README | Decisions, AI design, trade-offs, limits and verified local instructions. |
 
-## Extras separados
-RAG/vector store, streaming token a token, tool calling, colas, costos 1k/10k/100k, multitenancy y Docker no son obligatorios. Docker se propone por reproducibilidad. Aislar datos por usuario sí es parte de seguridad básica, aunque multitenancy sea bonus.
+## Separate extras
 
-## Tiempo
-Una semana es el plazo general del PDF; 6–10 horas es una expectativa de esfuerzo. No afirma que esté prohibido excederla. Registrar horas reales por fase, sin prometer una fecha aún no confirmada ni sumar features para llenar la semana.
+RAG or a vector store, token streaming, tool calling, queues, cost estimates for 1k/10k/100k requests, multi-tenancy and Docker are not mandatory. Docker is included for reproducibility, and a cost estimate is in the README. Isolating data per user is part of basic security, even though multi-tenancy is a bonus.
 
-## Preguntas abiertas
-Fecha/hora de entrega, reglas de uso de IA/componentes propios y visibilidad requerida del repo. No bloquean el análisis ni la documentación.
+## Time
+
+One week is the overall deadline; 6–10 hours is an effort expectation, not a prohibition on exceeding it. The README explains why this project took longer.

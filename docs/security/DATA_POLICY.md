@@ -1,27 +1,35 @@
-# Política de datos
-Estado: implementada en la aplicación local. La retención del proveedor externo no está implementada aquí porque no la controlamos.
+# Data policy
 
-## Qué se guarda
-| Dato | Dónde | Para qué | Plazo |
+
+Status: implemented in the application. The external provider's retention is not implemented here because this application does not control it.
+
+## What is stored
+
+| Data | Where | Purpose | Retention |
 |---|---|---|---|
-| Email y hash de contraseña | `users` | Identidad | Hasta borrar el usuario. No hay baja de cuenta en el MVP. |
-| Texto del incidente | `analyses.source_text` | Reabrir el análisis y volver a preguntar | `RETENTION_DAYS` (30) desde la creación |
-| Resultado validado | `analyses.result` | Mostrar el informe | El mismo plazo |
-| Preguntas y respuestas | `messages` | Hilo del análisis | Se borran con el análisis |
-| Modelo, prompt, intentos, latencia, tokens si el proveedor los informa | `ai_executions` | Auditoría técnica sin el texto | Se borran con el análisis |
-| Actor, acción, recurso, resultado y correlation id | `audit_events` | Quién hizo qué | No incluye el texto del incidente. No tiene barrido propio. |
+| Email and password hash | `users` | Identity | Until the user is deleted. There is no account deletion in the MVP. |
+| Incident text | `analyses.source_text` | Reopen the analysis and ask again | `RETENTION_DAYS` (30) from creation |
+| Validated result | `analyses.result` | Show the report | Same period |
+| Questions and answers | `messages` | Analysis thread | Deleted with the analysis |
+| Model, prompt version, attempts, latency, tokens when the provider reports them | `ai_executions` | Technical audit without the text | Deleted with the analysis |
+| Actor, action, resource, result and correlation id | `audit_events` | Who did what | Does not include the incident text. It has no purge of its own. |
 
-## Qué no se guarda
-Contraseña en claro, clave del proveedor, cuerpo crudo devuelto por el modelo, prompt completo, cookies y encabezado `Authorization`. Los logs solo aceptan una lista cerrada de campos (`msg`, `status`, `correlationId`, `latencyMs`, `provider`, `model`, `promptVersion`, `attempts`, `errorCode`, ids). Un test de integración envía un texto con un marcador y comprueba que no aparece en `console.log`.
+## What is not stored
 
-## Proveedor
-Con `LLM_PROVIDER=openai` o `openrouter` el incidente sale del proceso hacia la API configurada. Esa copia sigue la política del proveedor, no `RETENTION_DAYS`. Con `mock` no hay llamada externa.
+Plain passwords, provider keys, the raw body returned by the model, the full prompt, cookies and the `Authorization` header. Logs accept only a closed list of fields (`msg`, `status`, `correlationId`, `latencyMs`, `provider`, `model`, `promptVersion`, `attempts`, `errorCode`, ids). An integration test sends a text with a marker and checks that it does not appear in `console.log`.
 
-## Borrado
-`AnalysesService.purgeExpired` corre al iniciar y cada hora. También se puede provocar en tests. El caso de integración marca `expires_at` en el pasado y comprueba el 404 posterior. No es un job de nube.
+## Provider
 
-## Auditoría y logs
-La auditoría responde quién ejecutó qué acción, sobre qué id, con qué resultado y correlation id. El log técnico responde estado HTTP, duración y código de error. No son el mismo registro.
+With `LLM_PROVIDER=openai` or `openrouter`, the incident leaves the process towards the configured API. That copy follows the provider's policy, not `RETENTION_DAYS`. Free OpenRouter routes may log or use prompts; use a paid route with data retention disabled for real data. With `mock` there is no external call.
+
+## Deletion
+
+`AnalysesService.purgeExpired` runs at startup and every hour. It can also be triggered in tests. The integration case sets `expires_at` in the past and checks the 404 that follows. It is not a cloud job.
+
+## Audit and logs
+
+The audit trail answers who performed which action, on which id, with which result and correlation id. The technical log answers HTTP status, duration and error code. They are not the same record.
 
 ## PII
-El incidente puede contener datos personales porque el usuario los pega. Se almacenan hasta el vencimiento y se envían al proveedor si el modo es real. No hay un detector que prometa quitarlos.
+
+The incident may contain personal data because the user pastes it. It is stored until expiry and sent to the provider in real mode. There is no detector that promises to remove it.

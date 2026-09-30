@@ -1,37 +1,44 @@
-# MVP — contratos
-Fecha de cierre de contratos: 2026-09-29.
+# MVP contracts
 
-## Resultado de análisis
-`summary`, `category` (`availability|performance|security|data|unknown`), `suggestedSeverity` (`low|medium|high|critical|unknown`), `evidence[]` con `quote` y `note`, `hypotheses[]` con `statement` y `confidence`, `missingInformation[]`, `uncertainty`.
 
-`quote` tiene que ser un fragmento exacto del incidente. Sin citas, `uncertainty` e `missingInformation` son obligatorios. Una URL en la salida solo se acepta si ya estaba en el incidente.
+Contracts closed on 2026-09-29.
 
-## Pregunta
-El mismo objeto más `answer`. La cita sigue teniendo que salir del incidente original, no de una respuesta anterior del modelo.
+## Analysis result
+
+`summary`, `category` (`availability|performance|security|data|unknown`), `suggestedSeverity` (`low|medium|high|critical|unknown`), `evidence[]` with `quote` and `note`, `hypotheses[]` with `statement` and `confidence`, `missingInformation[]`, `uncertainty`.
+
+`quote` must be an exact fragment of the incident. Without quotes, `uncertainty` and `missingInformation` are required. A URL in the output is accepted only if it was already in the incident.
+
+## Question
+
+The same object plus `answer`. The quote must still come from the original incident, not from an earlier model answer.
 
 ## API
-Todas las rutas cuelgan de `/api`. El cuerpo de error es `{ error: { code, message, correlationId, analysisId } }`. No incluye stack.
 
-| Método | Ruta | Auth | Éxito | Errores |
+All routes are under `/api`. The error body is `{ error: { code, message, correlationId, analysisId } }`. It never includes a stack.
+
+| Method | Route | Auth | Success | Errors |
 |---|---|---|---|---|
-| GET | `/health` | no | 200 `{ status: "ok" }` | 503 si la base no responde |
-| POST | `/auth/login` | no | usuario y `csrfToken`; cookies `ia_session` y `ia_csrf` | 400, 401, 429 |
-| GET | `/auth/session` | sí | usuario | 401 |
-| POST | `/auth/logout` | sí + CSRF | `{ ok: true }` | 401, 403 |
-| GET | `/analyses?limit&offset` | sí | página propia | 400, 401 |
-| POST | `/analyses` | sí + CSRF | análisis `completed` o error con `analysisId` | 400, 403, 409, 422, 429, 502, 504 |
-| GET | `/analyses/:id` | sí | detalle propio | 404 si no existe o es ajeno |
-| POST | `/analyses/:id/messages` | sí + CSRF | detalle con el hilo | 404, 409, 413, 422, 429, 502 |
-| POST | `/analyses/:id/retry` | sí + CSRF | nuevo intento si el análisis está `failed` | 404, 409 |
+| GET | `/health` | no | 200 `{ status: "ok" }` | 503 if the database does not respond |
+| POST | `/auth/login` | no | user and `csrfToken`; cookies `ia_session` and `ia_csrf` | 400, 401, 429 |
+| GET | `/auth/session` | yes | user | 401 |
+| POST | `/auth/logout` | yes + CSRF | `{ ok: true }` | 401, 403 |
+| GET | `/analyses?limit&offset` | yes | own page | 400, 401 |
+| POST | `/analyses` | yes + CSRF | `completed` analysis, or an error with `analysisId` | 400, 403, 409, 413, 422, 429, 502, 504 |
+| GET | `/analyses/:id` | yes | own detail | 404 if it does not exist or belongs to someone else |
+| POST | `/analyses/:id/messages` | yes + CSRF | detail with the thread | 404, 409, 413, 422, 429, 502 |
+| POST | `/analyses/:id/retry` | yes + CSRF | new attempt if the analysis is `failed` | 404, 409 |
 
-Estados: `processing`, `completed`, `failed`. Un proceso interrumpido pasa a `failed` con código `INTERRUPTED` si sigue en curso después del deadline más 5 segundos.
+Statuses: `processing`, `completed`, `failed`. An interrupted run becomes `failed` with code `INTERRUPTED` if it is still in progress after the deadline plus 5 seconds.
 
-## Límites
-- Incidente: 1 a 8000 caracteres. Pregunta: 1 a 1000.
-- Contexto: incidente + pregunta + mensajes recientes, presupuesto 12000 caracteres. Si el incidente y la pregunta no entran, 413 y no hay llamada al modelo. Los mensajes viejos se descartan primero.
-- 20 análisis y 40 preguntas por usuario por hora, en memoria.
-- 4 llamadas de modelo en curso por proceso.
-- Retención: `RETENTION_DAYS` (30). `expires_at` se calcula al crear. El barrido borra el análisis y, en cascada, mensajes y ejecuciones.
+## Limits
 
-## Datos
-Ver [política de datos](../security/DATA_POLICY.md). ORM: TypeORM sobre `pg`, con repositorios inyectables y migraciones SQL en `apps/api/src/db/migrations`. La decisión vigente está en ADR-006.
+- Incident: 1 to 8,000 characters. Question: 1 to 1,000.
+- Context: incident + question + recent messages, with a budget of 12,000 characters. If the incident and the question do not fit, the API returns 413 and the model is not called. Older messages are dropped first.
+- 20 analyses and 40 questions per user per hour, in memory.
+- 4 concurrent model calls per process.
+- Retention: `RETENTION_DAYS` (30). `expires_at` is set at creation. The sweep deletes the analysis and, in cascade, its messages and executions.
+
+## Data
+
+See the [data policy](../security/DATA_POLICY.md). ORM: TypeORM on `pg`, with injectable repositories and SQL migrations in `apps/api/src/db/migrations`. The current decision is [ADR-006](../decisions/ADR-006-typeorm-repository.md).
