@@ -16,7 +16,6 @@ module.exports = {
     '!src/cli.ts',
     '!src/migrations/**',
     '!src/**/index.ts',
-    '!src/ai/openai.provider.ts',
     '!src/openapi/setup-openapi.ts',
     '!src/health.controller.ts',
     '!src/startup.service.ts',

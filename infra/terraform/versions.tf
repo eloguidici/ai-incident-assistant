@@ -29,8 +29,14 @@ variable "container_image" {
 }
 
 variable "web_origin" {
-  type    = string
-  default = "http://localhost"
+  type        = string
+  description = "Public browser origin served over HTTPS (must match the ALB TLS endpoint for COOKIE_SECURE)."
+  default     = "https://localhost"
+}
+
+variable "acm_certificate_arn" {
+  type        = string
+  description = "ACM certificate ARN for the ALB HTTPS listener (required before apply)."
 }
 
 variable "vpc_cidr" {

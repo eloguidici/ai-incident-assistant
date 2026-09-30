@@ -184,6 +184,7 @@ export interface AnalysisRepository {
       result: FinishedRunStatus;
       correlationId: string;
     };
+    injectMidTransactionFailure?: boolean;
   }): Promise<'committed' | 'stale'>;
 
   appendMessage(input: {

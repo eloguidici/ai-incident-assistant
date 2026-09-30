@@ -479,6 +479,7 @@ export class TypeOrmAnalysisRepository implements AnalysisRepository {
       result: FinishedRunStatus;
       correlationId: string;
     };
+    injectMidTransactionFailure?: boolean;
   }): Promise<'committed' | 'stale'> {
     return this.dataSource.transaction(async (manager) => {
       const executionUpdate = await manager.update(
@@ -531,6 +532,7 @@ export class TypeOrmAnalysisRepository implements AnalysisRepository {
         errorCode: input.errorCode,
         sequence: assistantSequence,
       });
+      if (input.injectMidTransactionFailure) throw new Error('injected-write-failure');
       await manager.insert(AuditEventEntity, {
         actorId: input.audit.actorId,
         action: input.audit.action,

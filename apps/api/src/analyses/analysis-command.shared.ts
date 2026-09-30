@@ -203,6 +203,7 @@ export class AnalysisCommandShared {
     analysisId: string,
     question: string,
     appError: AppError,
+    sourceError: unknown,
     outcome: LlmOutcome | undefined,
     correlationId: string,
     executionId: string,
@@ -217,7 +218,7 @@ export class AnalysisCommandShared {
         userMessageStored,
         errorCode: appError.errorCode,
         errorMessage: appError.message,
-        attemptCount: orchestrationAttemptCount(outcome, appError),
+        attemptCount: orchestrationAttemptCount(outcome, sourceError),
         latencyMs: outcome?.latencyMs ?? null,
         inputTokens: outcome?.response.inputTokens ?? null,
         outputTokens: outcome?.response.outputTokens ?? null,
@@ -230,6 +231,56 @@ export class AnalysisCommandShared {
       }
     } catch (error) {
       if (error instanceof AppError) throw error;
+      this.logger.info({ msg: LogEvent.PersistFailure, errorCode: PersistenceErrorCode.DbWriteFailed, correlationId, analysisId });
+      await this.fallbackCloseQuestionExecution(
+        ownerId,
+        analysisId,
+        executionId,
+        appError,
+        sourceError,
+        outcome,
+        correlationId,
+      );
+    }
+  }
+
+  /**
+   * Closes the execution row when the full failure transaction could not commit (messages/audit may be missing).
+   * Idempotent: a no-op when the execution was already finished by a concurrent path.
+   */
+  private async fallbackCloseQuestionExecution(
+    ownerId: string,
+    analysisId: string,
+    executionId: string,
+    appError: AppError,
+    sourceError: unknown,
+    outcome: LlmOutcome | undefined,
+    correlationId: string,
+  ): Promise<void> {
+    try {
+      const closed = await this.analyses.finishExecution({
+        executionId,
+        ownerId,
+        status: RunStatus.Failed,
+        errorCode: appError.errorCode,
+        attemptCount: orchestrationAttemptCount(outcome, sourceError),
+        latencyMs: outcome?.latencyMs ?? null,
+        inputTokens: outcome?.response.inputTokens ?? null,
+        outputTokens: outcome?.response.outputTokens ?? null,
+        provider: outcome?.response.provider ?? this.llmSettings.provider,
+        model: outcome?.response.model ?? this.modelName(),
+      });
+      if (!closed) {
+        this.logger.info({
+          msg: LogEvent.PersistFailure,
+          errorCode: PersistenceErrorCode.DbWriteFailed,
+          correlationId,
+          analysisId,
+          note: 'question_execution_already_closed',
+        });
+      }
+    } catch (inner) {
+      if (inner instanceof AppError) throw inner;
       this.logger.info({ msg: LogEvent.PersistFailure, errorCode: PersistenceErrorCode.DbWriteFailed, correlationId, analysisId });
     }
   }
@@ -303,6 +354,7 @@ export class AnalysisCommandShared {
         analysisId,
         question,
         appError,
+        error,
         outcome,
         correlationId,
         executionId,

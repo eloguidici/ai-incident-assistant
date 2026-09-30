@@ -3,7 +3,8 @@ import { DataSource } from 'typeorm';
 import jwt from 'jsonwebtoken';
 import request from 'supertest';
 import { MockFaultTag } from '../src/ai/mock-fault-tags';
-import { ANALYSIS_PROMPT_VERSION, type AnalysisResult } from '../src/ai/contracts';
+import { ANALYSIS_PROMPT_VERSION, QUESTION_PROMPT_VERSION, type AnalysisResult } from '../src/ai/contracts';
+import { AuditAction } from '../src/domain/audit-action';
 import { createApplication } from '../src/main';
 import { ErrorCode } from '../src/common/constants/error-code';
 import { CsrfHeaderName, SessionCookieName } from '../src/common/constants/http';
@@ -213,6 +214,21 @@ describe('API with PostgreSQL', () => {
     expect(await countProcessingExecutions(dataSource)).toBe(0);
   });
 
+  it('R02 F05b persists provider attempt count on a failed question', async () => {
+    const { agent, csrf } = await asUser(userA);
+    const created = await agent.post('/api/analyses').set(CsrfHeaderName, csrf).send({ sourceText: incident });
+    const failed = await agent
+      .post(`/api/analyses/${created.body.id}/messages`)
+      .set(CsrfHeaderName, csrf)
+      .send({ question: `What happened? ${MockFaultTag.ServerTwice}` });
+    expect(failed.status).toBe(502);
+    const detail = await agent.get(`/api/analyses/${created.body.id}`);
+    const questionExecution = detail.body.executions.find((execution: { kind: string }) => execution.kind === 'question');
+    expect(questionExecution).toBeDefined();
+    expect(questionExecution.attemptCount).toBe(2);
+    expect(questionExecution.status).toBe(RunStatus.Failed);
+  });
+
   it('R02 F06 retry compare-and-set blocks a second reservation while processing', async () => {
     const { agent, csrf, userId } = await asUser(userA);
     const failed = await agent
@@ -304,6 +320,64 @@ describe('API with PostgreSQL', () => {
     missingInformation: ['Deployment timeline'],
     uncertainty: 'Root cause not confirmed.',
   };
+
+  it('N05 recovers a stuck question execution after a failed failure commit', async () => {
+    const { agent, csrf, userId } = await asUser(userA);
+    const created = await agent.post('/api/analyses').set(CsrfHeaderName, csrf).send({ sourceText: incident });
+    const analysisId = created.body.id as string;
+    const repo = app.get<AnalysisRepository>(ANALYSIS_REPOSITORY);
+    const reserved = await repo.insertExecution({
+      analysisId,
+      ownerId: userId,
+      kind: 'question',
+      status: RunStatus.Processing,
+      promptVersion: QUESTION_PROMPT_VERSION,
+      provider: 'mock',
+      model: 'mock-incident-v1',
+      correlationId: 'n05-stuck-question',
+    });
+    await expect(
+      repo.commitQuestionFailure({
+        ownerId: userId,
+        analysisId,
+        executionId: reserved.id,
+        question: 'Probe question for rollback',
+        userMessageStored: false,
+        errorCode: 'PROVIDER_ERROR',
+        errorMessage: 'Simulated provider failure',
+        attemptCount: 2,
+        latencyMs: 1,
+        inputTokens: null,
+        outputTokens: null,
+        provider: 'mock',
+        model: 'mock-incident-v1',
+        audit: {
+          actorId: userId,
+          action: AuditAction.QuestionAdd,
+          resourceType: 'analysis',
+          resourceId: analysisId,
+          result: RunStatus.Failed,
+          correlationId: 'n05-stuck-question',
+        },
+        injectMidTransactionFailure: true,
+      }),
+    ).rejects.toThrow('injected-write-failure');
+    const dataSource = app.get(DataSource);
+    expect(await countProcessingExecutions(dataSource)).toBe(1);
+    await dataSource.query(`update ai_executions set created_at = now() - interval '1 hour' where id = $1`, [reserved.id]);
+    await repo.recoverStuckExecutions(new Date());
+    expect(await countProcessingExecutions(dataSource)).toBe(0);
+    const followUp = await agent
+      .post(`/api/analyses/${analysisId}/messages`)
+      .set(CsrfHeaderName, csrf)
+      .send({ question: 'Can we retry after recovery?' });
+    expect(followUp.ok).toBe(true);
+    const audits = await dataSource.query<{ count: string }[]>(
+      `select count(*)::text as count from audit_events where resource_id = $1 and action = $2`,
+      [analysisId, AuditAction.QuestionAdd],
+    );
+    expect(Number(audits[0]?.count ?? 0)).toBe(1);
+  });
 
   it('N01 rolls back a mid-transaction commit without marking the analysis completed', async () => {
     const { userId } = await asUser(userA);
