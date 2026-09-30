@@ -25,8 +25,8 @@ resource "aws_secretsmanager_secret" "database_url" {
   name = "${var.name}/database-url"
 }
 
-resource "aws_secretsmanager_secret" "openai" {
-  name = "${var.name}/openai-api-key"
+resource "aws_secretsmanager_secret" "llm" {
+  name = "${var.name}/${var.llm_provider}-api-key"
 }
 
 resource "aws_secretsmanager_secret" "jwt" {
@@ -58,7 +58,7 @@ data "aws_iam_policy_document" "secrets" {
     actions = ["secretsmanager:GetSecretValue"]
     resources = [
       aws_secretsmanager_secret.database_url.arn,
-      aws_secretsmanager_secret.openai.arn,
+      aws_secretsmanager_secret.llm.arn,
       aws_secretsmanager_secret.jwt.arn,
     ]
   }
@@ -90,9 +90,9 @@ resource "aws_lb" "main" {
   security_groups    = [aws_security_group.alb.id]
 }
 
-resource "aws_lb_target_group" "api" {
+resource "aws_lb_target_group" "web" {
   name        = var.name
-  port        = 3000
+  port        = 80
   protocol    = "HTTP"
   target_type = "ip"
   vpc_id      = aws_vpc.main.id
@@ -123,7 +123,7 @@ resource "aws_lb_listener" "https" {
   certificate_arn   = var.acm_certificate_arn
   default_action {
     type             = "forward"
-    target_group_arn = aws_lb_target_group.api.arn
+    target_group_arn = aws_lb_target_group.web.arn
   }
 }
 
@@ -137,20 +137,22 @@ resource "aws_ecs_task_definition" "api" {
   task_role_arn            = aws_iam_role.task.arn
   container_definitions = jsonencode([
     {
-      name  = "api"
-      image = var.container_image
+      name         = "api"
+      image        = var.container_image
       portMappings = [{ containerPort = 3000, protocol = "tcp" }]
-      environment = [
-        { name = "LLM_PROVIDER", value = "openai" },
+      environment = concat([
+        { name = "LLM_PROVIDER", value = var.llm_provider },
         { name = "WEB_ORIGIN", value = var.web_origin },
         { name = "PORT", value = "3000" },
         { name = "SEED_DEMO", value = "false" },
         { name = "COOKIE_SECURE", value = "true" },
         { name = "TRUST_PROXY", value = "true" }
-      ]
+        ], var.llm_model == "" ? [] : [
+        { name = var.llm_provider == "openrouter" ? "OPENROUTER_MODEL" : "OPENAI_MODEL", value = var.llm_model }
+      ])
       secrets = [
         { name = "DATABASE_URL", valueFrom = aws_secretsmanager_secret.database_url.arn },
-        { name = "OPENAI_API_KEY", valueFrom = aws_secretsmanager_secret.openai.arn },
+        { name = var.llm_provider == "openrouter" ? "OPENROUTER_API_KEY" : "OPENAI_API_KEY", valueFrom = aws_secretsmanager_secret.llm.arn },
         { name = "JWT_SECRET", valueFrom = aws_secretsmanager_secret.jwt.arn }
       ]
       logConfiguration = {
@@ -161,6 +163,21 @@ resource "aws_ecs_task_definition" "api" {
           awslogs-stream-prefix = "api"
         }
       }
+    },
+    {
+      name         = "web"
+      image        = var.web_container_image
+      essential    = true
+      portMappings = [{ containerPort = 80, protocol = "tcp" }]
+      environment  = [{ name = "API_UPSTREAM", value = "127.0.0.1:3000" }]
+      logConfiguration = {
+        logDriver = "awslogs"
+        options = {
+          awslogs-group         = aws_cloudwatch_log_group.api.name
+          awslogs-region        = var.aws_region
+          awslogs-stream-prefix = "web"
+        }
+      }
     }
   ])
 }
@@ -169,7 +186,7 @@ resource "aws_ecs_service" "api" {
   name            = var.name
   cluster         = aws_ecs_cluster.main.id
   task_definition = aws_ecs_task_definition.api.arn
-  desired_count   = 1
+  desired_count   = var.desired_count
   launch_type     = "FARGATE"
   network_configuration {
     subnets          = aws_subnet.private[*].id
@@ -177,9 +194,9 @@ resource "aws_ecs_service" "api" {
     assign_public_ip = false
   }
   load_balancer {
-    target_group_arn = aws_lb_target_group.api.arn
-    container_name   = "api"
-    container_port   = 3000
+    target_group_arn = aws_lb_target_group.web.arn
+    container_name   = "web"
+    container_port   = 80
   }
   depends_on = [aws_lb_listener.https]
 }
@@ -190,4 +207,14 @@ output "load_balancer_dns" {
 
 output "database_address" {
   value = aws_db_instance.postgres.address
+}
+
+
+output "secret_arns" {
+  description = "Secret containers only; populate versions outside Terraform. Never commit values."
+  value = {
+    database_url = aws_secretsmanager_secret.database_url.arn
+    llm_api_key  = aws_secretsmanager_secret.llm.arn
+    jwt_secret   = aws_secretsmanager_secret.jwt.arn
+  }
 }

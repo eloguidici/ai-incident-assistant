@@ -1,81 +1,82 @@
 # AI Incident Assistant
-Aplicación para que un analista autenticado pegue el texto de un incidente, reciba un análisis estructurado y haga preguntas sobre ese mismo texto. El resultado separa citas, hipótesis e información faltante. No ejecuta acciones sobre otros sistemas.
 
+An authenticated analyst submits incident text, receives a structured analysis, asks follow-up questions and returns to saved results. The output distinguishes evidence, hypotheses and missing information. The application does not execute remediation in external systems.
 
-## Arquitectura
-Monolito NestJS/TypeScript. React habla con una API REST. PostgreSQL guarda usuarios, análisis, mensajes, ejecuciones y auditoría. Los casos de uso de escritura (`crear`, `reintentar`, `preguntar`) están separados de las lecturas (`listar`, `detalle`).
+[Documentation index](docs/README.md) links the supporting decisions and business rules.
 
-La llamada al modelo sigue este camino: caso de uso, `PromptBuilder`, `LlmProvider`, `OutputValidator`, persistencia. La transacción de base no permanece abierta durante la llamada de red. Hay un proveedor `mock` determinístico y proveedores reales (`openai`, `openrouter`) detrás del mismo contrato. El SDK de OpenAI (u OpenRouter vía API compatible) se usa directo, con `maxRetries: 0`: el único reintento lo decide la aplicación.
+## Architecture and AI design
 
-## Decisiones y límites
-- Texto, no carga de archivos. Máximo 8000 caracteres; una pregunta, 1000.
-- La sesión es un JWT en cookie `HttpOnly`, con un segundo cookie para CSRF en los POST.
-- Cada análisis pertenece a un usuario. Un identificador ajeno responde 404.
-- Las citas deben aparecer tal cual en el incidente. Si no hay citas, la salida tiene que declarar incertidumbre e información faltante.
-- Un análisis en curso por usuario y una pregunta en curso por análisis. El segundo intento concurrente recibe 409.
-- Timeout total configurable (`LLM_DEADLINE_MS`, 20 s en local) y como máximo un reintento ante red, 429 o 5xx. Un timeout no prueba que el proveedor no haya cobrado la solicitud.
-- Retención local: 30 días por defecto. Al arrancar y cada hora se borran los análisis vencidos. La retención del proveedor de IA no la controla esta aplicación.
-- No hay streaming de tokens, RAG ni herramientas con efectos.
-- La calidad del mock no certifica al modelo real. Las muestras con proveedor real quedan bloqueadas si falta la clave del proveedor elegido (`OPENAI_API_KEY` o `OPENROUTER_API_KEY`).
+NestJS/TypeScript modular monolith, React frontend and PostgreSQL/TypeORM persistence. Read handlers (list/detail) are separate from commands (create/retry/question), without event sourcing or separate read/write databases. Repository operations own transactional state changes.
 
-El detalle está en [docs/architecture/RATIONALE.md](docs/architecture/RATIONALE.md), [docs/features/MVP.md](docs/features/MVP.md) y [docs/security/DATA_POLICY.md](docs/security/DATA_POLICY.md).
+The model path is: use case -> versioned prompt -> provider -> output validation -> persistence. No database transaction is held during the model call. A deterministic mock, OpenAI and OpenRouter implement the same provider contract. SDK retries are disabled; the application controls bounded retries and deadlines.
 
-## Arranque local
-Requisitos comprobados en esta máquina: Node.js 22 y Docker. PostgreSQL local usa el puerto **5432**. La API local usa el puerto **3001** porque 3000 ya respondía otro servicio.
+Quotes must occur in the submitted text, and the structured schema requires explicit uncertainty. These checks help review; they do not establish the truth of every model claim. See [design](docs/architecture/DESIGN.md), [business rules](docs/business/PRODUCT.md) and [data policy](docs/security/DATA_POLICY.md).
+
+## Local setup
+
+Use Node.js 22 and Docker for PostgreSQL. Copy the example configuration and use only synthetic incident data for the demo.
 
 ```powershell
 Copy-Item .env.example .env
 docker compose up -d postgres
-npm install
+npm ci
 npm run db:migrate
 npm run db:seed
 npm run dev:api
+```
+
+In another terminal:
+
+```powershell
 npm run dev:web
 ```
 
-Con la API en marcha, OpenAPI interactivo: http://127.0.0.1:3001/api/docs (JSON en `/api/docs-json`). Documenta cookies de sesión y header CSRF en mutaciones.
+The example uses API port 3001 and frontend http://127.0.0.1:5173. OpenAPI is at http://127.0.0.1:3001/api/docs, with JSON at `/api/docs-json`.
 
-Abrí http://127.0.0.1:5173. Usuarios locales, solo para esta base de demostración:
+Local demo users are `analyst.a@example.test` and `analyst.b@example.test`, password `local-demo-password`. These are synthetic local credentials; production demo seeding is disabled.
 
-- `analyst.a@example.test`
-- `analyst.b@example.test`
-- contraseña: `local-demo-password`
+For a real model, set `LLM_PROVIDER=openrouter` with `OPENROUTER_API_KEY`, or `LLM_PROVIDER=openai` with `OPENAI_API_KEY`. Optional model overrides are `OPENROUTER_MODEL` and `OPENAI_MODEL`. Never commit `.env` or keys. On Windows, see the [runbook](docs/operations/RUNBOOK.md) and existing live-provider reports for TLS troubleshooting; do not disable certificate verification.
 
-Esos valores están en `.env.example`. No sirven fuera de esta base local. Para OpenAI: `LLM_PROVIDER=openai` y `OPENAI_API_KEY`. Para OpenRouter: `LLM_PROVIDER=openrouter`, `OPENROUTER_API_KEY` y opcionalmente `OPENROUTER_MODEL`. No commitees `.env`.
-
-Si `npm run qa:ai:live` termina con `Provider: kind=network` pero `curl` autenticado a `https://api.openai.com/v1/models` responde 200, la clave suele estar bien y Node no confía en la cadena TLS (antivirus, VPN o `NODE_EXTRA_CA_CERTS` apuntando a un PEM incorrecto). Corregí el almacén de certificados de Windows o quitá esa variable y volvé a ejecutar el comando.
-
-El stack completo, con la web publicada por nginx en http://localhost:8080, es:
+For the complete local stack:
 
 ```powershell
 docker compose up --build
 ```
 
-Ese comando construye las imágenes. En esta sesión `docker build` de la API falló dentro de `npm ci` (`Exit handler never called`). El arranque con Node en el host sí se usó para los tests y el navegador.
+The web image serves React at http://localhost:8080 and proxies `/api/` to the API. It renders its nginx template using `API_UPSTREAM`, defaulting to `api:3000` in Compose. Rebuild the image after configuration changes.
 
-## Comandos de verificación
-| Comando | Qué hace | Resultado 2026-09-29 |
-|---|---|---|
-| `npm test` | Unitarias e integración contra PostgreSQL en el puerto 5432 | PASS, 18 tests |
-| `npm run build` | Typecheck y build de API y web | PASS |
-| `npm run qa:eval` | Rúbrica sobre el proveedor mock | PASS, 5 fixtures |
-| `npm run qa:ai:live` | Una muestra real (OpenAI) | Requiere `OPENAI_API_KEY` |
-| `npm run qa:ai:live-openrouter` | Una muestra real (OpenRouter) | Requiere `OPENROUTER_API_KEY` |
-| `npm run qa:e2e` | Login, análisis, pregunta, historial, error, HTML y aislamiento en Chrome | PASS, 3 tests |
-| `npm run qa:demo` | Recorrido con video | PASS. El video queda en `qa-artifacts/`, fuera de Git |
-| `npm run check:web-docs` | El build de React no incluye documentos internos | PASS |
+## Verification
 
-`npm run qa:e2e` necesita Docker con Postgres en 5432 y Chrome instalado. Playwright no pudo descargar su propio Chromium por un error de certificado TLS; usa el Chrome del sistema (`channel: chrome`).
+| Command | Purpose |
+|---|---|
+| `npm run lint` | API and frontend lint |
+| `npm run typecheck` | API and frontend type checks |
+| `npm run build` | Compile API and build React |
+| `npm run test:coverage` | Unit and PostgreSQL integration tests |
+| `npm run qa:eval` | Deterministic mock evaluation fixtures |
+| `npm run qa:e2e` | Browser workflows using the configured test environment |
+| `npm run qa:demo` | Browser demonstration with video artifacts |
+| `npm run qa:ai:live` | OpenAI sample using a local key |
+| `npm run qa:ai:live-openrouter` | OpenRouter sample using a local key |
+| `npm run check:web-docs` | Verify internal documents are absent from the React build |
 
-### Operaciones: OpenAI y TLS en Windows
+Integration tests require an isolated PostgreSQL database with `test` in its name; they truncate data and test migration rollback. Browser tests currently use installed Chrome. Keep screenshots, videos and traces free of credentials and sensitive text.
 
-Si `npm run qa:ai:live` falla con `Provider: kind=network` pero `curl.exe https://api.openai.com/v1/models` con tu clave devuelve **200**, Node no confía en la misma cadena TLS (antivirus, inspección HTTPS o un `NODE_EXTRA_CA_CERTS` incorrecto). El script `qa:ai:live` arranca Node con `--use-system-ca` para alinear el almacén con Windows. Para la API en desarrollo con `LLM_PROVIDER=openai`, podés usar `set NODE_OPTIONS=--use-system-ca` en la misma terminal antes de `npm run dev:api`, o corregir/eliminar `NODE_EXTRA_CA_CERTS` si apunta a una CA obsoleta.
+Results are revision-specific. See [CURRENT_STATUS](CURRENT_STATUS.md) and [the verification task](tasks/T11-LOCAL-VERIFICATION.md); a prior passing run does not certify later changes.
 
-## Infraestructura
-`infra/terraform` describe ECS Fargate, un balanceador, RDS PostgreSQL 16 y secretos en Secrets Manager. No se ejecutó `terraform apply`. `terraform init` descargó el provider AWS 5.100.0. `terraform validate` falló porque ese plugin no respondió; no quedó demostrado que el HCL esté libre de errores. No hay claves dentro del código de Terraform.
+## Infrastructure proposal
 
-## Qué no está resuelto
-- No hay medición de latencia ni costo del modelo real.
-- El límite de concurrencia y de tasa vive en memoria del proceso. No se comparte entre réplicas.
-- El certificado TLS del balanceador no está creado: el listener de ejemplo es HTTP.
-- La comparación de calidad entre dos modelos reales no se ejecutó.
+[Terraform guide](infra/terraform/README.md) describes HTTPS ALB, a Fargate task with web/API containers, private RDS, secrets and logs. The definition supports OpenAI or OpenRouter, requires actual application image references and defaults to zero ECS tasks pending preparation of secrets and deployment prerequisites.
+
+Section 3.1 of the assessment permits AWS or a simulated proposal. The repository provides an infrastructure definition; no AWS deployment is claimed. `fmt`, `init -backend=false` and `validate` are the validation-only path. No plan/apply has been performed in the correction pass. Validation results and environment limitations are recorded in the QA report.
+
+## Deliberate limits
+
+- Text input only; no document extraction, RAG, voice or tools with external effects.
+- Session JWT in an HttpOnly cookie, with a CSRF cookie/header for mutations. Data access is scoped to its owner.
+- Default source text limit: 8,000 characters; question limit: 1,000. Default LLM deadline: 20 seconds, with at most one application retry.
+- Timeouts do not prove a provider did not charge for the request.
+- Rate/concurrency limits are process-local; horizontal scaling requires coordinated quotas.
+- Default local retention is 30 days, with periodic purge. Expiry is not a guarantee of instantaneous physical deletion; provider retention is separate.
+- Recovery is eventual after the database becomes available. Minimal failure closure may omit audit/message details if their full transaction failed.
+- Mocks do not certify real-model accuracy, latency, spend or provider privacy. Full-stack and live-provider evidence must be reported separately.

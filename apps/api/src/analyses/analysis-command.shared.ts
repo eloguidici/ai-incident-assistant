@@ -168,12 +168,12 @@ export class AnalysisCommandShared {
         throw new AppError(ErrorCode.Conflict, 409, 'This analysis run is no longer active.');
       }
       persisted = true;
-      return await this.loadDetailAfterPersist(owner.id, analysisId, correlationId);
+      return await this.loadDetailOrThrow(owner.id, analysisId);
     } catch (error) {
       if (error instanceof AppError && error.errorCode === ErrorCode.Conflict) throw error;
       if (persisted) {
         logPersistReadFailed(this.logger, { correlationId, analysisId });
-        return await this.loadDetailOrThrow(owner.id, analysisId);
+        throw error;
       }
       const appError = toOrchestrationAppError(error, analysisId, outcome);
       try {
@@ -304,23 +304,16 @@ export class AnalysisCommandShared {
   ): Promise<void> {
     const finishFields = this.executionFinishFields(outcome, sourceError);
     try {
-      const closed = await this.analyses.finishExecution({
+      const closed = await this.analyses.closeAnalysisFailure({
         executionId,
-        ownerId,
-        status: RunStatus.Failed,
-        errorCode: appError.errorCode,
-        ...finishFields,
-      });
-      await this.analyses.saveFailedAnalysis({
         ownerId,
         analysisId,
         errorCode: appError.errorCode,
         errorMessage: appError.message,
         promptVersion: ANALYSIS_PROMPT_VERSION,
-        provider: finishFields.provider,
-        model: finishFields.model,
+        ...finishFields,
       });
-      if (!closed) {
+      if (closed === 'stale') {
         logPersistNoOp(this.logger, {
           correlationId,
           analysisId,
@@ -390,12 +383,12 @@ export class AnalysisCommandShared {
         throw new AppError(ErrorCode.Conflict, 409, 'This question run is no longer active.');
       }
       persisted = true;
-      return await this.loadDetailAfterPersist(owner.id, analysisId, correlationId);
+      return await this.loadDetailOrThrow(owner.id, analysisId);
     } catch (error) {
       if (error instanceof AppError && error.errorCode === ErrorCode.Conflict) throw error;
       if (persisted) {
         logPersistReadFailed(this.logger, { correlationId, analysisId });
-        return await this.loadDetailOrThrow(owner.id, analysisId);
+        throw error;
       }
       const appError = toOrchestrationAppError(error, analysisId, outcome);
       await this.recordQuestionFailure({
@@ -449,19 +442,6 @@ export class AnalysisCommandShared {
     };
   }
 
-  private async loadDetailAfterPersist(
-    ownerId: string,
-    analysisId: string,
-    correlationId: string,
-  ): Promise<AnalysisDetailResult> {
-    try {
-      return await this.loadDetailOrThrow(ownerId, analysisId);
-    } catch (error) {
-      logPersistReadFailed(this.logger, { correlationId, analysisId });
-      throw error;
-    }
-  }
-
   private async loadDetailOrThrow(ownerId: string, analysisId: string): Promise<AnalysisDetailResult> {
     const detail = await this.loadDetail(ownerId, analysisId);
     if (!detail) throw new AppError(ErrorCode.NotFound, 404, 'That analysis was not found.');
@@ -475,3 +455,4 @@ export class AnalysisCommandShared {
     }
   }
 }
+

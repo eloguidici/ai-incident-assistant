@@ -8,5 +8,7 @@ COPY apps/web apps/web
 RUN npm run build -w @app/web
 
 FROM nginx:1.27-alpine
-COPY infra/docker/nginx.conf /etc/nginx/conf.d/default.conf
+ENV API_UPSTREAM=api:3000
+COPY infra/docker/nginx.conf /etc/nginx/templates/default.conf.template
 COPY --from=build /app/apps/web/dist /usr/share/nginx/html
+

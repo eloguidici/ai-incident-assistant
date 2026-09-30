@@ -3,7 +3,7 @@ import { LogEvent } from '../common/constants/log-event';
 import { PersistenceErrorCode } from '../domain/persistence-error';
 import type { AppLogger } from '../common/app-logger';
 
-/** Logs a failed write after the model outcome was already committed. */
+/** Logs a failed persistence attempt without exposing the database error or payload. */
 export function logPersistWriteFailed(
   logger: AppLogger,
   fields: { correlationId: string; analysisId: string },
@@ -42,3 +42,4 @@ export function logPersistNoOp(
     note: fields.note,
   });
 }
+

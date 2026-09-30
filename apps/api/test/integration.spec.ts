@@ -1,5 +1,5 @@
 import { INestApplication } from '@nestjs/common';
-import { DataSource } from 'typeorm';
+import { DataSource, EntityManager } from 'typeorm';
 import jwt from 'jsonwebtoken';
 import request from 'supertest';
 import { MockFaultTag } from '../src/ai/mock-fault-tags';
@@ -19,7 +19,6 @@ import { ANALYSIS_REPOSITORY, USER_REPOSITORY } from '../src/db/repositories/tok
 import type { AnalysisRepository } from '../src/db/repositories/analysis.repository';
 import type { UserRepository } from '../src/db/repositories/user.repository';
 import { AnalysesService } from '../src/analyses/analyses.service';
-import { MidTransactionInjectSuffix } from '../src/db/repositories/typeorm/transaction-test-hooks';
 import { AnalysisCommandShared } from '../src/analyses/analysis-command.shared';
 import { resetMockState } from '../src/ai/mock.provider';
 
@@ -42,6 +41,7 @@ describe('API with PostgreSQL', () => {
   });
 
   beforeEach(() => resetMockState());
+  afterEach(() => jest.restoreAllMocks());
 
   afterAll(async () => {
     await app.close();
@@ -337,10 +337,11 @@ describe('API with PostgreSQL', () => {
       promptVersion: QUESTION_PROMPT_VERSION,
       provider: 'mock',
       model: 'mock-incident-v1',
-      correlationId: `n05-stuck-question${MidTransactionInjectSuffix}`,
+      correlationId: `n05-stuck-question`,
     });
-    const previousFaultInjection = process.env.FAULT_INJECTION;
-    process.env.FAULT_INJECTION = 'true';
+    jest.spyOn(EntityManager.prototype, 'insert').mockImplementationOnce(async () => {
+      throw new Error('injected-write-failure');
+    });
     await expect(
       repo.commitQuestionFailure({
         ownerId: userId,
@@ -362,15 +363,15 @@ describe('API with PostgreSQL', () => {
           resourceType: 'analysis',
           resourceId: analysisId,
           result: RunStatus.Failed,
-          correlationId: `n05-stuck-question${MidTransactionInjectSuffix}`,
+          correlationId: `n05-stuck-question`,
         },
       }),
     ).rejects.toThrow('injected-write-failure');
-    process.env.FAULT_INJECTION = previousFaultInjection;
+    jest.restoreAllMocks();
     const dataSource = app.get(DataSource);
     expect(await countProcessingExecutions(dataSource)).toBe(1);
     await dataSource.query(`update ai_executions set created_at = now() - interval '1 hour' where id = $1`, [reserved.id]);
-    await repo.recoverStuckExecutions(new Date());
+    await repo.recoverStuck(new Date());
     expect(await countProcessingExecutions(dataSource)).toBe(0);
     const followUp = await agent
       .post(`/api/analyses/${analysisId}/messages`)
@@ -426,10 +427,11 @@ describe('API with PostgreSQL', () => {
       promptVersion: QUESTION_PROMPT_VERSION,
       provider: 'mock',
       model: 'mock-incident-v1',
-      correlationId: `n06-fallback${MidTransactionInjectSuffix}`,
+      correlationId: `n06-fallback`,
     });
-    const previousFaultInjection = process.env.FAULT_INJECTION;
-    process.env.FAULT_INJECTION = 'true';
+    jest.spyOn(EntityManager.prototype, 'insert').mockImplementationOnce(async () => {
+      throw new Error('injected-write-failure');
+    });
     const shared = app.get(AnalysisCommandShared);
     await shared.recordQuestionFailure({
       ownerId: userId,
@@ -438,11 +440,11 @@ describe('API with PostgreSQL', () => {
       appError: new AppError(ErrorCode.ProviderError, 502, 'Simulated provider failure'),
       sourceError: new Error('simulated'),
       outcome: undefined,
-      correlationId: `n06-fallback${MidTransactionInjectSuffix}`,
+      correlationId: `n06-fallback`,
       executionId: execution.id,
       userMessageStored: false,
     });
-    process.env.FAULT_INJECTION = previousFaultInjection;
+    jest.restoreAllMocks();
     const dataSource = app.get(DataSource);
     expect(await countProcessingExecutions(dataSource)).toBe(0);
   });
@@ -488,6 +490,107 @@ describe('API with PostgreSQL', () => {
     await dataSource.query(`delete from analyses where id in ($1, $2)`, [stale.analysisId, fresh.analysisId]);
   });
 
+  it('N08 an old fallback cannot fail a newer retry, and repeated closure is harmless', async () => {
+    const { userId } = await asUser(userA);
+    const repo = app.get<AnalysisRepository>(ANALYSIS_REPOSITORY);
+    const reserved = await repo.reserveProcessingAnalysisWithExecution({
+      ownerId: userId, sourceText: incident, expiresAt: new Date(Date.now() + 86400000), kind: 'analysis',
+      promptVersion: ANALYSIS_PROMPT_VERSION, provider: 'mock', model: 'mock-incident-v1', correlationId: 'n08',
+    });
+    const failure = {
+      ownerId: userId, analysisId: reserved.analysisId, executionId: reserved.executionId,
+      errorCode: ErrorCode.ProviderError, errorMessage: 'Provider failed', promptVersion: ANALYSIS_PROMPT_VERSION,
+      provider: 'mock', model: 'mock-incident-v1', attemptCount: 2, latencyMs: null, inputTokens: null, outputTokens: null,
+    };
+    expect(await repo.closeAnalysisFailure(failure)).toBe('committed');
+    const retry = await repo.reserveRetryWithExecution({
+      ownerId: userId, analysisId: reserved.analysisId, promptVersion: ANALYSIS_PROMPT_VERSION,
+      provider: 'mock', model: 'mock-incident-v1', correlationId: 'n08-retry',
+    });
+    expect(retry.ok).toBe(true);
+    if (!retry.ok) throw new Error('Expected a reserved retry');
+    expect(await repo.closeAnalysisFailure(failure)).toBe('stale');
+    const current = await repo.loadDetail(userId, reserved.analysisId);
+    expect(current?.analysis.status).toBe(RunStatus.Processing);
+    expect(current?.executions.find((execution) => execution.id === retry.executionId)?.status).toBe(RunStatus.Processing);
+    expect(await repo.closeAnalysisFailure({ ...failure, executionId: retry.executionId })).toBe('committed');
+    expect(await repo.closeAnalysisFailure({ ...failure, executionId: retry.executionId })).toBe('stale');
+  });
+
+  it('N09 restores analysis and execution atomically if the second fallback write fails', async () => {
+    const { userId } = await asUser(userA);
+    const repo = app.get<AnalysisRepository>(ANALYSIS_REPOSITORY);
+    const reserved = await repo.reserveProcessingAnalysisWithExecution({
+      ownerId: userId, sourceText: incident, expiresAt: new Date(Date.now() + 86400000), kind: 'analysis',
+      promptVersion: ANALYSIS_PROMPT_VERSION, provider: 'mock', model: 'mock-incident-v1', correlationId: 'n09',
+    });
+    const update = EntityManager.prototype.update;
+    let calls = 0;
+    jest.spyOn(EntityManager.prototype, 'update').mockImplementation(async function (this: EntityManager, ...args) {
+      calls += 1;
+      if (calls === 2) throw new Error('second write failed');
+      return update.apply(this, args);
+    });
+    await expect(repo.closeAnalysisFailure({
+      ownerId: userId, analysisId: reserved.analysisId, executionId: reserved.executionId,
+      errorCode: ErrorCode.ProviderError, errorMessage: 'Provider failed', promptVersion: ANALYSIS_PROMPT_VERSION,
+      provider: 'mock', model: 'mock-incident-v1', attemptCount: 2, latencyMs: null, inputTokens: null, outputTokens: null,
+    })).rejects.toThrow('second write failed');
+    jest.restoreAllMocks();
+    const current = await repo.loadDetail(userId, reserved.analysisId);
+    expect(current?.analysis.status).toBe(RunStatus.Processing);
+    expect(current?.executions[0].status).toBe(RunStatus.Processing);
+    await repo.deleteAnalysis(reserved.analysisId);
+  });
+
+  it('N10 recovers a double persistence failure through the timer without restart', async () => {
+    const { userId } = await asUser(userA);
+    const repo = app.get<AnalysisRepository>(ANALYSIS_REPOSITORY);
+    const reserved = await repo.reserveProcessingAnalysisWithExecution({
+      ownerId: userId, sourceText: incident, expiresAt: new Date(Date.now() + 86400000), kind: 'analysis',
+      promptVersion: ANALYSIS_PROMPT_VERSION, provider: 'mock', model: 'mock-incident-v1', correlationId: 'n10',
+    });
+    // Fail success storage too, so the real orchestrator follows its error path.
+    jest.spyOn(repo, 'commitAnalysisSuccess').mockRejectedValueOnce(new Error('database unavailable'));
+    jest.spyOn(repo, 'commitAnalysisFailure').mockRejectedValueOnce(new Error('database unavailable'));
+    jest.spyOn(repo, 'closeAnalysisFailure').mockRejectedValueOnce(new Error('database unavailable'));
+    await expect(app.get(AnalysisCommandShared).finishAnalysis({ id: userId }, reserved.analysisId,
+      incident, 'n10', new AbortController().signal, reserved.executionId)).rejects.toBeInstanceOf(AppError);
+    jest.restoreAllMocks();
+    const dataSource = app.get(DataSource);
+    await dataSource.query("update analyses set updated_at = now() - interval '1 hour' where id = $1", [reserved.analysisId]);
+    await dataSource.query("update ai_executions set created_at = now() - interval '1 hour' where id = $1", [reserved.executionId]);
+    const deadline = Date.now() + 20_000;
+    let detail = await repo.loadDetail(userId, reserved.analysisId);
+    while (detail?.analysis.status === RunStatus.Processing && Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      detail = await repo.loadDetail(userId, reserved.analysisId);
+    }
+    expect(detail?.analysis.status).toBe(RunStatus.Failed);
+    expect(detail?.executions[0].status).toBe(RunStatus.Failed);
+    const next = await repo.reserveRetryWithExecution({ ownerId: userId, analysisId: reserved.analysisId,
+      promptVersion: ANALYSIS_PROMPT_VERSION, provider: 'mock', model: 'mock-incident-v1', correlationId: 'n10-next' });
+    expect(next.ok).toBe(true);
+    await repo.deleteAnalysis(reserved.analysisId);
+  });
+
+  it.each([RunStatus.Completed, RunStatus.Failed])('N11 recovers a legacy orphan execution without changing its %s analysis', async (status) => {
+    const { userId } = await asUser(userA);
+    const repo = app.get<AnalysisRepository>(ANALYSIS_REPOSITORY);
+    const reserved = await repo.reserveProcessingAnalysisWithExecution({ ownerId: userId, sourceText: incident,
+      expiresAt: new Date(Date.now() + 86400000), kind: 'analysis', promptVersion: ANALYSIS_PROMPT_VERSION,
+      provider: 'mock', model: 'mock-incident-v1', correlationId: 'n11' });
+    const dataSource = app.get(DataSource);
+    // Simulate the partial state left by an older, non-transactional recovery.
+    await dataSource.query('update analyses set status = $1 where id = $2', [status, reserved.analysisId]);
+    await dataSource.query("update ai_executions set created_at = now() - interval '1 hour' where id = $1", [reserved.executionId]);
+    await app.get(AnalysesService).recoverStuck();
+    const detail = await repo.loadDetail(userId, reserved.analysisId);
+    expect(detail?.analysis.status).toBe(status);
+    expect(detail?.executions[0].status).toBe(RunStatus.Failed);
+    await repo.deleteAnalysis(reserved.analysisId);
+  });
+
   it('N01 rolls back a mid-transaction commit without marking the analysis completed', async () => {
     const { userId } = await asUser(userA);
     const repo = app.get<AnalysisRepository>(ANALYSIS_REPOSITORY);
@@ -499,10 +602,11 @@ describe('API with PostgreSQL', () => {
       promptVersion: ANALYSIS_PROMPT_VERSION,
       provider: 'mock',
       model: 'mock-incident-v1',
-      correlationId: `n01-rollback${MidTransactionInjectSuffix}`,
+      correlationId: `n01-rollback`,
     });
-    const previousFaultInjection = process.env.FAULT_INJECTION;
-    process.env.FAULT_INJECTION = 'true';
+    jest.spyOn(EntityManager.prototype, 'insert').mockImplementationOnce(async () => {
+      throw new Error('injected-write-failure');
+    });
     await expect(
       repo.commitAnalysisSuccess({
         ownerId: userId,
@@ -522,11 +626,11 @@ describe('API with PostgreSQL', () => {
           resourceType: 'analysis',
           resourceId: reserved.analysisId,
           result: RunStatus.Completed,
-          correlationId: `n01-rollback${MidTransactionInjectSuffix}`,
+          correlationId: `n01-rollback`,
         },
       }),
     ).rejects.toThrow('injected-write-failure');
-    process.env.FAULT_INJECTION = previousFaultInjection;
+    jest.restoreAllMocks();
     const dataSource = app.get(DataSource);
     const rows = await dataSource.query<{ status: string; result: unknown }[]>(
       `select status, result from analyses where id = $1`,
@@ -601,3 +705,4 @@ describe('API with PostgreSQL', () => {
     await seedDemoUsers(app.get<UserRepository>(USER_REPOSITORY), registry.get(authConfig), registry.get(databaseConfig).url);
   });
 });
+

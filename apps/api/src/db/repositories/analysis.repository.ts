@@ -55,25 +55,6 @@ export interface AnalysisRepository {
 
   deleteAnalysis(id: string): Promise<void>;
 
-  saveCompletedAnalysis(input: {
-    ownerId: string;
-    analysisId: string;
-    result: AnalysisResult;
-    promptVersion: string;
-    provider: string;
-    model: string;
-  }): Promise<void>;
-
-  saveFailedAnalysis(input: {
-    ownerId: string;
-    analysisId: string;
-    errorCode: string;
-    errorMessage: string;
-    promptVersion: string;
-    provider: string;
-    model: string;
-  }): Promise<void>;
-
   insertExecution(input: {
     analysisId: string;
     ownerId: string;
@@ -143,6 +124,9 @@ export interface AnalysisRepository {
     };
   }): Promise<'committed' | 'stale'>;
 
+  /** Minimal atomic failure close, scoped to an execution; omits audit if the full commit failed. */
+  closeAnalysisFailure(input: Omit<Parameters<AnalysisRepository['commitAnalysisFailure']>[0], 'audit'>): Promise<'committed' | 'stale'>;
+
   commitQuestionSuccess(input: {
     ownerId: string;
     analysisId: string;
@@ -205,8 +189,8 @@ export interface AnalysisRepository {
 
   purgeExpired(now: Date): Promise<number>;
 
-  recoverStuckAnalyses(cutoff: Date): Promise<void>;
-  recoverStuckExecutions(cutoff: Date): Promise<void>;
+  /** Atomically reconciles aged analysis runs and closes aged questions. */
+  recoverStuck(cutoff: Date): Promise<void>;
 
   insertAudit(input: {
     actorId: string | null;
@@ -219,3 +203,4 @@ export interface AnalysisRepository {
 
   ping(): Promise<void>;
 }
+

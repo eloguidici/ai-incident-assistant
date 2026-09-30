@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, Repository } from 'typeorm';
+import { DataSource, EntityManager, In, LessThan, Repository } from 'typeorm';
 import type { AnalysisResult, QuestionResult } from '../../../ai/contracts';
 import { MessageRole } from '../../../domain/message-role';
 import { PersistenceErrorCode } from '../../../domain/persistence-error';
@@ -10,7 +10,6 @@ import { AiExecutionEntity } from '../../entities/ai-execution.entity';
 import { AuditEventEntity } from '../../entities/audit-event.entity';
 import { MessageEntity } from '../../entities/message.entity';
 import type { AnalysisDetailRecord, AnalysisListRow, AnalysisRepository } from '../analysis.repository';
-import { shouldInjectMidTransactionFailure } from './transaction-test-hooks';
 
 @Injectable()
 export class TypeOrmAnalysisRepository implements AnalysisRepository {
@@ -181,55 +180,6 @@ export class TypeOrmAnalysisRepository implements AnalysisRepository {
   }
 
   /** @inheritdoc */
-  async saveCompletedAnalysis(input: {
-    ownerId: string;
-    analysisId: string;
-    result: AnalysisResult;
-    promptVersion: string;
-    provider: string;
-    model: string;
-  }): Promise<void> {
-    await this.analyses.update(
-      { id: input.analysisId, ownerId: input.ownerId },
-      {
-        status: RunStatus.Completed,
-        result: input.result,
-        errorCode: null,
-        errorMessage: null,
-        promptVersion: input.promptVersion,
-        provider: input.provider,
-        model: input.model,
-        updatedAt: new Date(),
-      },
-    );
-  }
-
-  /** @inheritdoc */
-  async saveFailedAnalysis(input: {
-    ownerId: string;
-    analysisId: string;
-    errorCode: string;
-    errorMessage: string;
-    promptVersion: string;
-    provider: string;
-    model: string;
-  }): Promise<void> {
-    await this.analyses.update(
-      { id: input.analysisId, ownerId: input.ownerId, status: RunStatus.Processing },
-      {
-        status: RunStatus.Failed,
-        result: null,
-        errorCode: input.errorCode,
-        errorMessage: input.errorMessage,
-        promptVersion: input.promptVersion,
-        provider: input.provider,
-        model: input.model,
-        updatedAt: new Date(),
-      },
-    );
-  }
-
-  /** @inheritdoc */
   async insertExecution(input: {
     analysisId: string;
     ownerId: string;
@@ -310,9 +260,10 @@ export class TypeOrmAnalysisRepository implements AnalysisRepository {
     };
   }): Promise<'committed' | 'stale'> {
     return this.dataSource.transaction(async (manager) => {
+      if (!(await this.lockProcessingAnalysis(manager, input.ownerId, input.analysisId))) return 'stale';
       const executionUpdate = await manager.update(
         AiExecutionEntity,
-        { id: input.executionId, ownerId: input.ownerId, status: RunStatus.Processing },
+        { id: input.executionId, analysisId: input.analysisId, ownerId: input.ownerId, kind: 'analysis', status: RunStatus.Processing },
         {
           status: RunStatus.Completed,
           errorCode: null,
@@ -341,7 +292,6 @@ export class TypeOrmAnalysisRepository implements AnalysisRepository {
         },
       );
       if (!analysisUpdate.affected) throw new Error('analysis_commit_inconsistent');
-      if (shouldInjectMidTransactionFailure(input.audit.correlationId)) throw new Error('injected-write-failure');
       await manager.insert(AuditEventEntity, {
         actorId: input.audit.actorId,
         action: input.audit.action,
@@ -377,10 +327,27 @@ export class TypeOrmAnalysisRepository implements AnalysisRepository {
       correlationId: string;
     };
   }): Promise<'committed' | 'stale'> {
+    return this.persistAnalysisFailure(input);
+  }
+
+  /** @inheritdoc */
+  async closeAnalysisFailure(
+    input: Omit<Parameters<AnalysisRepository['commitAnalysisFailure']>[0], 'audit'>,
+  ): Promise<'committed' | 'stale'> {
+    return this.persistAnalysisFailure(input);
+  }
+
+  /** Closes the matching execution and analysis in one transaction; stale attempts cannot modify a retry. */
+  private async persistAnalysisFailure(
+    input: Omit<Parameters<AnalysisRepository['commitAnalysisFailure']>[0], 'audit'> & {
+      audit?: Parameters<AnalysisRepository['commitAnalysisFailure']>[0]['audit'];
+    },
+  ): Promise<'committed' | 'stale'> {
     return this.dataSource.transaction(async (manager) => {
+      if (!(await this.lockProcessingAnalysis(manager, input.ownerId, input.analysisId))) return 'stale';
       const executionUpdate = await manager.update(
         AiExecutionEntity,
-        { id: input.executionId, ownerId: input.ownerId, status: RunStatus.Processing },
+        { id: input.executionId, analysisId: input.analysisId, ownerId: input.ownerId, kind: 'analysis', status: RunStatus.Processing },
         {
           status: RunStatus.Failed,
           errorCode: input.errorCode,
@@ -409,7 +376,7 @@ export class TypeOrmAnalysisRepository implements AnalysisRepository {
         },
       );
       if (!analysisUpdate.affected) throw new Error('analysis_commit_inconsistent');
-      await manager.insert(AuditEventEntity, {
+      if (input.audit) await manager.insert(AuditEventEntity, {
         actorId: input.audit.actorId,
         action: input.audit.action,
         resourceType: input.audit.resourceType,
@@ -558,7 +525,6 @@ export class TypeOrmAnalysisRepository implements AnalysisRepository {
         errorCode: input.errorCode,
         sequence: assistantSequence,
       });
-      if (shouldInjectMidTransactionFailure(input.audit.correlationId)) throw new Error('injected-write-failure');
       await manager.insert(AuditEventEntity, {
         actorId: input.audit.actorId,
         action: input.audit.action,
@@ -625,30 +591,53 @@ export class TypeOrmAnalysisRepository implements AnalysisRepository {
   }
 
   /** @inheritdoc */
-  async recoverStuckAnalyses(cutoff: Date): Promise<void> {
-    await this.analyses
-      .createQueryBuilder()
-      .update(AnalysisEntity)
-      .set({
-        status: RunStatus.Failed,
-        errorCode: PersistenceErrorCode.Interrupted,
-        errorMessage: 'The run was interrupted before a result was saved.',
-        updatedAt: new Date(),
-      })
-      .where('status = :status', { status: RunStatus.Processing })
-      .andWhere('updated_at < :cutoff', { cutoff })
-      .execute();
+  async recoverStuck(cutoff: Date): Promise<void> {
+    await this.dataSource.transaction(async (manager) => {
+      // Use the same analysis -> execution lock order as normal completion/retry.
+      // SKIP LOCKED lets another instance finish a row without a recovery deadlock.
+      const interrupted = await manager.createQueryBuilder(AnalysisEntity, 'analysis')
+        .where(`(
+          analysis.status = :status AND analysis.updatedAt < :cutoff
+          AND NOT EXISTS (SELECT 1 FROM ai_executions execution
+            WHERE execution.analysis_id = analysis.id AND execution.kind = 'analysis'
+            AND execution.status = :status AND execution.created_at >= :cutoff)
+        ) OR (
+          analysis.status <> :status
+          AND EXISTS (SELECT 1 FROM ai_executions execution
+            WHERE execution.analysis_id = analysis.id AND execution.kind = 'analysis'
+            AND execution.status = :status AND execution.created_at < :cutoff)
+        )`, { status: RunStatus.Processing, cutoff })
+        .setLock('pessimistic_write')
+        .setOnLocked('skip_locked')
+        .getMany();
+      const ids = interrupted.map((analysis) => analysis.id);
+      if (ids.length) {
+        await manager.update(AiExecutionEntity,
+          { analysisId: In(ids), kind: 'analysis', status: RunStatus.Processing, createdAt: LessThan(cutoff) },
+          { status: RunStatus.Failed, errorCode: PersistenceErrorCode.Interrupted, finishedAt: new Date() });
+        await manager.update(AnalysisEntity, { id: In(ids), status: RunStatus.Processing }, {
+          status: RunStatus.Failed,
+          errorCode: PersistenceErrorCode.Interrupted,
+          errorMessage: 'The run was interrupted before a result was saved.',
+          updatedAt: new Date(),
+        });
+      }
+      await manager.createQueryBuilder().update(AiExecutionEntity)
+        .set({ status: RunStatus.Failed, errorCode: PersistenceErrorCode.Interrupted, finishedAt: new Date() })
+        .where('status = :status', { status: RunStatus.Processing })
+        .andWhere('kind = :kind', { kind: 'question' })
+        .andWhere('created_at < :cutoff', { cutoff })
+        .execute();
+    });
   }
 
-  /** @inheritdoc */
-  async recoverStuckExecutions(cutoff: Date): Promise<void> {
-    await this.executions
-      .createQueryBuilder()
-      .update(AiExecutionEntity)
-      .set({ status: RunStatus.Failed, errorCode: PersistenceErrorCode.Interrupted, finishedAt: new Date() })
-      .where('status = :status', { status: RunStatus.Processing })
-      .andWhere('created_at < :cutoff', { cutoff })
-      .execute();
+  /** Locks the analysis before its execution so recovery and completion use a consistent order. */
+  private async lockProcessingAnalysis(manager: EntityManager, ownerId: string, analysisId: string): Promise<boolean> {
+    const analysis = await manager.findOne(AnalysisEntity, {
+      where: { id: analysisId, ownerId, status: RunStatus.Processing },
+      lock: { mode: 'pessimistic_write' },
+    });
+    return analysis !== null;
   }
 
   /** @inheritdoc */
@@ -675,3 +664,4 @@ export class TypeOrmAnalysisRepository implements AnalysisRepository {
     await this.dataSource.query('SELECT 1');
   }
 }
+

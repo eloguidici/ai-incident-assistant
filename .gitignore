@@ -16,3 +16,7 @@ infra/terraform/crash.log
 *.tsbuildinfo
 .DS_Store
 Thumbs.db
+
+
+infra/terraform/*.tfvars
+infra/terraform/*.tfplan

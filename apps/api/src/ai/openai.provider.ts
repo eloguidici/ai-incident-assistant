@@ -25,7 +25,7 @@ export class OpenAiProvider {
    * @param request Prompt version, model, and messages.
    * @param signal Aborts the HTTP call.
    * @returns Raw model text, model name, and token usage when reported.
-   * @throws ProviderRequestError mapped by {@link mapOpenAiError}.
+   * @throws ProviderRequestError mapped by {@link mapOpenAiSdkError}.
    */
   async complete(request: LlmRequest, signal: AbortSignal): Promise<LlmResponse> {
     try {
@@ -92,3 +92,4 @@ export function mapOpenAiSdkError(error: unknown): ProviderRequestError {
   }
   return new ProviderRequestError('network', 'The provider could not be reached.');
 }
+

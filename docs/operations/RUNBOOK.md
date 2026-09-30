@@ -17,5 +17,16 @@ Más réplicas de la API no suben la cuota del proveedor ni el tope de conexione
 ## Documentos
 `docs/`, `tasks/`, `.agents/` y `.ai/` no se copian a la imagen. El build de React se revisa con `npm run check:web-docs`. Un 200 de `/docs/` en la SPA no significa que el markdown esté publicado: el cuerpo no debe contener esos archivos.
 
-## Despliegue AWS
-`infra/terraform` propone ECS Fargate detrás de un balanceador, tareas en subredes privadas, RDS PostgreSQL cifrado y contraseña administrada por RDS. No se hizo `apply`. El listener descrito es HTTP porque no hay certificado. Antes de un despliegue real harían falta el certificado, los valores de los secretos y una imagen publicada. Escalar el servicio no elimina los límites del modelo.
+## AWS proposal
+
+See [infra/terraform/README.md](../../infra/terraform/README.md). The definition uses an HTTPS ALB and a Fargate task with web/nginx plus API, private PostgreSQL and Secrets Manager. OpenAI/OpenRouter selection is configurable. Actual image references, an ACM certificate, DNS, secret values and first-user provisioning are prerequisites. No cloud deployment has been executed.
+
+## Failure recovery
+
+The scheduled sweep uses the LLM deadline plus a five-second grace window and runs every 15–60 seconds depending on that deadline. It skips overlapping sweeps in the process. Analysis/execution changes are committed together, and completion/fallback operations are scoped to their execution. Question recovery closes aged executions independently. A database outage delays recovery until a later successful sweep; there is no immediate-recovery guarantee during an outage.
+
+A minimal fallback may close a run without its audit event or assistant failure message when the full transaction failed. Recovery marks interrupted state; it cannot recreate a model response or metadata that was never persisted. Monitor the failure/recovery logs and let the analyst retry explicitly.
+
+## In-memory limits
+
+Each limiter tracks at most 10,000 keys and sweeps at most 16 entries on each request. At capacity it rejects new keys instead of evicting an active quota. Idle processes remain memory-bounded; cleanup progresses with subsequent traffic. Quotas are process-local and are not a distributed rate limit.

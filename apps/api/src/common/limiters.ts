@@ -1,51 +1,53 @@
-type Bucket = number[];
+type Bucket = { hits: number[]; expiresAt: number };
+const DefaultMaxKeys = 10_000;
+const SweepBatchSize = 16;
 
-/**
- * In-memory sliding window limiter (per Node process). Idle keys are pruned on access only; use a shared store for multi-instance caps.
- */
+/** Bounded, process-local sliding windows. A key must use a stable window; replicas do not share quotas. */
 export class SlidingWindowLimiter {
-  private readonly hits = new Map<string, Bucket>();
+  private readonly buckets = new Map<string, Bucket>();
+  private sweepCursor = this.buckets.entries();
 
-  /**
-   * Records one hit for the key when it is still under the limit for the window.
-   * @param key Bucket name, for example `analysis:<ownerId>`.
-   * @param limit Maximum hits allowed inside the window.
-   * @param windowMs Window length in milliseconds.
-   * @param now Current time in milliseconds. Injected by tests.
-   * @returns `ok: true` when the hit was recorded, or the seconds to wait before the next allowed hit.
-   */
+  /** @param maxKeys Memory bound; new keys are rejected while every tracked slot is occupied. */
+  constructor(private readonly maxKeys: number = DefaultMaxKeys) {
+    if (!Number.isInteger(maxKeys) || maxKeys < 1) throw new Error('maxKeys must be a positive integer.');
+  }
+
+  /** Records a hit or returns a retry delay. Expired abandoned keys are swept incrementally. */
   consume(key: string, limit: number, windowMs: number, now = Date.now()): { ok: true } | { ok: false; retryAfterSeconds: number } {
-    const recent = this.prune(key, windowMs, now);
+    this.sweepExpired(now);
+    const recent = (this.buckets.get(key)?.hits ?? []).filter((timestamp) => now - timestamp < windowMs);
     if (recent.length >= limit) {
-      const retryAfterSeconds = Math.max(1, Math.ceil((recent[0] + windowMs - now) / 1000));
-      return { ok: false, retryAfterSeconds };
+      return { ok: false, retryAfterSeconds: Math.max(1, Math.ceil((recent[0] + windowMs - now) / 1000)) };
+    }
+    if (!this.buckets.has(key) && this.buckets.size >= this.maxKeys) {
+      // Fail closed rather than evicting a live key and resetting its quota.
+      return { ok: false, retryAfterSeconds: 1 };
     }
     recent.push(now);
-    this.hits.set(key, recent);
+    this.buckets.set(key, { hits: recent, expiresAt: now + windowMs });
     return { ok: true };
   }
 
-  /**
-   * Removes the latest hit for the key, used when the request was rejected before doing work.
-   * @param key Bucket name passed to {@link consume}.
-   */
+  /** Refunds a reservation rejected before doing work; removes an empty bucket. */
   refund(key: string): void {
-    const bucket = this.hits.get(key);
-    if (!bucket?.length) return;
-    bucket.pop();
+    const bucket = this.buckets.get(key);
+    if (!bucket) return;
+    bucket.hits.pop();
+    if (!bucket.hits.length) this.buckets.delete(key);
   }
 
-  /**
-   * Drops hits older than the window and stores the remaining ones.
-   * @returns The hits still inside the window, oldest first.
-   */
-  private prune(key: string, windowMs: number, now: number): Bucket {
-    const bucket = (this.hits.get(key) ?? []).filter((timestamp) => now - timestamp < windowMs);
-    if (bucket.length === 0) this.hits.delete(key);
-    else this.hits.set(key, bucket);
-    return bucket;
+  /** Visits a fixed number of entries per request, independent of the number of tracked keys. */
+  private sweepExpired(now: number): void {
+    for (let index = 0; index < SweepBatchSize; index += 1) {
+      const entry = this.sweepCursor.next();
+      if (entry.done) {
+        this.sweepCursor = this.buckets.entries();
+        break;
+      }
+      const [key, bucket] = entry.value;
+      if (bucket.expiresAt <= now) this.buckets.delete(key);
+    }
   }
-
 }
 
 export class InflightLimiter {
@@ -54,10 +56,7 @@ export class InflightLimiter {
   /** @param max Maximum concurrent requests allowed in this process. */
   constructor(private readonly max: number) {}
 
-  /**
-   * Takes one slot when one is free.
-   * @returns True when the caller may proceed and must call {@link leave} afterwards.
-   */
+  /** Takes one slot; a successful caller must release it with leave. */
   tryEnter(): boolean {
     if (this.current >= this.max) return false;
     this.current += 1;

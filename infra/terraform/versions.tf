@@ -24,14 +24,16 @@ variable "name" {
 
 variable "container_image" {
   type        = string
-  description = "Imagen ya publicada. Este stack no la construye ni la sube."
-  default     = "public.ecr.aws/docker/library/node:22-alpine"
+  description = "Published application API image (prefer an immutable digest). No generic Node image fallback."
 }
 
 variable "web_origin" {
   type        = string
-  description = "Public browser origin served over HTTPS (must match the ALB TLS endpoint for COOKIE_SECURE)."
-  default     = "https://localhost"
+  description = "Public HTTPS origin whose DNS points to the ALB and whose hostname is covered by the ACM certificate."
+  validation {
+    condition     = can(regex("^https://[^/]+$", var.web_origin)) && !strcontains(var.web_origin, "localhost")
+    error_message = "Use a public HTTPS origin without a trailing slash, not localhost."
+  }
 }
 
 variable "acm_certificate_arn" {
@@ -42,4 +44,36 @@ variable "acm_certificate_arn" {
 variable "vpc_cidr" {
   type    = string
   default = "10.40.0.0/16"
+}
+
+
+variable "web_container_image" {
+  type        = string
+  description = "Published React/nginx image built with infra/docker/web.Dockerfile."
+}
+
+variable "llm_provider" {
+  type        = string
+  default     = "openrouter"
+  description = "Real provider selected for the proposed deployment."
+  validation {
+    condition     = contains(["openai", "openrouter"], var.llm_provider)
+    error_message = "Choose openai or openrouter."
+  }
+}
+
+variable "llm_model" {
+  type        = string
+  default     = ""
+  description = "Optional model override; empty uses the selected provider's application default."
+}
+
+variable "desired_count" {
+  type        = number
+  default     = 0
+  description = "Keep zero until secret versions, images, TLS/DNS and user provisioning are ready."
+  validation {
+    condition     = var.desired_count >= 0 && floor(var.desired_count) == var.desired_count
+    error_message = "desired_count must be a nonnegative integer."
+  }
 }

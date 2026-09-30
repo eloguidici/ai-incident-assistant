@@ -54,8 +54,7 @@ export class AnalysesService {
     this.recoveryInFlight = true;
     try {
       const cutoff = stuckRecoveryCutoff(this.llmSettings.deadlineMs);
-      await this.analyses.recoverStuckAnalyses(cutoff);
-      await this.analyses.recoverStuckExecutions(cutoff);
+      await this.analyses.recoverStuck(cutoff);
       this.logger.info({ msg: LogEvent.StuckRecoverySweep, errorCode: ErrorCode.Ok });
     } catch (error) {
       this.logger.error({ msg: LogEvent.StuckRecoverySweep, errorCode: readCode(error) });
@@ -74,3 +73,4 @@ function readCode(error: unknown): string {
   const code = (error as { code?: unknown }).code;
   return typeof code === 'string' ? code : 'unknown';
 }
+

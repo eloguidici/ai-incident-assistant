@@ -18,7 +18,6 @@ module.exports = {
     '!src/**/index.ts',
     '!src/openapi/setup-openapi.ts',
     '!src/health.controller.ts',
-    '!src/startup.service.ts',
   ],
   coveragePathIgnorePatterns: ['/node_modules/', '/dist/'],
   coverageThreshold: {
@@ -30,3 +29,4 @@ module.exports = {
     },
   },
 };
+

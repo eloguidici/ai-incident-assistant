@@ -19,7 +19,7 @@ import { AuthService } from './auth.service';
 
 const loginSchema = z
   .object({
-    email: z.string().email().max(320).transform((value) => value.trim().toLowerCase()),
+    email: z.string().trim().toLowerCase().email().max(320),
     password: z.string().min(1).max(200),
   })
   .strict();
@@ -106,4 +106,5 @@ export class AuthController {
     response.cookie(CsrfCookieName, csrfToken, { ...base, httpOnly: false });
   }
 }
+
 
