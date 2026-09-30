@@ -3,11 +3,12 @@ import type { Request, Response } from 'express';
 import { ErrorCode } from './constants/error-code';
 import { LogEvent } from './constants/log-event';
 import { AppError } from './http';
-import { logSafe } from './log';
+import { AppLogger } from './app-logger';
 
 @Catch()
 /** Maps every exception to the public error shape and a redacted log line. */
 export class AllExceptionsFilter implements ExceptionFilter {
+  constructor(private readonly logger: AppLogger) {}
   /**
    * @param exception Caught error. Stacks are not written to the response.
    * @param host Nest host used to reach the HTTP request and response.
@@ -20,7 +21,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
     const correlationId = request.correlationId || 'missing';
 
     if (exception instanceof AppError) {
-      logSafe({
+      this.logger.info({
         msg: LogEvent.AppError,
         errorCode: exception.errorCode,
         status: exception.status,
@@ -48,13 +49,13 @@ export class AllExceptionsFilter implements ExceptionFilter {
           : status === 413
             ? 'The body exceeds the allowed size.'
             : 'The request could not be completed.';
-      logSafe({ msg: LogEvent.HttpError, errorCode: code, status, correlationId });
+      this.logger.info({ msg: LogEvent.HttpError, errorCode: code, status, correlationId });
       response.status(status).json({ error: { code, message, correlationId, analysisId: null } });
       return;
     }
 
     if (exception instanceof SyntaxError) {
-      logSafe({ msg: LogEvent.BadJson, errorCode: ErrorCode.ValidationError, status: 400, correlationId });
+      this.logger.info({ msg: LogEvent.BadJson, errorCode: ErrorCode.ValidationError, status: 400, correlationId });
       response.status(400).json({
         error: {
           code: ErrorCode.ValidationError,
@@ -67,7 +68,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
     }
 
     const pgCode = readPgCode(exception);
-    logSafe({ msg: LogEvent.Unhandled, errorCode: pgCode ?? ErrorCode.Internal, status: 500, correlationId });
+    this.logger.info({ msg: LogEvent.Unhandled, errorCode: pgCode ?? ErrorCode.Internal, status: 500, correlationId });
     response.status(500).json({
       error: { code: ErrorCode.Internal, message: 'Internal error.', correlationId, analysisId: null },
     });

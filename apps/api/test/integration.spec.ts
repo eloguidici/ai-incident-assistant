@@ -13,7 +13,8 @@ import { RunStatus } from '../src/domain/run-status';
 import { migrationPool } from '../src/db/database-bootstrap';
 import { applyMigrations, rollbackLatest, truncateDomain } from '../src/db/migrate';
 import { seedDemoUsers } from '../src/db/seed';
-import { USER_REPOSITORY } from '../src/db/repositories/tokens';
+import { ANALYSIS_REPOSITORY, USER_REPOSITORY } from '../src/db/repositories/tokens';
+import type { AnalysisRepository } from '../src/db/repositories/analysis.repository';
 import type { UserRepository } from '../src/db/repositories/user.repository';
 import { AnalysesService } from '../src/analyses/analyses.service';
 import { resetMockState } from '../src/ai/mock.provider';
@@ -159,6 +160,92 @@ describe('API with PostgreSQL', () => {
     const retried = await agent.post(`/api/analyses/${again.body.error.analysisId}/retry`).set(CsrfHeaderName, csrf).send({});
     expect(retried.ok).toBe(true);
     expect(retried.body.status).toBe(RunStatus.Completed);
+  });
+
+  async function countProcessingExecutions(dataSource: DataSource): Promise<number> {
+    const rows = await dataSource.query<{ count: string }[]>(
+      `select count(*)::text as count from ai_executions where status = 'processing'`,
+    );
+    return Number(rows[0]?.count ?? 0);
+  }
+
+  it('R02 F04 exposes execution ids and closes the reserved row on retry', async () => {
+    const { agent, csrf } = await asUser(userA);
+    const failed = await agent
+      .post('/api/analyses')
+      .set(CsrfHeaderName, csrf)
+      .send({ sourceText: `${incident} ${MockFaultTag.ServerTwice}` });
+    expect(failed.status).toBe(502);
+    const analysisId = failed.body.error.analysisId as string;
+    const beforeRetry = await agent.get(`/api/analyses/${analysisId}`);
+    expect(beforeRetry.body.executions).toHaveLength(1);
+    expect(beforeRetry.body.executions[0].id).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+    );
+    expect(beforeRetry.body.executions[0].status).toBe(RunStatus.Failed);
+    const retried = await agent.post(`/api/analyses/${analysisId}/retry`).set(CsrfHeaderName, csrf).send({});
+    expect(retried.ok).toBe(true);
+    expect(retried.body.executions).toHaveLength(2);
+    const ids = retried.body.executions.map((execution: { id: string }) => execution.id);
+    expect(new Set(ids).size).toBe(2);
+    expect(retried.body.executions.every((execution: { status: string }) => execution.status !== RunStatus.Processing)).toBe(true);
+  });
+
+  it('R02 F05 leaves no processing executions after a failed question', async () => {
+    const { agent, csrf } = await asUser(userA);
+    const created = await agent.post('/api/analyses').set(CsrfHeaderName, csrf).send({ sourceText: incident });
+    await agent
+      .post(`/api/analyses/${created.body.id}/messages`)
+      .set(CsrfHeaderName, csrf)
+      .send({ question: `Review this case ${MockFaultTag.InvalidJson}` });
+    const dataSource = app.get(DataSource);
+    expect(await countProcessingExecutions(dataSource)).toBe(0);
+  });
+
+  it('R02 F06 retry compare-and-set blocks a second reservation while processing', async () => {
+    const { agent, csrf, userId } = await asUser(userA);
+    const failed = await agent
+      .post('/api/analyses')
+      .set(CsrfHeaderName, csrf)
+      .send({ sourceText: `${incident} ${MockFaultTag.Server}` });
+    expect(failed.status).toBe(502);
+    const analysisId = failed.body.error.analysisId as string;
+    const repo = app.get<AnalysisRepository>(ANALYSIS_REPOSITORY);
+    const first = await repo.reserveRetryWithExecution({
+      ownerId: userId,
+      analysisId,
+      promptVersion: ANALYSIS_PROMPT_VERSION,
+      provider: 'mock',
+      model: 'mock-incident-v1',
+      correlationId: 'r02-cas-first',
+    });
+    expect(first.ok).toBe(true);
+    const second = await repo.reserveRetryWithExecution({
+      ownerId: userId,
+      analysisId,
+      promptVersion: ANALYSIS_PROMPT_VERSION,
+      provider: 'mock',
+      model: 'mock-incident-v1',
+      correlationId: 'r02-cas-second',
+    });
+    expect(second.ok).toBe(false);
+    if (!second.ok) expect(second.reason).toBe('in_progress');
+    if (!first.ok) throw new Error('expected first retry reservation to succeed');
+    await repo.finishExecution({
+      executionId: first.executionId,
+      ownerId: userId,
+      status: RunStatus.Failed,
+      errorCode: 'PROVIDER_ERROR',
+      attemptCount: 1,
+      latencyMs: null,
+      inputTokens: null,
+      outputTokens: null,
+      provider: 'mock',
+      model: 'mock-incident-v1',
+    });
+    const dataSource = app.get(DataSource);
+    await dataSource.query(`update analyses set status = 'failed' where id = $1`, [analysisId]);
+    expect(await countProcessingExecutions(dataSource)).toBe(0);
   });
 
   it('two simultaneous analyses do not create two executions', async () => {

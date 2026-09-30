@@ -18,14 +18,19 @@ export function DetailPage() {
    * Fetches the analysis for the current id. On failure it clears the detail and shows the API message.
    * @returns A promise that settles after the state is updated. It never rejects.
    */
-  function load() {
-    setError(null);
+  function fetchDetail(): Promise<void> {
     return api<AnalysisDetail>(`/api/analyses/${id}`)
       .then(setDetail)
       .catch((failure: unknown) => {
         setDetail(null);
         setError(failure instanceof ApiError ? failure.message : 'The analysis could not be opened.');
-      });
+      })
+      .then(() => undefined);
+  }
+
+  function load(): Promise<void> {
+    setError(null);
+    return fetchDetail();
   }
 
   useEffect(() => {
@@ -50,7 +55,7 @@ export function DetailPage() {
       setQuestion('');
     } catch (failure) {
       setError(failure instanceof ApiError ? failure.message : 'The question could not be sent.');
-      await load();
+      await fetchDetail();
     } finally {
       setPending(false);
     }
@@ -64,7 +69,7 @@ export function DetailPage() {
       setDetail(await api<AnalysisDetail>(`/api/analyses/${id}/retry`, { method: 'POST', body: '{}' }));
     } catch (failure) {
       setError(failure instanceof ApiError ? failure.message : 'The retry could not be started.');
-      await load();
+      await fetchDetail();
     } finally {
       setPending(false);
     }

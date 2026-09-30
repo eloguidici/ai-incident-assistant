@@ -5,7 +5,7 @@ Monolito modular con Auth, Analyses, Conversation, AI y soporte Config/Observabi
 CQRS liviano: CreateAnalysis/AddQuestion son comandos; ListAnalyses/GetAnalysis son consultas. Misma DB; sin event sourcing ni infraestructura distribuida por defecto.
 ## Responsabilidades IA
 Caso de uso -> PromptBuilder versionado -> LlmProvider -> OutputValidator -> persistencia/resultado.
-Contrato conceptual: input/context, provider/model, deadline/cancel; respuesta estructurada con metadatos de tokens si están disponibles. Adapter real y mock seleccionables; no fallback silencioso a datos simulados.
+Contrato conceptual: input/context, provider/model, deadline/cancel, tope de tokens de salida (`LLM_MAX_OUTPUT_TOKENS`); respuesta estructurada con metadatos de tokens si están disponibles. Adapter real y mock seleccionables; no fallback silencioso a datos simulados. Gateway: máximo dos intentos, Retry-After del proveedor con jitter, cancelación del cliente aborta el intento y la espera.
 ## API propuesta para cerrar en T02
 POST /auth/login; GET /analyses (paginado); POST /analyses; GET /analyses/:id; POST /analyses/:id/messages.
 Errores consistentes de validación, auth, ownership, rate limit y proveedor; no exponer stack traces. Polling/streaming sólo si decisión explícita.
@@ -14,7 +14,7 @@ PostgreSQL con migraciones y constraints; volumen Docker persistente y healthche
 User, Analysis, Message, ejecución AI con versiones/estado/timestamps. ownerId indexado y aplicado a cada consulta. No mantener transacción DB durante llamada LLM.
 Estados propuestos pending/processing/completed/failed; definir recuperación de proceso interrumpido. Reintentos deben tener reglas de duplicados y costos explícitas.
 ## Seguridad/operación
-JWT o sesión similar; elegir transporte y CSRF/CORS en T02. Cancelación real propagada, concurrencia limitada, cuotas, entradas acotadas, redacción de logs/errores.
+JWT o sesión similar; elegir transporte y CSRF/CORS en T02. Cancelación real propagada, concurrencia limitada, cuotas, entradas acotadas, redacción de logs/errores. Servicios Nest usan `AppLogger` inyectable (misma allowlist que `logSafe`); middleware HTTP sigue con `logSafe` estático.
 IaC requerida; Docker propuesto. No secretos en imagen, frontend, user-data ni state. Documento de AWS distingue validación local, mock y despliegue real.
 ## Costo de patrones
 Handlers separan casos de uso y pruebas; no crear capas vacías ni abstracciones genéricas para cada clase. No importar framework entero para una llamada al modelo.

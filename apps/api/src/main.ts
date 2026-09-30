@@ -7,6 +7,7 @@ import { correlationMiddleware, csrfMiddleware } from './common/http';
 import { getConfigToken } from './config';
 import { ConfigValidationError } from './config/core';
 import { appConfig, type AppConfig } from './config/slices';
+import { setupOpenApi } from './openapi/setup-openapi';
 
 /**
  * Builds the HTTP application. Configuration is loaded by the config module before providers start.
@@ -32,6 +33,7 @@ export async function createApplication() {
 /** Starts the API on the port from the app slice. */
 export async function bootstrap(): Promise<void> {
   const app = await createApplication();
+  setupOpenApi(app);
   const settings = app.get<AppConfig>(getConfigToken(appConfig));
   await app.listen(settings.port);
   console.log(JSON.stringify({ level: 'info', msg: 'api_listening', port: settings.port }));

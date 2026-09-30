@@ -21,6 +21,19 @@ export type LlmOutcome = {
   latencyMs: number;
 };
 
+const DEFAULT_RETRY_BACKOFF_MS = 50;
+const RETRY_JITTER_MS = 100;
+
+/**
+ * Backoff before a second attempt: provider Retry-After when present, otherwise a short default, plus jitter.
+ * @param retryAfterMs Milliseconds from a rate-limit response, when the provider sent one.
+ */
+function retryBackoffMs(retryAfterMs?: number): number {
+  const base = retryAfterMs ?? DEFAULT_RETRY_BACKOFF_MS;
+  const jitter = Math.floor(Math.random() * RETRY_JITTER_MS);
+  return base + jitter;
+}
+
 /** Calls the configured provider once, then once more when the failure is retryable and time remains. */
 export class LlmGateway {
   private readonly inflight: InflightLimiter;
@@ -38,6 +51,8 @@ export class LlmGateway {
 
   /**
    * Sends the prompt and records how many attempts it took.
+   * Retry policy: at most two attempts; only {@link isRetryable} kinds; honours provider Retry-After on rate limits;
+   * otherwise ~50ms plus jitter; parent abort cancels the wait and the in-flight attempt; no further retries after two failures.
    * @param request Prompt messages. The model is replaced with the configured one.
    * @param parentSignal Aborted when the HTTP client disconnects or the request deadline expires.
    * @param deadlineAt Epoch milliseconds when the whole call must stop.
@@ -72,7 +87,7 @@ export class LlmGateway {
         } catch (error) {
           const mapped = asProviderError(error, parentSignal.aborted, attemptController.signal.aborted);
           const budgetLeft = deadlineAt - Date.now();
-          const waitMs = mapped.retryAfterMs ?? 50;
+          const waitMs = retryBackoffMs(mapped.retryAfterMs);
           const canRetry = attempts < 2 && isRetryable(mapped.kind) && !parentSignal.aborted && budgetLeft > waitMs + 200;
           mapped.attempts = attempts;
           if (!canRetry) throw mapped;

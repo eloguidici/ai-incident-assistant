@@ -29,6 +29,7 @@ export interface LlmConfig {
   model: string;
   deadlineMs: number;
   attemptTimeoutMs: number;
+  maxOutputTokens: number;
   contextCharBudget: number;
   sourceTextMax: number;
   questionMax: number;
@@ -108,6 +109,7 @@ export const llmConfig = defineConfigSlice<LlmConfig>({
     OPENAI_MODEL: Joi.string().min(1).default('gpt-4o-mini'),
     LLM_DEADLINE_MS: Joi.number().integer().min(500).max(120000).default(20000),
     LLM_ATTEMPT_TIMEOUT_MS: Joi.number().integer().min(200).max(120000).default(12000),
+    LLM_MAX_OUTPUT_TOKENS: Joi.number().integer().min(256).max(16384).default(4096),
     CONTEXT_CHAR_BUDGET: Joi.number().integer().min(200).max(100000).default(12000),
     SOURCE_TEXT_MAX: Joi.number().integer().min(20).max(50000).default(8000),
     QUESTION_MAX: Joi.number().integer().min(1).max(8000).default(1000),
@@ -128,6 +130,7 @@ export const llmConfig = defineConfigSlice<LlmConfig>({
     model: env.OPENAI_MODEL as string,
     deadlineMs: env.LLM_DEADLINE_MS as number,
     attemptTimeoutMs: env.LLM_ATTEMPT_TIMEOUT_MS as number,
+    maxOutputTokens: env.LLM_MAX_OUTPUT_TOKENS as number,
     contextCharBudget: env.CONTEXT_CHAR_BUDGET as number,
     sourceTextMax: env.SOURCE_TEXT_MAX as number,
     questionMax: env.QUESTION_MAX as number,

@@ -70,34 +70,86 @@ export class TypeOrmAnalysisRepository implements AnalysisRepository {
   }
 
   /** @inheritdoc */
-  async insertProcessingAnalysis(input: {
+  async reserveProcessingAnalysisWithExecution(input: {
     ownerId: string;
     sourceText: string;
     expiresAt: Date;
-  }): Promise<{ id: string }> {
-    const saved = await this.analyses.save(
-      this.analyses.create({
+    kind: 'analysis' | 'question';
+    promptVersion: string;
+    provider: string;
+    model: string;
+    correlationId: string;
+  }): Promise<{ analysisId: string; executionId: string }> {
+    return this.dataSource.transaction(async (manager) => {
+      const analysis = await manager.save(
+        AnalysisEntity,
+        manager.create(AnalysisEntity, {
+          ownerId: input.ownerId,
+          sourceText: input.sourceText,
+          status: RunStatus.Processing,
+          expiresAt: input.expiresAt,
+          updatedAt: new Date(),
+        }),
+      );
+      const insert = await manager.insert(AiExecutionEntity, {
+        analysisId: analysis.id,
         ownerId: input.ownerId,
-        sourceText: input.sourceText,
+        kind: input.kind,
         status: RunStatus.Processing,
-        expiresAt: input.expiresAt,
-        updatedAt: new Date(),
-      }),
-    );
-    return { id: saved.id };
+        promptVersion: input.promptVersion,
+        provider: input.provider,
+        model: input.model,
+        correlationId: input.correlationId,
+      });
+      const executionId = insert.identifiers[0]?.id as string;
+      return { analysisId: analysis.id, executionId };
+    });
+  }
+
+  /** @inheritdoc */
+  async reserveRetryWithExecution(input: {
+    ownerId: string;
+    analysisId: string;
+    promptVersion: string;
+    provider: string;
+    model: string;
+    correlationId: string;
+  }): Promise<
+    | { ok: true; executionId: string }
+    | { ok: false; reason: 'not_found' | 'not_failed' | 'in_progress' }
+  > {
+    return this.dataSource.transaction(async (manager) => {
+      const updated = await manager.update(
+        AnalysisEntity,
+        { id: input.analysisId, ownerId: input.ownerId, status: RunStatus.Failed },
+        { status: RunStatus.Processing, errorCode: null, errorMessage: null, updatedAt: new Date() },
+      );
+      if (!updated.affected) {
+        const current = await manager.findOne(AnalysisEntity, {
+          where: { id: input.analysisId, ownerId: input.ownerId },
+        });
+        if (!current) return { ok: false, reason: 'not_found' };
+        if (current.status === RunStatus.Processing) return { ok: false, reason: 'in_progress' };
+        return { ok: false, reason: 'not_failed' };
+      }
+      const insert = await manager.insert(AiExecutionEntity, {
+        analysisId: input.analysisId,
+        ownerId: input.ownerId,
+        kind: 'analysis',
+        status: RunStatus.Processing,
+        promptVersion: input.promptVersion,
+        provider: input.provider,
+        model: input.model,
+        correlationId: input.correlationId,
+      });
+      const executionId = insert.identifiers[0]?.id as string;
+      return { ok: true, executionId };
+    });
   }
 
   /** @inheritdoc */
   async deleteAnalysis(id: string): Promise<void> {
     await this.analyses.delete({ id });
-  }
-
-  /** @inheritdoc */
-  async markFailedRetryProcessing(ownerId: string, id: string): Promise<void> {
-    await this.analyses.update(
-      { id, ownerId, status: RunStatus.Failed },
-      { status: RunStatus.Processing, errorCode: null, errorMessage: null, updatedAt: new Date() },
-    );
   }
 
   /** @inheritdoc */
@@ -159,8 +211,8 @@ export class TypeOrmAnalysisRepository implements AnalysisRepository {
     provider: string;
     model: string;
     correlationId: string;
-  }): Promise<void> {
-    await this.executions.insert({
+  }): Promise<{ id: string }> {
+    const insert = await this.executions.insert({
       analysisId: input.analysisId,
       ownerId: input.ownerId,
       kind: input.kind,
@@ -170,13 +222,13 @@ export class TypeOrmAnalysisRepository implements AnalysisRepository {
       model: input.model,
       correlationId: input.correlationId,
     });
+    return { id: insert.identifiers[0]?.id as string };
   }
 
   /** @inheritdoc */
   async finishExecution(input: {
-    analysisId: string;
+    executionId: string;
     ownerId: string;
-    kind: 'analysis' | 'question';
     status: FinishedRunStatus;
     errorCode: string | null;
     attemptCount: number;
@@ -188,9 +240,8 @@ export class TypeOrmAnalysisRepository implements AnalysisRepository {
   }): Promise<void> {
     await this.executions.update(
       {
-        analysisId: input.analysisId,
+        id: input.executionId,
         ownerId: input.ownerId,
-        kind: input.kind,
         status: RunStatus.Processing,
       },
       {

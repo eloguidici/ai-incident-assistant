@@ -5,11 +5,13 @@ import { ProviderRequestError, type LlmRequest, type LlmResponse } from './contr
 export class OpenAiProvider {
   readonly providerName = 'openai';
   private readonly client: OpenAI;
+  private readonly maxOutputTokens: number;
 
   /**
-   * @param llmSettings OpenAI key, model, and per-attempt timeout. Retries stay in the gateway.
+   * @param llmSettings OpenAI key, model, per-attempt timeout, and completion token cap. Retries stay in the gateway.
    */
   constructor(llmSettings: LlmConfig) {
+    this.maxOutputTokens = llmSettings.maxOutputTokens;
     this.client = new OpenAI({
       apiKey: llmSettings.apiKey,
       maxRetries: 0,
@@ -30,6 +32,7 @@ export class OpenAiProvider {
         {
           model: request.model,
           temperature: 0.2,
+          max_tokens: this.maxOutputTokens,
           response_format: { type: 'json_object' },
           messages: request.messages,
         },

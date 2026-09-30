@@ -32,6 +32,8 @@ npm run dev:api
 npm run dev:web
 ```
 
+Con la API en marcha, OpenAPI interactivo: http://127.0.0.1:3001/api/docs (JSON en `/api/docs-json`). Documenta cookies de sesión y header CSRF en mutaciones.
+
 Abrí http://127.0.0.1:5173. Usuarios locales, solo para esta base de demostración:
 
 - `analyst.a@example.test`

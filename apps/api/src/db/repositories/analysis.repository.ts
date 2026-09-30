@@ -25,15 +25,30 @@ export interface AnalysisRepository {
   loadDetail(ownerId: string, id: string): Promise<AnalysisDetailRecord | null>;
   listMessages(analysisId: string, ownerId: string): Promise<MessageEntity[]>;
 
-  insertProcessingAnalysis(input: {
+  reserveProcessingAnalysisWithExecution(input: {
     ownerId: string;
     sourceText: string;
     expiresAt: Date;
-  }): Promise<{ id: string }>;
+    kind: ExecutionKind;
+    promptVersion: string;
+    provider: string;
+    model: string;
+    correlationId: string;
+  }): Promise<{ analysisId: string; executionId: string }>;
+
+  reserveRetryWithExecution(input: {
+    ownerId: string;
+    analysisId: string;
+    promptVersion: string;
+    provider: string;
+    model: string;
+    correlationId: string;
+  }): Promise<
+    | { ok: true; executionId: string }
+    | { ok: false; reason: 'not_found' | 'not_failed' | 'in_progress' }
+  >;
 
   deleteAnalysis(id: string): Promise<void>;
-
-  markFailedRetryProcessing(ownerId: string, id: string): Promise<void>;
 
   saveCompletedAnalysis(input: {
     ownerId: string;
@@ -63,12 +78,11 @@ export interface AnalysisRepository {
     provider: string;
     model: string;
     correlationId: string;
-  }): Promise<void>;
+  }): Promise<{ id: string }>;
 
   finishExecution(input: {
-    analysisId: string;
+    executionId: string;
     ownerId: string;
-    kind: ExecutionKind;
     status: FinishedRunStatus;
     errorCode: string | null;
     attemptCount: number;

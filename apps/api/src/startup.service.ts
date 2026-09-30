@@ -16,8 +16,8 @@ import { DATA_SOURCE, USER_REPOSITORY } from './db/repositories/tokens';
 
 import type { UserRepository } from './db/repositories/user.repository';
 
+import { AppLogger } from './common/app-logger';
 import { LogEvent } from './common/constants/log-event';
-import { logSafe } from './common/log';
 
 import { AnalysesService } from './analyses/analyses.service';
 
@@ -47,6 +47,8 @@ export class StartupService implements OnModuleInit, OnModuleDestroy {
 
    * @param analyses Runs stuck-run recovery and retention purges.
 
+   * @param logger Redacted structured logs for database readiness retries.
+
    */
 
   constructor(
@@ -62,6 +64,8 @@ export class StartupService implements OnModuleInit, OnModuleDestroy {
     @Inject(USER_REPOSITORY) private readonly users: UserRepository,
 
     private readonly analyses: AnalysesService,
+
+    private readonly logger: AppLogger,
 
   ) {}
 
@@ -147,7 +151,7 @@ export class StartupService implements OnModuleInit, OnModuleDestroy {
 
         lastCode = readCode(error);
 
-        logSafe({ msg: LogEvent.DatabaseNotReady, errorCode: lastCode, attempts: attempt });
+        this.logger.info({ msg: LogEvent.DatabaseNotReady, errorCode: lastCode, attempts: attempt });
 
         if (attempt === 10) break;
 
