@@ -1,7 +1,7 @@
 # Requirements and acceptance matrix
 
 
-Source: Full Stack AI Engineer Assessment PDF, received on 2026-09-29. The application is implemented. Executed evidence is in [process/qa-runs](../../process/qa-runs/). Anything not run is marked BLOCKED or NOT_RUN there.
+Source: Full Stack AI Engineer Assessment PDF, received on 2026-09-29. The application is implemented. The checks can be reproduced with the commands in the root [README](../../README.md#verification).
 
 | ID | Requirement | Delivery and acceptance |
 |---|---|---|

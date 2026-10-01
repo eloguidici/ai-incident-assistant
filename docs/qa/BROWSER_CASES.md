@@ -1,7 +1,7 @@
 # Browser and API cases
 
 
-Snapshot from 2026-09-29. Automation: Playwright with installed Chrome, plus Jest against PostgreSQL. Later runs are in [process/qa-runs](../../process/qa-runs/).
+Snapshot from 2026-09-29. Automation: Playwright with installed Chrome, plus Jest against PostgreSQL.
 
 | ID | Case | Result | Where |
 |---|---|---|---|
@@ -26,6 +26,6 @@ Snapshot from 2026-09-29. Automation: Playwright with installed Chrome, plus Jes
 | B19 | Two simultaneous questions | The unique index returns 409 | |
 | B20 | Logs without secrets or text | PASS in Jest | |
 | B21 | `/docs/` does not publish the markdown | Partial PASS: `check:web-docs` finds no documents in `apps/web/dist` | |
-| B22 | Real provider | BLOCKED on 2026-09-29 (no key); later live samples in process/qa-runs | |
+| B22 | Real provider | BLOCKED on 2026-09-29 (no key); later live samples run with `npm run qa:ai:live-openrouter` | |
 | B23 | Database failure after the model | Covered later by rollback and failure-orchestration tests | |
 | B24 | Retention | PASS in Jest: an expired analysis disappears and the rest remain | |

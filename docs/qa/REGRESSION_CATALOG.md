@@ -1,7 +1,7 @@
 # QA catalog
 
 
-Snapshot from 2026-09-29. Later runs, including live-model samples and the CI configuration, are recorded in [process/qa-runs](../../process/qa-runs/).
+Snapshot from 2026-09-29.
 
 | ID | Flow | Priority | Scenario / result | Surface | Result |
 |---|---|---|---|---|---|
@@ -12,7 +12,7 @@ Snapshot from 2026-09-29. Later runs, including live-model samples and the CI co
 | Q05 | F03 | P0 | Restart keeps data | Postgres | PASS for one row after `docker restart` |
 | Q06 | F04 | P0 | Question and thread order | API/browser | PASS |
 | Q07 | F05 | P1 | Invalid JSON, ungrounded quote, 401 and 500 | Mock/API | PASS |
-| Q08 | F02 | P1 | Injection and insufficient text in the mock rubric | Evaluation | PASS with mock. Real: BLOCKED on 2026-09-29; later live samples in process/qa-runs |
+| Q08 | F02 | P1 | Injection and insufficient text in the mock rubric | Evaluation | PASS with mock. Real: BLOCKED on 2026-09-29; later live samples run with `npm run qa:ai:live-openrouter` |
 | Q09 | All | P0 | Secret and text kept out of logs | Integration | PASS |
 | Q10 | F05 | P1 | A retry does not delete a success; a failure retries once | API | PASS |
 | Q11 | UI | P1 | Loading, error, empty, result | Browser | PASS in the e2e run |

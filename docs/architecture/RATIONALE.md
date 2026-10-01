@@ -1,7 +1,7 @@
 # Rationale
 
 
-This document explains the main decisions and what each one costs. Test evidence is in the dated reports under [process/qa-runs](../../process/qa-runs/).
+This document explains the main decisions and what each one costs. The verification commands are listed in the root [README](../../README.md#verification).
 
 ## What the assessment asks
 
@@ -39,4 +39,4 @@ The [Terraform guide](../../infra/terraform/README.md) describes runtime keys, r
 
 ## Evidence
 
-ORM: TypeORM and repositories, [ADR-006](../decisions/ADR-006-typeorm-repository.md) ([ADR-002](../decisions/ADR-002-persistence.md) is historical). Session: [ADR-003](../decisions/ADR-003-session.md). Limits and retention: [MVP](../features/MVP.md) and [data policy](../security/DATA_POLICY.md). Proposed cloud target: [ADR-005](../decisions/ADR-005-aws.md), not applied. Test runs, including live-model samples: [process/qa-runs](../../process/qa-runs/).
+ORM: TypeORM and repositories, [ADR-006](../decisions/ADR-006-typeorm-repository.md) ([ADR-002](../decisions/ADR-002-persistence.md) is historical). Session: [ADR-003](../decisions/ADR-003-session.md). Limits and retention: [MVP](../features/MVP.md) and [data policy](../security/DATA_POLICY.md). Proposed cloud target: [ADR-005](../decisions/ADR-005-aws.md), not applied.

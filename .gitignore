@@ -20,3 +20,11 @@ Thumbs.db
 
 infra/terraform/*.tfvars
 infra/terraform/*.tfplan
+
+# Internal development material (process notes, agent rules, skills). Kept locally, not published.
+docs/internal/
+AGENTS.md
+.agents/
+.ai/
+process/
+GUIA_ESTUDIO*.md

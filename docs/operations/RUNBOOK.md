@@ -22,7 +22,7 @@ More API replicas do not raise the provider's quota or PostgreSQL's connection l
 
 ## Documents
 
-`docs/`, `process/`, `.agents/` and `.ai/` are not copied into the images. The React build is checked with `npm run check:web-docs`. A 200 for `/docs/` from the SPA does not mean the markdown is published: the body must not contain those files.
+`docs/` and internal development notes are not copied into the images. The React build is checked with `npm run check:web-docs`. A 200 for `/docs/` from the SPA does not mean the markdown is published: the body must not contain those files.
 
 ## TLS problems on Windows
 
