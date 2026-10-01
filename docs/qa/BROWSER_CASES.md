@@ -1,7 +1,7 @@
 # Browser and API cases
 
 
-Snapshot from 2026-09-29. Automation: Playwright with installed Chrome, plus Jest against PostgreSQL.
+Historical snapshot from 2026-09-29. The current, step-by-step flows are in [UI_FLOWS.md](UI_FLOWS.md). Automation: Playwright with installed Chrome, plus Jest against PostgreSQL.
 
 | ID | Case | Result | Where |
 |---|---|---|---|
