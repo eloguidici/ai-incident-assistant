@@ -14,7 +14,7 @@ An authenticated analyst submits incident text, receives a structured analysis, 
 | 2.2 AI evaluation and reliability | [Evaluation and reliability](#evaluation-and-reliability) |
 | 3.1 Cloud and runtime | [Secrets, rotation and bursty usage](#secrets-rotation-and-bursty-usage); [Terraform guide](infra/terraform/README.md) |
 | 3.2 Containerization | [Scaling constraints of AI workloads](#scaling-constraints-of-ai-workloads); `infra/docker/` |
-| Bonus | [Cost estimate for 1k / 10k / 100k requests](#cost-estimate-for-1k--10k--100k-requests); per-user data isolation |
+| Bonus | [Cost estimate for 1k / 10k / 100k requests](#cost-estimate-for-1k--10k--100k-requests); [per-user data isolation](#per-user-data-isolation) |
 
 ## Architecture and AI design
 
@@ -99,15 +99,38 @@ Details: [Terraform guide](infra/terraform/README.md) and [runbook](docs/operati
 
 ## Cost estimate for 1k / 10k / 100k requests
 
-Assumptions: `gpt-4o-mini` at the list price of USD 0.15 per million input tokens and USD 0.60 per million output tokens (check [current pricing](https://openai.com/api/pricing/) before relying on it). The typical case uses a measured live analysis (278 input and 285 output tokens). The worst case uses the full context budget (about 3,300 input tokens) and the 4,096-token output cap.
+**Model and price.** `openai/gpt-4o-mini` through OpenRouter, USD 0.15 per million input tokens and USD 0.60 per million output tokens, read from the OpenRouter models API (`https://openrouter.ai/api/v1/models`) on 2026-10-01 00:29 (Buenos Aires). Prices change; check them before relying on this table. OpenRouter credit-purchase fees are not included.
 
-| Requests | Typical (~USD 0.0002 each) | Worst case (~USD 0.003 each) |
-|---|---|---|
-| 1,000 | ~USD 0.21 | ~USD 2.95 |
-| 10,000 | ~USD 2.13 | ~USD 29.50 |
-| 100,000 | ~USD 21.30 | ~USD 295 |
+**Measured samples** (provider-reported tokens, synthetic incidents of about 200–250 characters, prompts `incident-analysis.v2` and `incident-question.v3`, 2026-10-01):
 
-Follow-up questions resend the incident and recent conversation, so they cost more than a first analysis. At these volumes the fixed AWS cost (load balancer, NAT gateway, RDS) is larger than the model cost.
+| Call | Samples (input / output tokens) | Average | Cost per call |
+|---|---|---|---|
+| First analysis | 459 / 493, 455 / 422, 455 / 500 | 456 / 472 | ~USD 0.00035 |
+| Follow-up question | 595 / 701 (1st), 695 / 479 (2nd) | 645 / 590 | ~USD 0.00045 |
+
+Follow-up questions resend the incident and the recent conversation, so their input grows with each turn (+100 tokens between the first and second question above). Five samples do not measure a distribution; long incidents cost more.
+
+**Worst case (estimate, not measured):** the full 12,000-character context budget (about 3,400 input tokens including the system prompt, at roughly 4 characters per token) plus the 4,096-token output cap: ~USD 0.0030 per call.
+
+| Requests | Analyses (measured avg) | Follow-ups (measured avg) | Worst case per call (estimate) | Worst case with one billed retry (estimate) |
+|---|---|---|---|---|
+| 1,000 | ~USD 0.35 | ~USD 0.45 | ~USD 2.97 | ~USD 5.94 |
+| 10,000 | ~USD 3.51 | ~USD 4.51 | ~USD 29.68 | ~USD 59.35 |
+| 100,000 | ~USD 35.15 | ~USD 45.08 | ~USD 296.76 | ~USD 593.52 |
+
+A typical session of one analysis and two questions is about USD 0.0013 (USD 1.25 per 1,000 sessions).
+
+**Retries and failed calls.** The gateway retries at most once, only after a timeout, 429, 5xx or network error, so one request can be billed twice. A timeout is not free: the provider may have processed and charged the call even though the result is discarded. Output that fails validation is billed and stored as a failed execution; a user retry is a new billed call. Requests rejected before the provider is called (input validation, per-user quota, context budget, or a local TLS failure) cost nothing.
+
+**Infrastructure is separate.** These figures cover model calls only. The AWS proposal (ALB, Fargate task, RDS, NAT gateway, Secrets Manager, CloudWatch logs) has a fixed monthly cost that is not estimated here; use the AWS Pricing Calculator for the chosen region. At these volumes the fixed infrastructure cost is likely to exceed the model cost.
+
+## Per-user data isolation
+
+Every analysis belongs to the analyst who created it. The owner comes from the session cookie, never from the request body: the create and question bodies accept only `sourceText` or `question` (a body with an `ownerId` is rejected with 400), and retry takes no body. Every read and write (list, detail with its messages and executions, question, retry) filters by that owner in the repository query, and an analysis owned by someone else returns 404, the same as one that does not exist, so its existence is not revealed.
+
+`apps/api/test/integration.spec.ts` (Q04) and `apps/api/test/edge-cases.spec.ts` check this with two users against PostgreSQL: user B cannot list, read, question or retry user A's analyses even with their ids, and A's analyses are unchanged afterwards.
+
+Scope: this is isolation between individual users. There are no organizations, tenants, roles or shared workspaces.
 
 ## Scope and time
 
@@ -138,11 +161,13 @@ Local demo users are `analyst.a@example.test` and `analyst.b@example.test`, pass
 
 For a real model, set `LLM_PROVIDER=openrouter` with `OPENROUTER_API_KEY`, or `LLM_PROVIDER=openai` with `OPENAI_API_KEY`. Optional model overrides are `OPENROUTER_MODEL` and `OPENAI_MODEL`. Never commit `.env` or keys. On Windows, see the [runbook](docs/operations/RUNBOOK.md) for TLS troubleshooting; do not disable certificate verification.
 
-For the complete local stack:
+For the complete local stack (PostgreSQL, API and React served by nginx), with `.env` copied from `.env.example` and a generated `JWT_SECRET`:
 
 ```powershell
 docker compose up --build
 ```
+
+Compose reads `JWT_SECRET` from `.env` and stops with an error if it is missing; no secret is written in the Compose file or baked into an image. The API applies migrations and creates the two synthetic demo users at startup; data lives in the `pgdata` volume and survives `docker compose down` (not `down -v`). For a real model, add `-f docker-compose.openrouter.yml`; it reads `OPENROUTER_API_KEY` and `OPENROUTER_MODEL` from `.env`, so check that `OPENROUTER_MODEL` is the model you intend to pay for. Browser checks against this stack: `npm run qa:e2e:compose`.
 
 The web image serves React at http://localhost:8080 and proxies `/api/` to the API. It renders its nginx template using `API_UPSTREAM`, defaulting to `api:3000` in Compose. Rebuild the image after configuration changes.
 
@@ -167,7 +192,7 @@ Integration tests require an isolated PostgreSQL database with `test` in its nam
 
 ## Infrastructure proposal
 
-The [Terraform guide](infra/terraform/README.md) describes an HTTPS ALB, a Fargate task with web and API containers, private RDS, secrets and logs. It supports OpenAI or OpenRouter, requires real image references and defaults to zero ECS tasks until secrets and deployment prerequisites are prepared. No AWS deployment is claimed; `fmt`, `init -backend=false` and `validate` are the validation path.
+The [Terraform guide](infra/terraform/README.md) describes an HTTPS ALB, a Fargate task with web and API containers, private RDS, secrets and logs. It supports OpenAI or OpenRouter, requires real image references and defaults to zero ECS tasks until secrets and deployment prerequisites are prepared. It is a validated proposal, not a deployment: `terraform fmt -check`, `init -backend=false` and `validate` pass with Terraform 1.9.8 (run locally on 2026-10-01; CI runs the same job). No `plan` or `apply` has been run and no AWS resources exist.
 
 ## Deliberate limits
 

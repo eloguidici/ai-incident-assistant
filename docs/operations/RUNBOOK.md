@@ -28,6 +28,8 @@ More API replicas do not raise the provider's quota or PostgreSQL's connection l
 
 If a live-provider sample fails with a certificate error while `curl` succeeds, Node is not using the system trust store. The live scripts run with `node --use-system-ca`. Remove a stale `NODE_EXTRA_CA_CERTS` if one is set. Do not disable certificate verification.
 
+Antivirus HTTPS scanning (for example Avast Web Shield) re-signs traffic with its own root certificate. Windows trusts that root, but Docker containers do not, so `npm ci` inside an image build and the API container's calls to the provider fail with `UNABLE_TO_VERIFY_LEAF_SIGNATURE`. Either exclude the registry and provider hosts from HTTPS scanning, or export that root as PEM and pass it to the container as `NODE_EXTRA_CA_CERTS` (a BuildKit secret for builds, a read-only volume at runtime). Verification stays on in both cases; do not commit the certificate.
+
 ## AWS proposal
 
 See the [Terraform guide](../../infra/terraform/README.md). The definition uses an HTTPS ALB and a Fargate task with web/nginx plus the API, private PostgreSQL and Secrets Manager. OpenAI or OpenRouter is configurable. Real image references, an ACM certificate, DNS, secret values and first-user provisioning are prerequisites. No cloud deployment has been executed.

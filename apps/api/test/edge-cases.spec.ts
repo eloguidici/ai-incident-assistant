@@ -1,4 +1,4 @@
-process.env.RATE_LIMIT_ANALYSES_PER_HOUR = '12';
+process.env.RATE_LIMIT_ANALYSES_PER_HOUR = '20';
 
 import { INestApplication } from '@nestjs/common';
 import { DataSource } from 'typeorm';
@@ -43,7 +43,7 @@ describe('API edge cases (HTTP boundary)', () => {
     expect(login.status).toBe(201);
     const sessionCookie = (login.headers['set-cookie'] as unknown as string[]).find((cookie) => cookie.startsWith(`${SessionCookieName}=`))!;
     const sessionToken = sessionCookie.split(';')[0].slice(SessionCookieName.length + 1);
-    return { agent, csrf: login.body.csrfToken as string, sessionToken };
+    return { agent, csrf: login.body.csrfToken as string, sessionToken, userId: login.body.user.id as string };
   }
 
   async function executionCount(analysisId: string): Promise<number> {
@@ -170,12 +170,55 @@ describe('API edge cases (HTTP boundary)', () => {
     });
   });
 
+  describe('per-user isolation', () => {
+    it("lets user B neither read nor change user A's analyses, even with the id", async () => {
+      const a = await asUser(userA);
+      const b = await asUser(userB);
+      const completed = await a.agent.post('/api/analyses').set(CsrfHeaderName, a.csrf).send({ sourceText: `${incident} Owned by A.` });
+      await a.agent.post(`/api/analyses/${completed.body.id}/messages`).set(CsrfHeaderName, a.csrf).send({ question: 'What failed?' });
+      const failed = await a.agent.post('/api/analyses').set(CsrfHeaderName, a.csrf).send({ sourceText: `${incident} ${MockFaultTag.Server}` });
+      const failedId = failed.body.error.analysisId as string;
+      const snapshot = async (id: string) => (await a.agent.get(`/api/analyses/${id}`)).body;
+      const before = { completed: await snapshot(completed.body.id), failed: await snapshot(failedId) };
+
+      for (const id of [completed.body.id, failedId]) {
+        const detail = await b.agent.get(`/api/analyses/${id}`);
+        expect(detail.status).toBe(404);
+        expect(JSON.stringify(detail.body)).not.toContain('Owned by A');
+      }
+      const listed = await b.agent.get('/api/analyses?limit=50');
+      expect(listed.body.items.map((item: { id: string }) => item.id)).not.toEqual(expect.arrayContaining([completed.body.id]));
+      expect(listed.body.items.map((item: { id: string }) => item.id)).not.toContain(failedId);
+      const question = await b.agent.post(`/api/analyses/${completed.body.id}/messages`).set(CsrfHeaderName, b.csrf).send({ question: 'Leak?' });
+      expect(question.status).toBe(404);
+      const retry = await b.agent.post(`/api/analyses/${failedId}/retry`).set(CsrfHeaderName, b.csrf);
+      expect(retry.status).toBe(404);
+
+      expect(await snapshot(completed.body.id)).toEqual(before.completed);
+      expect(await snapshot(failedId)).toEqual(before.failed);
+    });
+
+    it('takes the owner from the session and rejects an owner sent by the client', async () => {
+      const a = await asUser(userA);
+      const b = await asUser(userB);
+      const spoofed = await a.agent
+        .post('/api/analyses')
+        .set(CsrfHeaderName, a.csrf)
+        .send({ sourceText: incident, ownerId: b.userId });
+      expect(spoofed.status).toBe(400);
+      const ownedByA = await a.agent.post('/api/analyses').set(CsrfHeaderName, a.csrf).send({ sourceText: `${incident} Owned by A.` });
+      expect((await b.agent.get(`/api/analyses/${ownedByA.body.id}`)).status).toBe(404);
+      expect((await a.agent.get(`/api/analyses/${ownedByA.body.id}`)).status).toBe(200);
+      expect((await b.agent.get('/api/analyses')).body.page.total).toBe(0);
+    });
+  });
+
   describe('quotas', () => {
     it('does not charge validation errors to the analysis quota', async () => {
       const { agent, csrf } = await asUser(userB);
       const post = (sourceText: string) => agent.post('/api/analyses').set(CsrfHeaderName, csrf).send({ sourceText });
       for (const invalid of ['   ', 'x'.repeat(8001), `bad \u0000`]) expect((await post(invalid)).status).toBe(400);
-      for (let index = 0; index < 12; index += 1) expect((await post(`${incident} #${index}`)).status).toBe(200);
+      for (let index = 0; index < 20; index += 1) expect((await post(`${incident} #${index}`)).status).toBe(200);
       const limited = await post(incident);
       expect(limited.status).toBe(429);
       expect(limited.body.error.code).toBe(ErrorCode.RateLimited);

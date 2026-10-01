@@ -22,7 +22,7 @@ services:
       dockerfile: infra/docker/api.Dockerfile
     environment:
       DATABASE_URL: postgres://app:app@postgres:5432/incident_assistant
-      JWT_SECRET: local-dev-jwt-secret-change-me-32bytes
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env (see .env.example)}
       WEB_ORIGIN: http://localhost:8080
       LLM_PROVIDER: mock
       SEED_DEMO: "true"
