@@ -448,10 +448,22 @@ export class AnalysisCommandShared {
     return detail;
   }
 
+  /**
+   * Rejects text that is empty, too long, or cannot be stored, before any row is reserved or the model is called.
+   * @param text Raw user text.
+   * @param maxLength Maximum length after trimming.
+   * @param emptyMessage Error message for empty text.
+   * @param tooLongMessage Error message prefix for text over the limit.
+   * @throws AppError VALIDATION_ERROR when the text is empty, too long, or contains a NUL character.
+   */
   private ensureText(text: string, maxLength: number, emptyMessage: string, tooLongMessage: string): void {
     if (!text.trim()) throw new AppError(ErrorCode.ValidationError, 400, emptyMessage);
     if (text.trim().length > maxLength) {
       throw new AppError(ErrorCode.ValidationError, 400, `${tooLongMessage} Maximum: ${maxLength} characters.`);
+    }
+    // PostgreSQL text columns reject U+0000, so it would fail only after the model call.
+    if (text.includes('\u0000')) {
+      throw new AppError(ErrorCode.ValidationError, 400, 'The text contains a NUL character, which cannot be stored.');
     }
   }
 }

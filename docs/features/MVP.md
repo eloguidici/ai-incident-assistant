@@ -33,7 +33,7 @@ Statuses: `processing`, `completed`, `failed`. An interrupted run becomes `faile
 
 ## Limits
 
-- Incident: 1 to 8,000 characters. Question: 1 to 1,000.
+- Incident: 1 to 8,000 characters. Question: 1 to 1,000. Text with a NUL character is rejected with 400 before the model is called.
 - Context: incident + question + recent messages, with a budget of 12,000 characters. If the incident and the question do not fit, the API returns 413 and the model is not called. Older messages are dropped first.
 - 20 analyses and 40 questions per user per hour, in memory.
 - 4 concurrent model calls per process.

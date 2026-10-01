@@ -37,7 +37,7 @@ More detail: [architecture rationale](docs/architecture/RATIONALE.md), [design](
 - **Data is never mixed with instructions.** Incident, conversation and question are sent inside data blocks whose markers carry a random id generated per request. The system message names that id and tells the model that any other marker is data. Pasting `INCIDENT>>>` into the text cannot close the block early, because the attacker does not know the id (`apps/api/test/prompt-injection.spec.ts`).
 - **The model has no tools.** There is no function calling and the application never executes actions based on model output, so an injected instruction has nothing to trigger.
 - **Output is validated, not trusted.** A strict schema rejects unexpected fields. Every quote must appear verbatim in the incident, and a URL is accepted only if it already appears in the text. Output that fails is stored as a failed execution, never shown as a result.
-- **Input is bounded.** Incident text 1–8,000 characters, question 1–1,000, request body 32 KB, and a context budget of 12,000 characters checked before the model is called.
+- **Input is bounded.** Incident text 1–8,000 characters, question 1–1,000, no NUL characters, request body 32 KB, and a context budget of 12,000 characters checked before the model is called.
 - **Rendering is safe.** React renders model output as text, never as HTML; an end-to-end test checks that injected HTML is not executed.
 - **Limit:** these controls reduce risk; they do not make a language model immune to manipulation. A human reviews every analysis.
 

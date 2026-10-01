@@ -47,7 +47,7 @@ export default defineConfig({
     },
   ],
   projects: [
-    { name: 'e2e', use: { ...devices['Desktop Chrome'], video: 'retain-on-failure' }, testIgnore: /demo/ },
+    { name: 'e2e', use: { ...devices['Desktop Chrome'], video: 'retain-on-failure' }, testIgnore: /(demo|compose-stack)\.spec\.ts/ },
     { name: 'demo', use: { ...devices['Desktop Chrome'], video: 'on' }, testMatch: /demo\.spec\.ts/ },
   ],
 });
