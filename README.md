@@ -53,7 +53,7 @@ Current controls (per process):
 | Concurrent model calls | 4 |
 | Maximum output tokens per call | 4,096 |
 | Context budget | 12,000 characters |
-| Deadline per request / retries | 20 s / at most 1 retry, only for timeout, 429, 5xx or network |
+| Deadline per request / per attempt / retries | 20 s / 18 s / at most 1 retry, only for timeout, 429, 5xx or network, and only with at least 3 s left |
 
 Token usage is recorded per execution, which is the basis for cost reporting. For production I would add: a shared quota store (Redis or PostgreSQL) so limits hold across replicas; a monthly budget per user or tenant with an alert and a hard stop; provider spend alerts; and a cheaper default model with an explicit, logged upgrade path. A timeout does not prove the provider did not charge for the request.
 
@@ -120,7 +120,7 @@ Follow-up questions resend the incident and the recent conversation, so their in
 
 A typical session of one analysis and two questions is about USD 0.0013 (USD 1.25 per 1,000 sessions).
 
-**Retries and failed calls.** The gateway retries at most once, only after a timeout, 429, 5xx or network error, so one request can be billed twice. A timeout is not free: the provider may have processed and charged the call even though the result is discarded. Output that fails validation is billed and stored as a failed execution; a user retry is a new billed call. Requests rejected before the provider is called (input validation, per-user quota, context budget, or a local TLS failure) cost nothing.
+**Retries and failed calls.** The gateway retries at most once, only after a timeout, 429, 5xx or network error and only when at least 3 s of the deadline remain, so one request can be billed twice. A slow answer that uses most of the 18 s attempt is not retried, because a second attempt would have no time to finish. A timeout is not free: the provider may have processed and charged the call even though the result is discarded. Output that fails validation is billed and stored as a failed execution; a user retry is a new billed call. Requests rejected before the provider is called (input validation, per-user quota, context budget, or a local TLS failure) cost nothing.
 
 **Infrastructure is separate.** These figures cover model calls only. The AWS proposal (ALB, Fargate task, RDS, NAT gateway, Secrets Manager, CloudWatch logs) has a fixed monthly cost that is not estimated here; use the AWS Pricing Calculator for the chosen region. At these volumes the fixed infrastructure cost is likely to exceed the model cost.
 

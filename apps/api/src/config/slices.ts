@@ -110,7 +110,7 @@ export const llmConfig = defineConfigSlice<LlmConfig>({
     OPENROUTER_API_KEY: Joi.string().allow('').optional(),
     OPENROUTER_MODEL: Joi.string().min(1).default('openai/gpt-4o-mini'),
     LLM_DEADLINE_MS: Joi.number().integer().min(500).max(120000).default(20000),
-    LLM_ATTEMPT_TIMEOUT_MS: Joi.number().integer().min(200).max(120000).default(12000),
+    LLM_ATTEMPT_TIMEOUT_MS: Joi.number().integer().min(200).max(120000).default(18000),
     LLM_MAX_OUTPUT_TOKENS: Joi.number().integer().min(256).max(16384).default(4096),
     CONTEXT_CHAR_BUDGET: Joi.number().integer().min(200).max(100000).default(12000),
     SOURCE_TEXT_MAX: Joi.number().integer().min(20).max(50000).default(8000),

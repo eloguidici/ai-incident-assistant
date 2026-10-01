@@ -1,6 +1,6 @@
 import { findTlsTrustDetail } from '../src/ai/network-cause';
 import { ProviderRequestError } from '../src/ai/contracts';
-import { LlmGateway } from '../src/ai/gateway';
+import { LlmGateway, minUsefulRetryMs } from '../src/ai/gateway';
 import { answeredHistory, resolveQuestionContextWindow } from '../src/analyses/question-context';
 import { buildAnalysisPrompt } from '../src/ai/prompt';
 import { MockProvider, resetMockState } from '../src/ai/mock.provider';
@@ -167,6 +167,36 @@ describe('pure rules', () => {
     controller.abort('client');
     const prompt = buildAnalysisPrompt('incident text long enough for the prompt');
     await expect(gateway.complete(prompt, controller.signal, Date.now() + 5000)).rejects.toMatchObject({ kind: 'cancelled' });
+  });
+
+  it('does not spend a second call on a retry that has no useful time left', async () => {
+    expect(minUsefulRetryMs(18_000)).toBe(3000);
+    expect(minUsefulRetryMs(800)).toBe(400);
+    const env = { ...baseEnv(), attemptTimeoutMs: 1600 };
+    let calls = 0;
+    const slow = {
+      providerName: 'slow',
+      complete(_request: unknown, signal: AbortSignal) {
+        calls += 1;
+        return new Promise<never>((_, reject) => signal.addEventListener('abort', () => reject(new ProviderRequestError('timeout', 'slow')), { once: true }));
+      },
+    };
+    const prompt = buildAnalysisPrompt('incident text long enough for the prompt');
+    // 1.6 s attempt inside a 2 s deadline: 0.4 s would remain, below the 0.8 s minimum, so there is no second call.
+    await expect(new LlmGateway(env, slow).complete(prompt, new AbortController().signal, Date.now() + 2000)).rejects.toMatchObject({ kind: 'timeout', attempts: 1 });
+    expect(calls).toBe(1);
+
+    let fastCalls = 0;
+    const flaky = {
+      providerName: 'flaky',
+      async complete() {
+        fastCalls += 1;
+        if (fastCalls === 1) throw new ProviderRequestError('server', 'temporary');
+        return { rawText: '{}', provider: 'flaky', model: 'flaky-1', inputTokens: 1, outputTokens: 1 };
+      },
+    };
+    const outcome = await new LlmGateway(env, flaky).complete(prompt, new AbortController().signal, Date.now() + 2000);
+    expect(outcome.attempts).toBe(2);
   });
 
   it('schedules stuck recovery relative to the LLM deadline', () => {

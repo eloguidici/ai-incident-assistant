@@ -48,9 +48,9 @@ On Windows with antivirus HTTPS scanning, see the [runbook](../operations/RUNBOO
 ## Reading a result
 
 - A `contract` FAIL is the most important signal: decide whether the prompt does not state a rule the validator enforces (fix the prompt and bump its version) or the model ignored a stated rule (check with `--repeat`).
-- Latency close to `LLM_ATTEMPT_TIMEOUT_MS` means a slightly slower response would be cut and retried, which costs a second call.
+- Latency close to `LLM_ATTEMPT_TIMEOUT_MS` means a slightly slower response would be cut; it is retried only if at least 3 s of the deadline remain, and then it costs a second call.
 - Compare runs per prompt version and model; one run is a sample, not a measure.
 
 ## Last run
 
-2026-10-01, OpenRouter `openai/gpt-4o-mini`, prompts `incident-analysis.v2` / `incident-question.v3`: analyses 5/5, questions 10/10, no FAIL, one WARN (`overconfidence` on the contradictory fixture). 8,167 input and 6,412 output tokens, about USD 0.005. Question latencies reached 11.6 s against a 12 s attempt timeout.
+2026-10-01, OpenRouter `openai/gpt-4o-mini`, prompts `incident-analysis.v2` / `incident-question.v3`: analyses 5/5, questions 10/10, no FAIL, one WARN (`overconfidence` on the contradictory fixture). 8,167 input and 6,412 output tokens, about USD 0.005. Question latencies reached 11.6 s against what was then a 12 s attempt timeout; the default is now 18 s, and a retry needs at least 3 s left.

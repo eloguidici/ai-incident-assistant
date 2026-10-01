@@ -23,6 +23,17 @@ export type LlmOutcome = {
 
 const DEFAULT_RETRY_BACKOFF_MS = 50;
 const RETRY_JITTER_MS = 100;
+const MIN_RETRY_BUDGET_MS = 3000;
+
+/**
+ * Smallest budget worth a second attempt. A retry with less time than this almost never finishes,
+ * yet the provider may still bill it.
+ * @param attemptTimeoutMs Configured limit per attempt; short test settings keep fast retries possible.
+ * @returns At most 3 s, and never more than half an attempt; at least 200 ms.
+ */
+export function minUsefulRetryMs(attemptTimeoutMs: number): number {
+  return Math.max(200, Math.min(MIN_RETRY_BUDGET_MS, Math.floor(attemptTimeoutMs / 2)));
+}
 
 /**
  * Backoff before a second attempt: provider Retry-After when present, otherwise a short default, plus jitter.
@@ -89,7 +100,8 @@ export class LlmGateway {
           const mapped = asProviderError(error, parentSignal.aborted, attemptController.signal.aborted, parentSignal);
           const budgetLeft = deadlineAt - Date.now();
           const waitMs = retryBackoffMs(mapped.retryAfterMs);
-          const canRetry = attempts < 2 && isRetryable(mapped.kind) && !parentSignal.aborted && budgetLeft > waitMs + 200;
+          const canRetry =
+            attempts < 2 && isRetryable(mapped.kind) && !parentSignal.aborted && budgetLeft > waitMs + minUsefulRetryMs(this.llmSettings.attemptTimeoutMs);
           mapped.attempts = attempts;
           if (!canRetry) throw mapped;
           await delay(Math.min(waitMs, budgetLeft - 200), parentSignal);
