@@ -14,7 +14,7 @@ An authenticated analyst submits incident text, receives a structured analysis, 
 | 2.2 AI evaluation and reliability | [Evaluation and reliability](#evaluation-and-reliability) |
 | 3.1 Cloud and runtime | [Secrets, rotation and bursty usage](#secrets-rotation-and-bursty-usage); [Terraform guide](infra/terraform/README.md) |
 | 3.2 Containerization | [Scaling constraints of AI workloads](#scaling-constraints-of-ai-workloads); `infra/docker/` |
-| Bonus | [Cost estimate for 1k / 10k / 100k requests](#cost-estimate-for-1k--10k--100k-requests); [per-user data isolation](#per-user-data-isolation) |
+| Bonus | [Cost estimate for 1k / 10k / 100k requests](#cost-estimate-for-1k--10k--100k-requests); [per-user data isolation](#per-user-data-isolation); [bonus sections not chosen](#bonus-sections-not-chosen) |
 
 ## Architecture and AI design
 
@@ -135,6 +135,18 @@ Scope: this is isolation between individual users. There are no organizations, t
 ## Scope and time
 
 The assessment suggests 6–10 hours. This project took longer because I added failure recovery, concurrency controls, tests with PostgreSQL and several review passes. Deliberately out of scope: document upload, RAG, streaming, tool calling and background workers. Text input is allowed by the assessment and keeps the focus on the AI boundary, data handling and reliability. The commands under [Verification](#verification) reproduce the checks.
+
+### Bonus sections not chosen
+
+The assessment asks to pick any bonus. I chose the cost estimate and per-user isolation, plus containerization (section 3.2), because they reinforce the design. The others would work against it at this size:
+
+| Bonus | Why not here | When it would make sense |
+|---|---|---|
+| Streaming (token by token) | Every answer is validated before it is shown (strict schema, quotes that must appear verbatim, no new URLs). Streaming would show text that may still be rejected. The wait is covered by an explicit loading state. | Long free-text answers where latency matters more; stream only the `answer` field and validate at the end. |
+| Tool / function calling | The model has no tools, which is part of the prompt-injection defense: an injected instruction has nothing to trigger. The product assists an analyst and does not run remediation. | A read-only lookup (for example runbooks or recent deploys) with allowlisted, side-effect-free tools. |
+| Queues and workers | One synchronous call with a 20 s deadline, at most one retry, a concurrency cap and per-user quotas is enough at this volume and easier to test. | Higher volume or bursts: the API returns 202, a worker processes, the client polls. PostgreSQL can be the queue, so no new infrastructure. |
+| Vector store / RAG (section 2.1) | The user pastes one incident of up to 8,000 characters, which fits in the context. There is no corpus to search. | Searching runbooks or past incidents. |
+| Multi-tenant isolation | Implemented as per-user isolation. Organizations and roles are not part of the product, so adding them would only serve the bonus. | Teams that share incidents under an organization with roles. |
 
 ## Local setup
 
