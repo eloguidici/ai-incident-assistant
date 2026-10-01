@@ -30,9 +30,11 @@
     "qa:e2e:flows": "npm run build -w @app/api && playwright test --project=flows",
     "qa:e2e:flows:limits": "npm run build -w @app/api && node scripts/qa-flows-limits.mjs",
     "qa:e2e:compose": "playwright test --config=playwright.compose.config.ts",
+    "qa:docker:timeouts": "node --test qa/docker/proxy-timeouts.test.mjs",
     "qa:e2e:headed": "npm run build -w @app/api && playwright test --project=e2e --headed",
     "qa:demo": "npm run build -w @app/api && playwright test --project=demo",
-    "check:web-docs": "node scripts/check-web-build.mjs"
+    "check:web-docs": "node scripts/check-web-build.mjs",
+    "docker:export-ca": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/export-docker-extra-ca.ps1"
   },
   "devDependencies": {
     "@playwright/test": "^1.55.0"

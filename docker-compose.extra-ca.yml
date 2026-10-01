@@ -1,0 +1,51 @@
+# Optional overlay when antivirus HTTPS scanning breaks TLS inside Docker (Windows).
+
+# Generate the PEM once:  npm run docker:export-ca
+
+# Then:  docker compose -f docker-compose.yml -f docker-compose.extra-ca.yml up --build -d
+
+# With OpenRouter in Compose, add -f docker-compose.openrouter.yml as well.
+
+
+
+services:
+
+  api:
+
+    build:
+
+      secrets:
+
+        - extra_ca_cert
+
+    environment:
+
+      NODE_EXTRA_CA_CERTS: /run/ssl/extra-ca.pem
+
+    volumes:
+
+      - type: bind
+
+        source: ./qa/local/docker-extra-ca.pem
+
+        target: /run/ssl/extra-ca.pem
+
+        read_only: true
+
+  web:
+
+    build:
+
+      secrets:
+
+        - extra_ca_cert
+
+
+
+secrets:
+
+  extra_ca_cert:
+
+    file: ./qa/local/docker-extra-ca.pem
+
+

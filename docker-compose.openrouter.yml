@@ -1,6 +1,7 @@
 # Optional override for a bounded real OpenRouter run (T11-D).
 # Usage (from repo root, with OPENROUTER_API_KEY in `.env`, never commit keys):
 #   docker compose -f docker-compose.yml -f docker-compose.openrouter.yml up --build -d
+# On Windows with HTTPS scanning, add -f docker-compose.extra-ca.yml after exporting the root (npm run docker:export-ca).
 services:
   api:
     environment:
@@ -9,3 +10,7 @@ services:
       OPENROUTER_MODEL: ${OPENROUTER_MODEL:-openai/gpt-4o-mini}
       LLM_DEADLINE_MS: "45000"
       LLM_ATTEMPT_TIMEOUT_MS: "20000"
+  web:
+    environment:
+      # Allow the API's 45 s deadline plus time to return a controlled JSON error.
+      API_PROXY_READ_TIMEOUT: "60s"

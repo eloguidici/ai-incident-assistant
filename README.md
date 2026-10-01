@@ -101,24 +101,27 @@ Details: [Terraform guide](infra/terraform/README.md) and [runbook](docs/operati
 
 **Model and price.** `openai/gpt-4o-mini` through OpenRouter, USD 0.15 per million input tokens and USD 0.60 per million output tokens, read from the OpenRouter models API (`https://openrouter.ai/api/v1/models`) on 2026-10-01 00:29 (Buenos Aires). Prices change; check them before relying on this table. OpenRouter credit-purchase fees are not included.
 
-**Measured samples** (provider-reported tokens, synthetic incidents of about 200–250 characters, prompts `incident-analysis.v2` and `incident-question.v3`, 2026-10-01):
+**Measured samples (current prompts).** Provider-reported tokens from `npm run qa:ai:suite` with `openai/gpt-4o-mini`, prompts `incident-analysis.v3` and `incident-question.v4`, five synthetic fixtures (about 200–250 characters each), three repeats per fixture, 45 calls total, 2026-10-01 (see `docs/qa/LIVE_SUITE.md` Runs). Averages below are over all 15 analyses or all 30 questions in that run, not a single incident shape:
 
-| Call | Samples (input / output tokens) | Average | Cost per call |
-|---|---|---|---|
-| First analysis | 459 / 493, 455 / 422, 455 / 500 | 456 / 472 | ~USD 0.00035 |
-| Follow-up question | 595 / 701 (1st), 695 / 479 (2nd) | 645 / 590 | ~USD 0.00045 |
+| Call | Average (input / output tokens) | Cost per call (at prices above) |
+|---|---|---|
+| First analysis | 463 / 350 | ~USD 0.00028 |
+| 1st follow-up question | 591 / 364 | ~USD 0.00031 |
+| 2nd follow-up question | 681 / 404 | ~USD 0.00034 |
 
-Follow-up questions resend the incident and the recent conversation, so their input grows with each turn (+100 tokens between the first and second question above). Five samples do not measure a distribution; long incidents cost more.
+Follow-up questions resend the incident and the recent conversation, so input grows with each turn (about +90 tokens between the first and second question in this sample). The suite mixes fixture types; long incidents cost more.
+
+**Historical samples (superseded prompts).** Before v3/v4, three analysis calls with `incident-analysis.v2` averaged 456 / 472 input/output tokens (~USD 0.00035 per analysis); two follow-ups with `incident-question.v3` averaged 645 / 590 (~USD 0.00045). Those five calls are not comparable one-to-one with the table above.
 
 **Worst case (estimate, not measured):** the full 12,000-character context budget (about 3,400 input tokens including the system prompt, at roughly 4 characters per token) plus the 4,096-token output cap: ~USD 0.0030 per call.
 
 | Requests | Analyses (measured avg) | Follow-ups (measured avg) | Worst case per call (estimate) | Worst case with one billed retry (estimate) |
 |---|---|---|---|---|
-| 1,000 | ~USD 0.35 | ~USD 0.45 | ~USD 2.97 | ~USD 5.94 |
-| 10,000 | ~USD 3.51 | ~USD 4.51 | ~USD 29.68 | ~USD 59.35 |
-| 100,000 | ~USD 35.15 | ~USD 45.08 | ~USD 296.76 | ~USD 593.52 |
+| 1,000 | ~USD 0.28 | ~USD 0.33 | ~USD 2.97 | ~USD 5.94 |
+| 10,000 | ~USD 2.79 | ~USD 3.25 | ~USD 29.68 | ~USD 59.35 |
+| 100,000 | ~USD 27.90 | ~USD 32.54 | ~USD 296.76 | ~USD 593.52 |
 
-A typical session of one analysis and two questions is about USD 0.0013 (USD 1.25 per 1,000 sessions).
+A typical session of one analysis and two questions is about USD 0.00093 with the v3/v4 averages above (~USD 0.93 per 1,000 sessions). The older v2/v3 five-call sample implied about USD 0.0013 per session.
 
 **Retries and failed calls.** The gateway retries at most once, only after a timeout, 429, 5xx or network error and only when at least 3 s of the deadline remain, so one request can be billed twice. A slow answer that uses most of the 18 s attempt is not retried, because a second attempt would have no time to finish. A timeout is not free: the provider may have processed and charged the call even though the result is discarded. Output that fails validation is billed and stored as a failed execution; a user retry is a new billed call. Requests rejected before the provider is called (input validation, per-user quota, context budget, or a local TLS failure) cost nothing.
 
@@ -179,9 +182,11 @@ For the complete local stack (PostgreSQL, API and React served by nginx), with `
 docker compose up --build
 ```
 
+On Windows, if `npm ci` inside the image build or provider HTTPS from the API container fails with a certificate error, export your HTTPS inspection root and use the optional overlay (see [runbook](docs/operations/RUNBOOK.md#tls-problems-on-windows)): `npm run docker:export-ca`, then `docker compose -f docker-compose.yml -f docker-compose.extra-ca.yml up --build` (build secret plus a read-only runtime mount for the API).
+
 Compose reads `JWT_SECRET` from `.env` and stops with an error if it is missing; no secret is written in the Compose file or baked into an image. The API applies migrations and creates the two synthetic demo users at startup; data lives in the `pgdata` volume and survives `docker compose down` (not `down -v`). For a real model, add `-f docker-compose.openrouter.yml`; it reads `OPENROUTER_API_KEY` and `OPENROUTER_MODEL` from `.env`, so check that `OPENROUTER_MODEL` is the model you intend to pay for. Browser checks against this stack: `npm run qa:e2e:compose`.
 
-The web image serves React at http://localhost:8080 and proxies `/api/` to the API. It renders its nginx template using `API_UPSTREAM`, defaulting to `api:3000` in Compose. Rebuild the image after configuration changes.
+The web image serves React at http://localhost:8080 and proxies `/api/` to the API. It renders its nginx template using `API_UPSTREAM`, defaulting to `api:3000` in Compose, and `API_PROXY_READ_TIMEOUT`, defaulting to `30s`. The OpenRouter overlay sets a 45 s API deadline, 20 s attempts and a 60 s proxy timeout, leaving time for the API to return a controlled error. Rebuild the image after template changes and recreate the web container after environment changes.
 
 ## Verification
 
@@ -195,6 +200,7 @@ The web image serves React at http://localhost:8080 and proxies `/api/` to the A
 | `npm run qa:eval` | Deterministic mock evaluation fixtures |
 | `npm run qa:e2e` | Browser workflows using the configured test environment |
 | `npm run qa:e2e:compose` | Browser checks against `docker compose` nginx on :8080 |
+| `npm run qa:docker:timeouts` | Isolated current nginx image with slow synthetic upstream responses; build the web image first, no paid model calls |
 | `npm run qa:demo` | Browser demonstration with video artifacts |
 | `npm run qa:ai:live` | OpenAI sample using a local key |
 | `npm run qa:ai:live-openrouter` | OpenRouter sample using a local key |

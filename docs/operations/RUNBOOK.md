@@ -28,7 +28,11 @@ More API replicas do not raise the provider's quota or PostgreSQL's connection l
 
 If a live-provider sample fails with a certificate error while `curl` succeeds, Node is not using the system trust store. The live scripts run with `node --use-system-ca`. Remove a stale `NODE_EXTRA_CA_CERTS` if one is set. Do not disable certificate verification.
 
-Antivirus HTTPS scanning (for example Avast Web Shield) re-signs traffic with its own root certificate. Windows trusts that root, but Docker containers do not, so `npm ci` inside an image build and the API container's calls to the provider fail with `UNABLE_TO_VERIFY_LEAF_SIGNATURE`. Either exclude the registry and provider hosts from HTTPS scanning, or export that root as PEM and pass it to the container as `NODE_EXTRA_CA_CERTS` (a BuildKit secret for builds, a read-only volume at runtime). Verification stays on in both cases; do not commit the certificate.
+Antivirus HTTPS scanning (for example Avast Web Shield) re-signs traffic with its own root certificate. Windows trusts that root, but Docker containers do not, so `npm ci` inside an image build and the API container's calls to the provider fail with `UNABLE_TO_VERIFY_LEAF_SIGNATURE`. Either exclude the registry and provider hosts from HTTPS scanning, or run `npm run docker:export-ca` and use `docker-compose.extra-ca.yml`: a BuildKit secret for image builds and, for the API service, a read-only bind mount at `/run/ssl/extra-ca.pem` with `NODE_EXTRA_CA_CERTS` pointing at that file. Verification stays on in both cases; do not commit the certificate.
+
+## Request timeouts
+
+The nginx image defaults `API_PROXY_READ_TIMEOUT` to `30s`, above the default 20 s API deadline. The local OpenRouter overlay uses a 45 s deadline, 20 s attempts and a `60s` proxy timeout. Keep the proxy timeout above the full API deadline with time for database writes and JSON error serialization; align the ALB timeout too for a future deployment. Rebuild after nginx template changes and recreate web containers after environment changes. After building the web image, `npm run qa:docker:timeouts` checks a 35 s success and a JSON timeout response at the API deadline using isolated containers and a synthetic upstream. It does not call a paid provider.
 
 ## AWS proposal
 
