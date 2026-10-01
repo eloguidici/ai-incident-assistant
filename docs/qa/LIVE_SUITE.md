@@ -32,6 +32,7 @@ npm run qa:ai:suite                              # 5 fixtures, 15 calls
 npm run qa:ai:suite -- --repeat 3 --max-calls 50 # stability across runs
 npm run qa:ai:suite -- --only injection,contradictory
 npm run qa:ai:suite -- --provider openai         # uses OPENAI_API_KEY / OPENAI_MODEL
+npm run qa:ai:suite -- --keep-outputs            # keep every validated output in SUITE.json, not only flagged ones
 ```
 
 The key comes from `.env` and is never printed. The run stops before any call (exit 2) when the provider is the mock, the key is missing, the model is a free tier, or the planned calls exceed `--max-calls` (default 40). Exit 1 means at least one FAIL.
@@ -41,7 +42,7 @@ On Windows with antivirus HTTPS scanning, see the [runbook](../operations/RUNBOO
 ## Output
 
 - Console and `qa-artifacts/live/SUITE.md`: one row per call with prompt version, attempts, latency, tokens and findings, plus totals and an estimated cost (`LIVE_PRICE_IN_PER_M` / `LIVE_PRICE_OUT_PER_M`, default gpt-4o-mini prices).
-- `qa-artifacts/live/SUITE.json`: the same records, the raw model text of contract failures, and the validated output of every step with findings.
+- `qa-artifacts/live/SUITE.json`: the same records, the raw model text of contract failures, and the validated output of every step with findings (or of every step with `--keep-outputs`).
 
 `qa-artifacts/` is git-ignored. The fixtures are synthetic.
 
@@ -51,6 +52,12 @@ On Windows with antivirus HTTPS scanning, see the [runbook](../operations/RUNBOO
 - Latency close to `LLM_ATTEMPT_TIMEOUT_MS` means a slightly slower response would be cut; it is retried only if at least 3 s of the deadline remain, and then it costs a second call.
 - Compare runs per prompt version and model; one run is a sample, not a measure.
 
-## Last run
+## Runs
 
-2026-10-01, OpenRouter `openai/gpt-4o-mini`, prompts `incident-analysis.v2` / `incident-question.v3`: analyses 5/5, questions 10/10, no FAIL, one WARN (`overconfidence` on the contradictory fixture). 8,167 input and 6,412 output tokens, about USD 0.005. Question latencies reached 11.6 s against what was then a 12 s attempt timeout; the default is now 18 s, and a retry needs at least 3 s left.
+OpenRouter `openai/gpt-4o-mini`, 2026-10-01:
+
+| Prompts | Runs | Result | Finding |
+|---|---|---|---|
+| analysis.v2 / question.v3 | 1 | 15/15, 1 WARN | Question latency up to 11.6 s against the 12 s attempt timeout then in use; led to the 18 s default and the 3 s minimum for a retry. |
+| analysis.v2 / question.v3 | 3 | 44/45, 1 FAIL, 2 WARN | The FAIL was a false positive of the check (a denial, "I cannot confirm if the action has been executed"); fixed in `live-suite-checks.ts` with a regression test. The WARN was real and repeated: on contradictory sources the model gave a high-confidence hypothesis while stating it could not tell which source was right. |
+| analysis.v3 / question.v4 | 3 | 45/45, no FAIL or WARN | The prompts now allow high confidence only when quoted facts support it and nothing contradicts it. Check with `--keep-outputs` (2 runs): clear outage still 5 high of 17 hypotheses; contradictory 0 high of 16. Max latency 12.1 s, no retries. About USD 0.014 per 3 runs. |

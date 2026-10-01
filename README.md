@@ -22,7 +22,7 @@ NestJS/TypeScript modular monolith, React frontend and PostgreSQL with TypeORM r
 
 The model path has one responsibility per step:
 
-1. **Prompt construction** (`apps/api/src/ai/prompt.ts`): versioned prompts `incident-analysis.v2` and `incident-question.v3`.
+1. **Prompt construction** (`apps/api/src/ai/prompt.ts`): versioned prompts `incident-analysis.v3` and `incident-question.v4`.
 2. **Model invocation** (`apps/api/src/ai/gateway.ts` and the providers): a deterministic mock, OpenAI and OpenRouter implement the same `LlmProvider` contract, selected with `LLM_PROVIDER`. SDK retries are disabled; the gateway owns deadlines and at most one retry.
 3. **Response post-processing** (`apps/api/src/ai/validate.ts`): Zod schema validation, quote grounding and URL checks before anything is stored as a result.
 

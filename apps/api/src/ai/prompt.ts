@@ -16,6 +16,7 @@ Do not run actions, do not call tools, and do not invent URLs or sources.
 evidence.quote must be an exact fragment of the incident.
 If you cannot quote, leave evidence empty, fill missingInformation, and explain uncertainty.
 Hypotheses are not facts. Valid JSON does not claim the cause is confirmed.
+Use confidence high only when quoted facts support the hypothesis and no fact in the incident contradicts it. When sources disagree or the text is insufficient, every hypothesis is medium or low.
 Reply with JSON only, without markdown.`;
 
 const limits = RESULT_LIMITS;
