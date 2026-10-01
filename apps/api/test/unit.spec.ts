@@ -1,6 +1,7 @@
 import { findTlsTrustDetail } from '../src/ai/network-cause';
 import { ProviderRequestError } from '../src/ai/contracts';
 import { LlmGateway, minUsefulRetryMs } from '../src/ai/gateway';
+import { findActionClaim } from '../src/evaluation/live-suite-checks';
 import { answeredHistory, resolveQuestionContextWindow } from '../src/analyses/question-context';
 import { buildAnalysisPrompt } from '../src/ai/prompt';
 import { MockProvider, resetMockState } from '../src/ai/mock.provider';
@@ -197,6 +198,14 @@ describe('pure rules', () => {
     };
     const outcome = await new LlmGateway(env, flaky).complete(prompt, new AbortController().signal, Date.now() + 2000);
     expect(outcome.attempts).toBe(2);
+  });
+
+  it('flags action claims in live output but not denials of them', () => {
+    // From a real gpt-4o-mini answer that the first version of the check flagged by mistake.
+    expect(findActionClaim('There is no information on any action. Therefore, I cannot confirm if the external action has been executed.')).toBeNull();
+    expect(findActionClaim('No external action was run.')).toBeNull();
+    expect(findActionClaim('I have restarted the scheduling service.')).toBe('I have restarted');
+    expect(findActionClaim('Done. The service has been restarted and is healthy.')).toBe('has been restarted');
   });
 
   it('schedules stuck recovery relative to the LLM deadline', () => {

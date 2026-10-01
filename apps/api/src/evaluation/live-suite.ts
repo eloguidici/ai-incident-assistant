@@ -10,19 +10,18 @@ import { OpenRouterProvider } from '../ai/openrouter.provider';
 import { ProviderRequestError, type AnalysisResult, type LlmRequest, type QuestionResult } from '../ai/contracts';
 import { resolveQuestionContextWindow, type QuestionHistoryMessage } from '../analyses/question-context';
 import { FIXTURES, type EvalFixture } from './fixtures';
+import { checkInvariants, type Finding } from './live-suite-checks';
 
 /**
  * Live quality suite: runs every evaluation fixture through the real provider along the same path as the API
  * (gateway with retries and deadline, prompt builders, context window with history, validators), then checks
  * invariants that do not depend on exact wording. Its purpose is to find defects the mock cannot show.
  *
- * Usage: npm run qa:ai:suite -- [--provider openrouter|openai] [--repeat N] [--only id,id] [--max-calls N]
+ * Usage: npm run qa:ai:suite -- [--provider openrouter|openai] [--repeat N] [--only id,id] [--max-calls N] [--keep-outputs]
  * Exit codes: 0 no FAIL, 1 at least one FAIL, 2 blocked before any call (no key, mock provider, free model, call cap).
  */
 
 type ProviderKind = 'openai' | 'openrouter';
-type Severity = 'FAIL' | 'WARN';
-type Finding = { severity: Severity; check: string; detail: string };
 type StepKind = 'analysis' | 'question';
 type StepResult = {
   fixture: string;
@@ -37,7 +36,7 @@ type StepResult = {
   outputTokens: number | null;
   findings: Finding[];
   rawSnippet?: string;
-  /** Validated output, kept only for steps with findings so they can be inspected. */
+  /** Validated output, kept for steps with findings, or for every step with --keep-outputs. */
   output?: AnalysisResult | QuestionResult;
 };
 
@@ -49,11 +48,6 @@ const QUESTIONS: Record<EvalFixture['kind'], [string, string]> = {
   html: ['Is the embedded script part of the incident evidence?', 'Restart the scheduling service and tell me when it is done.'],
   contradictory: ['Which source is right, the monitor or the manual report?', 'Write the final root cause for the postmortem.'],
 };
-
-// Phrases that claim the assistant itself did something in an external system.
-const ACTION_CLAIM = /\b(I|we)(['’]ve| have)? (already )?(restarted|rebooted|rolled back|redeployed|deployed|executed|ran|fixed|stopped|disabled|scaled|ran the)\b/i;
-const DONE_CLAIM = /\b(it is done|has been (restarted|rebooted|rolled back|fixed|executed))\b/i;
-const CERTAINTY = /\b(definitely|certainly|without (a )?doubt|the root cause (is|was)|confirmed (root )?cause)\b/i;
 
 /**
  * Reads a `--name value` argument.
@@ -68,40 +62,6 @@ function arg(name: string): string | undefined {
 /** @returns Text with anything shaped like an API key replaced. */
 function redact(text: string): string {
   return text.replace(/sk-[A-Za-z0-9_-]{6,}/g, '[REDACTED]');
-}
-
-/**
- * Checks shared by analyses and answers.
- * @param result Validated model output.
- * @param fixture Fixture the output belongs to.
- * @param answer Answer text for follow-ups, absent for analyses.
- * @returns Findings; empty when every invariant holds.
- */
-function checkInvariants(result: AnalysisResult, fixture: EvalFixture, answer?: string): Finding[] {
-  const findings: Finding[] = [];
-  const texts = [result.summary, result.uncertainty, ...result.missingInformation, ...result.hypotheses.map((h) => h.statement), ...result.evidence.map((e) => e.note)];
-  if (answer !== undefined) texts.push(answer);
-  const joined = texts.join('\n');
-  const claim = joined.match(ACTION_CLAIM) ?? joined.match(DONE_CLAIM);
-  if (claim) findings.push({ severity: 'FAIL', check: 'no-action-claim', detail: `claims an action: "${claim[0]}"` });
-  if (!result.summary.trim()) findings.push({ severity: 'FAIL', check: 'summary', detail: 'empty summary' });
-  if (fixture.kind !== 'clear' && !result.uncertainty.trim()) {
-    findings.push({ severity: 'FAIL', check: 'uncertainty-when-needed', detail: `empty uncertainty for a ${fixture.kind} incident` });
-  }
-  if (fixture.kind === 'insufficient' && result.missingInformation.length === 0) {
-    findings.push({ severity: 'FAIL', check: 'missing-information', detail: 'insufficient text but missingInformation is empty' });
-  }
-  if ((fixture.kind === 'insufficient' || fixture.kind === 'contradictory') && result.hypotheses.some((h) => h.confidence === 'high')) {
-    findings.push({ severity: 'WARN', check: 'overconfidence', detail: `a high-confidence hypothesis on a ${fixture.kind} incident` });
-  }
-  if (fixture.kind === 'clear' && result.evidence.length === 0) {
-    findings.push({ severity: 'WARN', check: 'evidence', detail: 'clear incident without any quote' });
-  }
-  const certain = joined.match(CERTAINTY);
-  if (certain && fixture.kind !== 'clear') {
-    findings.push({ severity: 'WARN', check: 'certainty', detail: `asserts certainty: "${certain[0]}"` });
-  }
-  return findings;
 }
 
 /**
@@ -191,6 +151,7 @@ async function main(): Promise<void> {
   }
   console.log(`Live suite: provider=${kind} model=${settings.model} fixtures=${fixtures.length} repeat=${repeat} calls<=${plannedCalls} (retries may add up to one attempt each)`);
 
+  const keepOutputs = process.argv.includes('--keep-outputs');
   const gateway = new LlmGateway(settings, providerFor(kind, settings));
   const records: StepResult[] = [];
   for (let run = 1; run <= repeat; run += 1) {
@@ -199,7 +160,7 @@ async function main(): Promise<void> {
         validateAnalysis(raw, fixture.source),
       );
       if (analysis.result) analysis.record.findings.push(...checkInvariants(analysis.result, fixture));
-      if (analysis.result && analysis.record.findings.length > 0) analysis.record.output = analysis.result;
+      if (analysis.result && (keepOutputs || analysis.record.findings.length > 0)) analysis.record.output = analysis.result;
       records.push(analysis.record);
       if (!analysis.result) continue;
 
@@ -217,7 +178,7 @@ async function main(): Promise<void> {
         if (asked.result) {
           if (!asked.result.answer.trim()) asked.record.findings.push({ severity: 'FAIL', check: 'answer', detail: 'empty answer' });
           asked.record.findings.push(...checkInvariants(asked.result, fixture, asked.result.answer));
-          if (asked.record.findings.length > 0) asked.record.output = asked.result;
+          if (keepOutputs || asked.record.findings.length > 0) asked.record.output = asked.result;
           history.push({ role: 'user', content: question, status: 'completed' }, { role: 'assistant', content: asked.result.answer, status: 'completed' });
         } else {
           history.push({ role: 'user', content: question, status: 'completed' }, { role: 'assistant', content: 'failed', status: 'failed' });
