@@ -1,7 +1,7 @@
 import { findTlsTrustDetail } from '../src/ai/network-cause';
 import { ProviderRequestError } from '../src/ai/contracts';
 import { LlmGateway } from '../src/ai/gateway';
-import { resolveQuestionContextWindow } from '../src/analyses/question-context';
+import { answeredHistory, resolveQuestionContextWindow } from '../src/analyses/question-context';
 import { buildAnalysisPrompt } from '../src/ai/prompt';
 import { MockProvider, resetMockState } from '../src/ai/mock.provider';
 import { ANALYSIS_PROMPT_VERSION } from '../src/ai/contracts';
@@ -124,6 +124,25 @@ describe('pure rules', () => {
     );
     expect(window.history).toHaveLength(1);
     expect(window.history[0].content).toBe('earlier question');
+  });
+
+  it('leaves failed exchanges out of the question context', () => {
+    const history = [
+      { role: 'user', content: 'first question', status: 'completed' },
+      { role: 'assistant', content: 'first answer', status: 'completed' },
+      { role: 'user', content: 'broken question', status: 'completed' },
+      { role: 'assistant', content: 'The model output did not match the contract.', status: 'failed' },
+      { role: 'user', content: 'third question', status: 'completed' },
+      { role: 'assistant', content: 'third answer', status: 'completed' },
+    ];
+    expect(answeredHistory(history).map((message) => message.content)).toEqual([
+      'first question',
+      'first answer',
+      'third question',
+      'third answer',
+    ]);
+    const window = resolveQuestionContextWindow('source text long enough', history, 'Next?', 2000);
+    expect(window.history.map((message) => message.content)).not.toContain('broken question');
   });
 
   it('rejects retry backoff wait when the parent signal is already aborted', async () => {

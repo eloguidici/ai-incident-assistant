@@ -14,6 +14,8 @@ const apiEnv = {
   FAULT_INJECTION: 'false',
   LLM_DEADLINE_MS: '2500',
   LLM_ATTEMPT_TIMEOUT_MS: '800',
+  RATE_LIMIT_ANALYSES_PER_HOUR: '500',
+  RATE_LIMIT_QUESTIONS_PER_HOUR: '500',
   PORT: '3001',
 };
 
@@ -47,7 +49,17 @@ export default defineConfig({
     },
   ],
   projects: [
-    { name: 'e2e', use: { ...devices['Desktop Chrome'], video: 'retain-on-failure' }, testIgnore: /(demo|compose-stack)\.spec\.ts/ },
+    {
+      name: 'e2e',
+      use: { ...devices['Desktop Chrome'], video: 'retain-on-failure' },
+      testIgnore: [/flows\//, /(demo|compose-stack)\.spec\.ts/],
+    },
+    {
+      name: 'flows',
+      use: { ...devices['Desktop Chrome'], video: 'retain-on-failure' },
+      testMatch: /flows\/.*\.spec\.ts/,
+      grepInvert: /@limits/,
+    },
     { name: 'demo', use: { ...devices['Desktop Chrome'], video: 'on' }, testMatch: /demo\.spec\.ts/ },
   ],
 });

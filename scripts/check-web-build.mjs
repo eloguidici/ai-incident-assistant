@@ -8,6 +8,8 @@ if (!existsSync(dist)) {
 }
 
 const forbidden = ['RATIONALE.md', 'ASSESSMENT.md', 'IMPLEMENTATION_BRIEF.md', 'tasks/T01.md'];
+// Server-side secret names and provider key prefixes must never reach the browser bundle.
+const secretPatterns = [/OPENROUTER_API_KEY/, /OPENAI_API_KEY/, /JWT_SECRET/, /DATABASE_URL/, /sk-(or|proj)-[A-Za-z0-9]/];
 const files = [];
 
 /**
@@ -29,4 +31,9 @@ if (hits.length) {
   console.error(`The web build includes internal documentation: ${hits.join(', ')}`);
   process.exit(1);
 }
-console.log(`PASS: ${files.length} files in apps/web/dist and no internal documents.`);
+const secretHits = secretPatterns.filter((pattern) => pattern.test(blob)).map(String);
+if (secretHits.length) {
+  console.error(`The web build contains secret names or key material: ${secretHits.join(', ')}`);
+  process.exit(1);
+}
+console.log(`PASS: ${files.length} files in apps/web/dist, no internal documents and no secret markers.`);

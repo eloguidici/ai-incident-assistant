@@ -39,6 +39,7 @@ jobs:
       - run: npm run test:web
       - run: npm run qa:eval
       - run: npm run build
+      - run: npm run check:web-docs
 
   terraform:
     runs-on: ubuntu-latest

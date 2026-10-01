@@ -153,6 +153,23 @@ describe('API edge cases (HTTP boundary)', () => {
       expect(retry.status).toBe(409);
     });
 
+    it('answers a clean question after a failed one, without resending the failed exchange', async () => {
+      const { agent, csrf } = await asUser(userA);
+      const created = await agent.post('/api/analyses').set(CsrfHeaderName, csrf).send({ sourceText: incident });
+      const ask = (question: string) => agent.post(`/api/analyses/${created.body.id}/messages`).set(CsrfHeaderName, csrf).send({ question });
+      const failed = await ask(`Why? ${MockFaultTag.InvalidJson}`);
+      expect(failed.status).toBe(422);
+      // The mock fails whenever the tag appears anywhere in the prompt, so this passes only if the failed pair is left out.
+      const answered = await ask('What should we check first?');
+      expect(answered.status).toBe(200);
+      expect(answered.body.messages.map((message: { status: string }) => message.status)).toEqual([
+        'completed',
+        'failed',
+        'completed',
+        'completed',
+      ]);
+    });
+
     it('keeps message sequences gapless when questions arrive in parallel', async () => {
       const { agent, csrf } = await asUser(userA);
       const created = await agent.post('/api/analyses').set(CsrfHeaderName, csrf).send({ sourceText: incident });
