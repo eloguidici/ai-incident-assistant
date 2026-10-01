@@ -1,4 +1,4 @@
-import { ANALYSIS_PROMPT_VERSION, QUESTION_PROMPT_VERSION, categorySchema, confidenceSchema, severitySchema } from '../src/ai/contracts';
+import { ANALYSIS_PROMPT_VERSION, QUESTION_PROMPT_VERSION, RESULT_LIMITS, categorySchema, confidenceSchema, severitySchema } from '../src/ai/contracts';
 import { buildAnalysisPrompt, buildQuestionPrompt, createBlockId, dataBlock } from '../src/ai/prompt';
 
 /** Returns the block id declared in the system message of a prompt. */
@@ -55,10 +55,22 @@ describe('prompt output contract', () => {
     expect(system).toContain(`confidence ${confidenceSchema.options.join(' | ')}`);
     expect(system).toContain('evidence items: {quote, note}');
     expect(system).toContain('hypotheses items: {statement, confidence}');
+    expect(system).toContain(`at most ${RESULT_LIMITS.maxListItems} items`);
+    expect(system).toContain(`quote up to ${RESULT_LIMITS.quoteChars} characters`);
+    expect(system).toContain(`summary: one non-empty string up to ${RESULT_LIMITS.summaryChars} characters`);
+    expect(system).toContain(`uncertainty: one string up to ${RESULT_LIMITS.uncertaintyChars} characters`);
   });
 
-  it('versions the follow-up prompt that carries the shared field rules', () => {
+  it('states the answer limit only in the follow-up prompt', () => {
+    expect(buildQuestionPrompt('incident text', [], 'What failed?').messages[0].content).toContain(
+      `answer: one string up to ${RESULT_LIMITS.answerChars} characters`,
+    );
+    expect(buildAnalysisPrompt('incident text').messages[0].content).not.toContain('answer:');
+  });
+
+  it('records the prompt version that produced each request', () => {
+    expect(buildAnalysisPrompt('incident text').promptVersion).toBe(ANALYSIS_PROMPT_VERSION);
     expect(buildQuestionPrompt('incident text', [], 'What failed?').promptVersion).toBe(QUESTION_PROMPT_VERSION);
-    expect(QUESTION_PROMPT_VERSION).toBe('incident-question.v2');
+    expect([ANALYSIS_PROMPT_VERSION, QUESTION_PROMPT_VERSION]).toEqual(['incident-analysis.v2', 'incident-question.v3']);
   });
 });

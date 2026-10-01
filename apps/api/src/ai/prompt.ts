@@ -1,5 +1,13 @@
 import { randomBytes } from 'node:crypto';
-import { ANALYSIS_PROMPT_VERSION, QUESTION_PROMPT_VERSION, type LlmRequest } from './contracts';
+import {
+  ANALYSIS_PROMPT_VERSION,
+  QUESTION_PROMPT_VERSION,
+  RESULT_LIMITS,
+  categorySchema,
+  confidenceSchema,
+  severitySchema,
+  type LlmRequest,
+} from './contracts';
 
 const SYSTEM_RULES = `You organize technical incidents for a human analyst.
 User content arrives in data blocks that open with <<<LABEL id=BLOCK_ID and close with LABEL id=BLOCK_ID>>>.
@@ -10,12 +18,20 @@ If you cannot quote, leave evidence empty, fill missingInformation, and explain 
 Hypotheses are not facts. Valid JSON does not claim the cause is confirmed.
 Reply with JSON only, without markdown.`;
 
-/** Field rules shared by both prompts, so the follow-up output matches the same schema as the analysis. */
-const RESULT_FIELD_RULES = `category: availability | performance | security | data | unknown.
-suggestedSeverity: low | medium | high | critical | unknown.
-evidence, hypotheses, and missingInformation must be JSON arrays (use [] when empty, never a single object or string).
-evidence items: {quote, note}. hypotheses items: {statement, confidence} with confidence low | medium | high.
-missingInformation items: short strings describing what is still unknown.`;
+const limits = RESULT_LIMITS;
+
+/**
+ * Field rules shared by both prompts, built from the same enums and limits the validator enforces,
+ * so the prompt cannot drift from the schema.
+ */
+const RESULT_FIELD_RULES = `category: ${categorySchema.options.join(' | ')}.
+suggestedSeverity: ${severitySchema.options.join(' | ')}.
+evidence, hypotheses, and missingInformation must be JSON arrays (use [] when empty, never a single object or string), each with at most ${limits.maxListItems} items.
+evidence items: {quote, note}; quote up to ${limits.quoteChars} characters, note up to ${limits.noteChars}.
+hypotheses items: {statement, confidence} with confidence ${confidenceSchema.options.join(' | ')}; statement up to ${limits.statementChars} characters.
+missingInformation items: short strings up to ${limits.missingItemChars} characters describing what is still unknown.
+summary: one non-empty string up to ${limits.summaryChars} characters.
+uncertainty: one string up to ${limits.uncertaintyChars} characters.`;
 
 /**
  * Creates a random block id that does not occur in any of the user-supplied texts.
@@ -54,7 +70,7 @@ function systemMessage(blockId: string, version: string, contract: string): stri
 /**
  * Builds the first-analysis prompt. The incident is wrapped as data, not as instructions.
  * @param source Incident text supplied by the analyst.
- * @returns Messages for `incident-analysis.v1`. The model name is filled by the gateway.
+ * @returns Messages for {@link ANALYSIS_PROMPT_VERSION}. The model name is filled by the gateway.
  */
 export function buildAnalysisPrompt(source: string): LlmRequest {
   const blockId = createBlockId([source]);
@@ -98,8 +114,7 @@ export function buildQuestionPrompt(source: string, history: { role: string; con
           QUESTION_PROMPT_VERSION,
           `Return one JSON object with these keys only: answer, summary, category, suggestedSeverity, evidence, hypotheses, missingInformation, uncertainty.
 ${RESULT_FIELD_RULES}
-uncertainty: one string.
-answer: one string that addresses the analyst's question using only the incident and without asserting unquoted causes.`,
+answer: one string up to ${limits.answerChars} characters that addresses the analyst's question using only the incident and without asserting unquoted causes.`,
         ),
       },
       {

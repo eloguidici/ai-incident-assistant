@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useState } from 'react';
+import { FormEvent, useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { api, ApiError, RunStatus, type AnalysisDetail, type QuestionResult } from '../api';
 import { ResultView } from '../components/ResultView';
@@ -13,12 +13,17 @@ export function DetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [question, setQuestion] = useState('');
   const [pending, setPending] = useState(false);
+  // The analysis on screen. Ask and retry responses that arrive after navigation must not overwrite it.
+  const shownId = useRef(id);
 
   useEffect(() => {
     const controller = new AbortController();
     let active = true;
+    shownId.current = id;
     setError(null);
     setDetail(null);
+    setPending(false);
+    setQuestion('');
     api<AnalysisDetail>(`/api/analyses/${id}`, { signal: controller.signal })
       .then((loadedDetail) => {
         if (!active || controller.signal.aborted) return;
@@ -41,42 +46,52 @@ export function DetailPage() {
    */
   async function ask(event: FormEvent) {
     event.preventDefault();
+    const requestId = id;
+    const stillShown = () => shownId.current === requestId;
     setPending(true);
     setError(null);
     try {
-      const updatedAnalysis = await api<AnalysisDetail>(`/api/analyses/${id}/messages`, {
+      const updatedAnalysis = await api<AnalysisDetail>(`/api/analyses/${requestId}/messages`, {
         method: 'POST',
         body: JSON.stringify({ question }),
       });
+      if (!stillShown()) return;
       setDetail(updatedAnalysis);
       setQuestion('');
     } catch (failure) {
+      if (!stillShown()) return;
       setError(failure instanceof ApiError ? failure.message : 'The question could not be sent.');
       try {
-        setDetail(await api<AnalysisDetail>(`/api/analyses/${id}`));
+        const reloaded = await api<AnalysisDetail>(`/api/analyses/${requestId}`);
+        if (stillShown()) setDetail(reloaded);
       } catch {
         /* keep the last good detail */
       }
     } finally {
-      setPending(false);
+      if (stillShown()) setPending(false);
     }
   }
 
   /** Runs the failed analysis again. On failure it shows the error and reloads the stored detail. */
   async function retry() {
+    const requestId = id;
+    const stillShown = () => shownId.current === requestId;
     setPending(true);
     setError(null);
     try {
-      setDetail(await api<AnalysisDetail>(`/api/analyses/${id}/retry`, { method: 'POST', body: '{}' }));
+      const retried = await api<AnalysisDetail>(`/api/analyses/${requestId}/retry`, { method: 'POST', body: '{}' });
+      if (stillShown()) setDetail(retried);
     } catch (failure) {
+      if (!stillShown()) return;
       setError(failure instanceof ApiError ? failure.message : 'The retry could not be started.');
       try {
-        setDetail(await api<AnalysisDetail>(`/api/analyses/${id}`));
+        const reloaded = await api<AnalysisDetail>(`/api/analyses/${requestId}`);
+        if (stillShown()) setDetail(reloaded);
       } catch {
         /* keep the last good detail */
       }
     } finally {
-      setPending(false);
+      if (stillShown()) setPending(false);
     }
   }
 

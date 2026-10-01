@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { useEffect } from 'react';
 import { MemoryRouter, Route, Routes, useNavigate } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -113,5 +113,66 @@ describe('DetailPage', () => {
     resolveSlow(completedDetail('slow', 'Stale slow analysis text.'));
     await new Promise((resolve) => setTimeout(resolve, 20));
     expect(screen.getByTestId('source-text')).toHaveTextContent('Fast analysis text.');
+  });
+
+  /** Renders the detail route with a link that switches to analysis `b` while a request for `a` is pending. */
+  function renderWithSwitch(initialId: string) {
+    function SwitchToB() {
+      const navigate = useNavigate();
+      return (
+        <button type="button" onClick={() => navigate('/history/b')}>
+          Open B
+        </button>
+      );
+    }
+    render(
+      <MemoryRouter initialEntries={[`/history/${initialId}`]}>
+        <SwitchToB />
+        <Routes>
+          <Route path="/history/:id" element={<DetailPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+  }
+
+  it('ignores a late follow-up answer for the previous analysis', async () => {
+    let resolveAsk: (value: AnalysisDetail) => void = () => undefined;
+    apiMock.mockImplementation((path: string, init?: RequestInit) => {
+      if (path === '/api/analyses/a' && !init?.method) return Promise.resolve(completedDetail('a', 'Incident A.'));
+      if (path === '/api/analyses/a/messages') return new Promise<AnalysisDetail>((resolve) => (resolveAsk = resolve));
+      if (path === '/api/analyses/b') return Promise.resolve(completedDetail('b', 'Incident B.'));
+      throw new Error(`Unexpected path ${path}`);
+    });
+    renderWithSwitch('a');
+
+    fireEvent.change(await screen.findByTestId('question-input'), { target: { value: 'What failed in A?' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Ask' }));
+    expect(await screen.findByText('Asking…')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Open B' }));
+    await waitFor(() => expect(screen.getByTestId('source-text')).toHaveTextContent('Incident B.'));
+
+    await act(async () => resolveAsk({ ...completedDetail('a', 'Incident A after answer.') }));
+    expect(screen.getByTestId('source-text')).toHaveTextContent('Incident B.');
+    expect(screen.queryByText('Asking…')).not.toBeInTheDocument();
+    expect(screen.getByTestId('question-input')).toHaveValue('');
+  });
+
+  it('ignores a late retry result for the previous analysis', async () => {
+    let resolveRetry: (value: AnalysisDetail) => void = () => undefined;
+    apiMock.mockImplementation((path: string, init?: RequestInit) => {
+      if (path === '/api/analyses/a' && !init?.method) return Promise.resolve(failedDetail('a'));
+      if (path === '/api/analyses/a/retry') return new Promise<AnalysisDetail>((resolve) => (resolveRetry = resolve));
+      if (path === '/api/analyses/b') return Promise.resolve(completedDetail('b', 'Incident B.'));
+      throw new Error(`Unexpected path ${path}`);
+    });
+    renderWithSwitch('a');
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Retry' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Open B' }));
+    await waitFor(() => expect(screen.getByTestId('source-text')).toHaveTextContent('Incident B.'));
+
+    await act(async () => resolveRetry(completedDetail('a', 'Incident A retried.')));
+    expect(screen.getByTestId('source-text')).toHaveTextContent('Incident B.');
+    expect(screen.getByRole('button', { name: 'Ask' })).toBeInTheDocument();
   });
 });

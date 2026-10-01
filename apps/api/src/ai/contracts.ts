@@ -4,34 +4,46 @@ export const categorySchema = z.enum(['availability', 'performance', 'security',
 export const severitySchema = z.enum(['low', 'medium', 'high', 'critical', 'unknown']);
 export const confidenceSchema = z.enum(['low', 'medium', 'high']);
 
+/** Size limits of the model output contract. The schemas and the prompt text both read them. */
+export const RESULT_LIMITS = {
+  summaryChars: 2000,
+  answerChars: 2000,
+  uncertaintyChars: 1000,
+  quoteChars: 500,
+  noteChars: 500,
+  statementChars: 500,
+  missingItemChars: 300,
+  maxListItems: 8,
+} as const;
+
 const evidenceSchema = z
   .object({
-    quote: z.string().min(1).max(500),
-    note: z.string().min(1).max(500),
+    quote: z.string().min(1).max(RESULT_LIMITS.quoteChars),
+    note: z.string().min(1).max(RESULT_LIMITS.noteChars),
   })
   .strict();
 
 const hypothesisSchema = z
   .object({
-    statement: z.string().min(1).max(500),
+    statement: z.string().min(1).max(RESULT_LIMITS.statementChars),
     confidence: confidenceSchema,
   })
   .strict();
 
 export const analysisResultSchema = z
   .object({
-    summary: z.string().min(1).max(2000),
+    summary: z.string().min(1).max(RESULT_LIMITS.summaryChars),
     category: categorySchema,
     suggestedSeverity: severitySchema,
-    evidence: z.array(evidenceSchema).max(8),
-    hypotheses: z.array(hypothesisSchema).max(8),
-    missingInformation: z.array(z.string().min(1).max(300)).max(8),
-    uncertainty: z.string().max(1000),
+    evidence: z.array(evidenceSchema).max(RESULT_LIMITS.maxListItems),
+    hypotheses: z.array(hypothesisSchema).max(RESULT_LIMITS.maxListItems),
+    missingInformation: z.array(z.string().min(1).max(RESULT_LIMITS.missingItemChars)).max(RESULT_LIMITS.maxListItems),
+    uncertainty: z.string().max(RESULT_LIMITS.uncertaintyChars),
   })
   .strict();
 
 export const questionResultSchema = analysisResultSchema.extend({
-  answer: z.string().min(1).max(2000),
+  answer: z.string().min(1).max(RESULT_LIMITS.answerChars),
 }).strict();
 
 export type AnalysisResult = z.infer<typeof analysisResultSchema>;
@@ -82,5 +94,5 @@ export function isRetryable(kind: ProviderErrorKind): boolean {
   return kind === 'timeout' || kind === 'rate_limit' || kind === 'server' || kind === 'network';
 }
 
-export const ANALYSIS_PROMPT_VERSION = 'incident-analysis.v1';
-export const QUESTION_PROMPT_VERSION = 'incident-question.v2';
+export const ANALYSIS_PROMPT_VERSION = 'incident-analysis.v2';
+export const QUESTION_PROMPT_VERSION = 'incident-question.v3';

@@ -22,7 +22,7 @@ NestJS/TypeScript modular monolith, React frontend and PostgreSQL with TypeORM r
 
 The model path has one responsibility per step:
 
-1. **Prompt construction** (`apps/api/src/ai/prompt.ts`): versioned prompts `incident-analysis.v1` and `incident-question.v2`.
+1. **Prompt construction** (`apps/api/src/ai/prompt.ts`): versioned prompts `incident-analysis.v2` and `incident-question.v3`.
 2. **Model invocation** (`apps/api/src/ai/gateway.ts` and the providers): a deterministic mock, OpenAI and OpenRouter implement the same `LlmProvider` contract, selected with `LLM_PROVIDER`. SDK retries are disabled; the gateway owns deadlines and at most one retry.
 3. **Response post-processing** (`apps/api/src/ai/validate.ts`): Zod schema validation, quote grounding and URL checks before anything is stored as a result.
 
@@ -163,7 +163,7 @@ The web image serves React at http://localhost:8080 and proxies `/api/` to the A
 | `npm run qa:ai:live-openrouter` | OpenRouter sample using a local key |
 | `npm run check:web-docs` | Verify internal documents are absent from the React build |
 
-Integration tests require an isolated PostgreSQL database with `test` in its name; they truncate data and test migration rollback. CI runs lint, typecheck, tests with coverage, the mock evaluation, the build and `terraform validate` on every push.
+Integration tests require an isolated PostgreSQL database with `test` in its name; they truncate data and test migration rollback. CI runs lint, typecheck (including frontend test files), API tests with coverage, frontend tests, the mock evaluation, the build and `terraform validate` on every push.
 
 ## Infrastructure proposal
 
