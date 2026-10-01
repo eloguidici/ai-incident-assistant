@@ -17,7 +17,8 @@
     "reset": "tsx src/cli.ts reset",
     "eval": "tsx src/evaluation/run.ts",
     "live": "node --use-system-ca --import tsx src/evaluation/live.ts",
-    "live-openrouter": "node --use-system-ca --import tsx src/evaluation/live.ts --provider openrouter"
+    "live-openrouter": "node --use-system-ca --import tsx src/evaluation/live.ts --provider openrouter",
+    "live-suite": "node --use-system-ca --import tsx src/evaluation/live-suite.ts"
   },
   "dependencies": {
     "@nestjs/common": "^11.1.6",

@@ -13,7 +13,7 @@ These documents support the root [README](../README.md), which already answers e
 6. [Runbook](operations/RUNBOOK.md): local operation, secrets, recovery and limits.
 7. [Requirements matrix](requirements/ASSESSMENT.md): each assessment requirement and how it is met.
 8. Decision records: [ADR-001 stack](decisions/ADR-001-stack.md), [ADR-002 persistence (historical)](decisions/ADR-002-persistence.md), [ADR-003 session](decisions/ADR-003-session.md), [ADR-004 model](decisions/ADR-004-model.md), [ADR-005 AWS](decisions/ADR-005-aws.md), [ADR-006 TypeORM](decisions/ADR-006-typeorm-repository.md).
-9. QA: [UI flows and browser test cases](qa/UI_FLOWS.md), [regression catalog](qa/REGRESSION_CATALOG.md) and the earlier [browser cases snapshot](qa/BROWSER_CASES.md).
+9. QA: [UI flows and browser test cases](qa/UI_FLOWS.md), [live quality suite](qa/LIVE_SUITE.md), [regression catalog](qa/REGRESSION_CATALOG.md) and the earlier [browser cases snapshot](qa/BROWSER_CASES.md).
 
 Infrastructure: [Terraform guide](../infra/terraform/README.md).
 

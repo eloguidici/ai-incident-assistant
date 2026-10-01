@@ -198,6 +198,8 @@ The web image serves React at http://localhost:8080 and proxies `/api/` to the A
 | `npm run qa:demo` | Browser demonstration with video artifacts |
 | `npm run qa:ai:live` | OpenAI sample using a local key |
 | `npm run qa:ai:live-openrouter` | OpenRouter sample using a local key |
+| `npm run qa:e2e:flows` / `qa:e2e:flows:limits` | Browser cases from [UI flows](docs/qa/UI_FLOWS.md) (mock provider) |
+| `npm run qa:ai:suite` | [Live quality suite](docs/qa/LIVE_SUITE.md): all fixtures, analysis plus two follow-ups, against a paid model (manual, ~USD 0.005 per run) |
 | `npm run check:web-docs` | Verify internal documents are absent from the React build |
 
 Integration tests require an isolated PostgreSQL database with `test` in its name; they truncate data and test migration rollback. CI runs lint, typecheck (including frontend test files), API tests with coverage, frontend tests, the mock evaluation, the build and `terraform validate` on every push.
