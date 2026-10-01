@@ -45,6 +45,8 @@ export class AddQuestionHandler implements ICommandHandler<AddQuestionCommand> {
         ErrorCode.RateLimited,
         429,
         `You exceeded the hourly question limit. Try again in ${questionRateLimit.retryAfterSeconds} seconds.`,
+        undefined,
+        questionRateLimit.retryAfterSeconds,
       );
     }
     await this.shared.ensureQuestionContext(command.owner.id, command.analysisId, ownedAnalysis.sourceText, command.question);

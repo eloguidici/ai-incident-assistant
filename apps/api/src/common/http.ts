@@ -12,12 +12,14 @@ export class AppError extends Error {
    * @param status HTTP status that matches the code.
    * @param message Short explanation for the analyst.
    * @param analysisId Owning analysis when the failure happened after the row existed.
+   * @param retryAfterSeconds Wait before retrying; sent as the `Retry-After` header on rate-limited responses.
    */
   constructor(
     readonly errorCode: ErrorCodeValue,
     readonly status: number,
     message: string,
     readonly analysisId?: string,
+    readonly retryAfterSeconds?: number,
   ) {
     super(message);
   }

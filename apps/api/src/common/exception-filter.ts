@@ -28,6 +28,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
         correlationId,
         analysisId: exception.analysisId ?? null,
       });
+      if (exception.retryAfterSeconds !== undefined) response.setHeader('Retry-After', String(exception.retryAfterSeconds));
       response.status(exception.status).json({
         error: {
           code: exception.errorCode,

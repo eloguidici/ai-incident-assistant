@@ -22,6 +22,7 @@ export async function createApplication() {
   app.enableShutdownHooks();
   const settings = app.get<AppConfig>(getConfigToken(appConfig));
   const expressApp = app.getHttpAdapter().getInstance() as Express;
+  expressApp.disable('x-powered-by');
   if (settings.trustProxy) expressApp.set('trust proxy', 1);
   app.use(correlationMiddleware);
   app.use(cookieParser());

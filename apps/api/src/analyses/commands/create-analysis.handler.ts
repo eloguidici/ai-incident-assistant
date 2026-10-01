@@ -39,6 +39,8 @@ export class CreateAnalysisHandler implements ICommandHandler<CreateAnalysisComm
         ErrorCode.RateLimited,
         429,
         `You exceeded the hourly analysis limit. Try again in ${analysisRateLimit.retryAfterSeconds} seconds.`,
+        undefined,
+        analysisRateLimit.retryAfterSeconds,
       );
     }
     const expiresAt = this.shared.newExpiresAt();

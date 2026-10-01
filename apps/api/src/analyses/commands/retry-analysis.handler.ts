@@ -50,6 +50,8 @@ export class RetryAnalysisHandler implements ICommandHandler<RetryAnalysisComman
         ErrorCode.RateLimited,
         429,
         `You exceeded the hourly analysis limit. Try again in ${analysisRateLimit.retryAfterSeconds} seconds.`,
+        undefined,
+        analysisRateLimit.retryAfterSeconds,
       );
     }
     let executionId: string;

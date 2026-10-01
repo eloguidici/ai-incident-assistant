@@ -44,6 +44,8 @@ export class AuthService implements OnModuleInit {
         ErrorCode.RateLimited,
         429,
         `Too many sign-in attempts. Try again in ${loginAttempt.retryAfterSeconds} seconds.`,
+        undefined,
+        loginAttempt.retryAfterSeconds,
       );
     }
     const user = await this.users.findByEmail(email.toLowerCase());

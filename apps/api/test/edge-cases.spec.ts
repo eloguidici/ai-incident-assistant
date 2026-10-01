@@ -179,6 +179,15 @@ describe('API edge cases (HTTP boundary)', () => {
       const limited = await post(incident);
       expect(limited.status).toBe(429);
       expect(limited.body.error.code).toBe(ErrorCode.RateLimited);
+      const retryAfter = Number(limited.headers['retry-after']);
+      expect(Number.isInteger(retryAfter) && retryAfter >= 1 && retryAfter <= 3600).toBe(true);
+    });
+  });
+
+  describe('HTTP surface', () => {
+    it('does not advertise the server framework', async () => {
+      const response = await request(app.getHttpServer()).get('/api/health');
+      expect(response.headers['x-powered-by']).toBeUndefined();
     });
   });
 });
