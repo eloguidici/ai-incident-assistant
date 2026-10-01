@@ -83,4 +83,4 @@ export function isRetryable(kind: ProviderErrorKind): boolean {
 }
 
 export const ANALYSIS_PROMPT_VERSION = 'incident-analysis.v1';
-export const QUESTION_PROMPT_VERSION = 'incident-question.v1';
+export const QUESTION_PROMPT_VERSION = 'incident-question.v2';

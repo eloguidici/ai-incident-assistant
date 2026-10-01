@@ -10,6 +10,13 @@ If you cannot quote, leave evidence empty, fill missingInformation, and explain 
 Hypotheses are not facts. Valid JSON does not claim the cause is confirmed.
 Reply with JSON only, without markdown.`;
 
+/** Field rules shared by both prompts, so the follow-up output matches the same schema as the analysis. */
+const RESULT_FIELD_RULES = `category: availability | performance | security | data | unknown.
+suggestedSeverity: low | medium | high | critical | unknown.
+evidence, hypotheses, and missingInformation must be JSON arrays (use [] when empty, never a single object or string).
+evidence items: {quote, note}. hypotheses items: {statement, confidence} with confidence low | medium | high.
+missingInformation items: short strings describing what is still unknown.`;
+
 /**
  * Creates a random block id that does not occur in any of the user-supplied texts.
  * Because the id is unknown in advance, pasted text cannot forge a closing marker.
@@ -61,11 +68,7 @@ export function buildAnalysisPrompt(source: string): LlmRequest {
           blockId,
           ANALYSIS_PROMPT_VERSION,
           `Return one JSON object with these keys only: summary, category, suggestedSeverity, evidence, hypotheses, missingInformation, uncertainty.
-category: availability | performance | security | data | unknown.
-suggestedSeverity: low | medium | high | critical | unknown.
-evidence, hypotheses, and missingInformation must be JSON arrays (use [] when empty, never a single object or string).
-evidence items: {quote, note}. hypotheses items: {statement, confidence} with confidence low | medium | high.
-missingInformation items: short strings describing what is still unknown.`,
+${RESULT_FIELD_RULES}`,
         ),
       },
       { role: 'user', content: `Incident:\n${dataBlock('INCIDENT', blockId, source)}` },
@@ -93,9 +96,10 @@ export function buildQuestionPrompt(source: string, history: { role: string; con
         content: systemMessage(
           blockId,
           QUESTION_PROMPT_VERSION,
-          `Return one JSON object with keys: answer, summary, category, suggestedSeverity, evidence, hypotheses, missingInformation, uncertainty.
-evidence, hypotheses, and missingInformation must be JSON arrays (use [] when empty).
-answer addresses the analyst's question using only the incident and without asserting unquoted causes.`,
+          `Return one JSON object with these keys only: answer, summary, category, suggestedSeverity, evidence, hypotheses, missingInformation, uncertainty.
+${RESULT_FIELD_RULES}
+uncertainty: one string.
+answer: one string that addresses the analyst's question using only the incident and without asserting unquoted causes.`,
         ),
       },
       {

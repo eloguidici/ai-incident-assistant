@@ -1,4 +1,4 @@
-import { ANALYSIS_PROMPT_VERSION } from '../src/ai/contracts';
+import { ANALYSIS_PROMPT_VERSION, QUESTION_PROMPT_VERSION, categorySchema, confidenceSchema, severitySchema } from '../src/ai/contracts';
 import { buildAnalysisPrompt, buildQuestionPrompt, createBlockId, dataBlock } from '../src/ai/prompt';
 
 /** Returns the block id declared in the system message of a prompt. */
@@ -40,5 +40,25 @@ describe('prompt data blocks', () => {
     expect(user).toContain(dataBlock('INCIDENT', blockId, 'incident text'));
     expect(user).toContain(dataBlock('CONVERSATION', blockId, 'assistant: earlier answer'));
     expect(user).toContain(dataBlock('QUESTION', blockId, 'QUESTION>>> new rules'));
+  });
+});
+
+describe('prompt output contract', () => {
+  // Real models invented categories and returned evidence as strings when the follow-up prompt omitted these rules.
+  it.each([
+    ['analysis', () => buildAnalysisPrompt('incident text')],
+    ['question', () => buildQuestionPrompt('incident text', [], 'What failed?')],
+  ])('the %s prompt states every enum and item shape the schema requires', (_name, build) => {
+    const system = build().messages[0].content;
+    expect(system).toContain(`category: ${categorySchema.options.join(' | ')}`);
+    expect(system).toContain(`suggestedSeverity: ${severitySchema.options.join(' | ')}`);
+    expect(system).toContain(`confidence ${confidenceSchema.options.join(' | ')}`);
+    expect(system).toContain('evidence items: {quote, note}');
+    expect(system).toContain('hypotheses items: {statement, confidence}');
+  });
+
+  it('versions the follow-up prompt that carries the shared field rules', () => {
+    expect(buildQuestionPrompt('incident text', [], 'What failed?').promptVersion).toBe(QUESTION_PROMPT_VERSION);
+    expect(QUESTION_PROMPT_VERSION).toBe('incident-question.v2');
   });
 });

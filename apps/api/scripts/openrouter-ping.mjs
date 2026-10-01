@@ -12,7 +12,7 @@ for (const envPath of [
   config({ path: envPath });
 }
 
-const model = process.env.OPENROUTER_MODEL || 'google/gemma-4-26b-a4b-it:free';
+const model = process.env.OPENROUTER_MODEL || 'openai/gpt-4o-mini';
 const key = process.env.OPENROUTER_API_KEY;
 if (!key) {
   console.log('RESULT=BLOCKED reason=missing_key');
