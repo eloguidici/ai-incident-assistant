@@ -54,6 +54,10 @@ On Windows with antivirus HTTPS scanning, see the [runbook](../operations/RUNBOO
 
 ## Runs
 
+Latest diagnostic follow-up, 2026-10-02: [difficult GPT cases via OpenAI and paid OpenRouter](PROMPT_SECURITY_GPT.md), 15 actual shared attempts, 14 API requests, quality FAIL. Seven [unchanged synthetic scenarios](../../qa/fixtures/prompt-security-advanced.json), manual review and offline boundary experiment; partial per-route coverage, no judge or production edits. Not a complete rerun of the historical suite below.
+
+The 2026-10-02 observation-only detector change does not modify prompts or add a model call. Its [adversarial signal/API checks](../security/PROMPT_INJECTION.md) are local software regression. A subsequent authorized [advanced API/live sample](PROMPT_SECURITY_LIVE.md) used the current `liquid/lfm-2.5-2.6b:free` route: 14 actual attempts, 13 executed requests, **FAIL** for accepted semantic injection and legitimate URL false rejection. It is not a rerun of the historical GPT suite below. The detector's six declared evasions must not be counted as successful attack prevention.
+
 OpenRouter `openai/gpt-4o-mini`, 2026-10-01:
 
 | Prompts | Runs | Result | Finding |

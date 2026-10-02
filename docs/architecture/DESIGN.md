@@ -11,7 +11,7 @@ Lightweight CQRS: CreateAnalysis, RetryAnalysis and AddQuestion are commands; Li
 
 ## AI responsibilities
 
-Use case -> versioned prompt builder -> `LlmProvider` -> output validator -> persistence and result.
+Use case -> observation-only signals on raw selected data + versioned prompt builder -> `LlmProvider` -> output validator -> persistence and result. The [native observer](../security/PROMPT_INJECTION.md) does not alter model input, enforce policy or invoke another model; its version is separate from prompt versions.
 
 The provider contract receives the messages, the model and an abort signal; the gateway adds the deadline, the output token cap (`LLM_MAX_OUTPUT_TOKENS`) and the retry policy. The response carries the raw text and token counts when available. The real and mock adapters are selected by configuration; there is no silent fallback to simulated data. Gateway: at most two attempts, the provider's `Retry-After` with jitter, and client cancellation aborts both the attempt and the wait.
 

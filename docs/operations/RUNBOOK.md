@@ -38,6 +38,10 @@ The nginx image defaults `API_PROXY_READ_TIMEOUT` to `30s`, above the default 20
 
 See the [Terraform guide](../../infra/terraform/README.md). The definition uses an HTTPS ALB and a Fargate task with web/nginx plus the API, private PostgreSQL and Secrets Manager. OpenAI or OpenRouter is configurable. Real image references, an ACM certificate, DNS, secret values and first-user provisioning are prerequisites. No cloud deployment has been executed.
 
+## Prompt-injection observation
+
+`prompt_injection_signal` is a warning, not a blocked request or a finding of a successful attack. Correlate its bounded detector/rule/input identifiers with execution outcomes; a quoted security report can legitimately match. Do not copy source or credentials into operational logs. No match does not prove safety, and log transport failures do not stop processing. No automatic alerts or enforcement are configured. Rules are versioned in code, not edited through environment variables. Run `npm run qa:security:signals` with the test database before changing them; evaluate an approved synthetic sample against the actual model separately. See [behavior and future controls](../security/PROMPT_INJECTION.md).
+
 ## Failure recovery
 
 The scheduled sweep uses the LLM deadline plus a five-second grace window and runs every 15–60 seconds depending on that deadline. It skips overlapping sweeps in the same process. Analysis and execution changes are committed together, and completion and fallback operations are scoped to their execution. Question recovery closes aged executions independently. A database outage delays recovery until a later successful sweep; there is no immediate-recovery guarantee during an outage.

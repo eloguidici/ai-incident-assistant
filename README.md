@@ -22,9 +22,9 @@ NestJS/TypeScript modular monolith, React frontend and PostgreSQL with TypeORM r
 
 The model path has one responsibility per step:
 
-1. **Prompt construction** (`apps/api/src/ai/prompt.ts`): versioned prompts `incident-analysis.v3` and `incident-question.v4`.
+1. **Prompt construction** (`apps/api/src/ai/prompt.ts`): versioned prompts `incident-analysis.v4` and `incident-question.v5`.
 2. **Model invocation** (`apps/api/src/ai/gateway.ts` and the providers): a deterministic mock, OpenAI and OpenRouter implement the same `LlmProvider` contract, selected with `LLM_PROVIDER`. SDK retries are disabled; the gateway owns deadlines and at most one retry.
-3. **Response post-processing** (`apps/api/src/ai/validate.ts`): Zod schema validation, quote grounding and URL checks before anything is stored as a result.
+3. **Response post-processing** (`apps/api/src/ai/validate.ts`): Zod schema validation, exact quotes, complete URL comparison and a narrow impossible-assistant-action check before accepting a result. These do not certify semantic truth.
 
 The prompt version, provider, model, attempts, latency and token counts are stored with every execution. No database transaction is held open during the model call.
 
@@ -34,7 +34,8 @@ More detail: [architecture rationale](docs/architecture/RATIONALE.md), [design](
 
 ### Prompt injection and unsafe input
 
-- **Data is never mixed with instructions.** Incident, conversation and question are sent inside data blocks whose markers carry a random id generated per request. The system message names that id and tells the model that any other marker is data. Pasting `INCIDENT>>>` into the text cannot close the block early, because the attacker does not know the id (`apps/api/test/prompt-injection.spec.ts`).
+- **Data and instructions have explicit boundaries.** Incident, conversation and question use data blocks with fresh random identifiers absent from the input. The system message names those identifiers and treats other markers as data. This prevents forging the expected closing marker, not semantic manipulation (`apps/api/test/prompt-injection.spec.ts`).
+- **Observation-only pattern detector.** Native `RegExp` scans incident, selected history and question before invocation. It emits six closed signal identifiers without excerpts, blocking, input rewriting or an extra LLM. Known evasions and legitimate attack reports are tested; no match does not mean safe. See [behavior, use cases and future alternatives](docs/security/PROMPT_INJECTION.md). Run `npm run qa:security:signals` with the test database.
 - **The model has no tools.** There is no function calling and the application never executes actions based on model output, so an injected instruction has nothing to trigger.
 - **Output is validated, not trusted.** A strict schema rejects unexpected fields. Every quote must appear verbatim in the incident, and a URL is accepted only if it already appears in the text. Output that fails is stored as a failed execution, never shown as a result.
 - **Input is bounded.** Incident text 1–8,000 characters, question 1–1,000, no NUL characters, request body 32 KB, and a context budget of 12,000 characters checked before the model is called.
@@ -101,7 +102,7 @@ Details: [Terraform guide](infra/terraform/README.md) and [runbook](docs/operati
 
 **Model and price.** `openai/gpt-4o-mini` through OpenRouter, USD 0.15 per million input tokens and USD 0.60 per million output tokens, read from the OpenRouter models API (`https://openrouter.ai/api/v1/models`) on 2026-10-01 00:29 (Buenos Aires). Prices change; check them before relying on this table. OpenRouter credit-purchase fees are not included.
 
-**Measured samples (current prompts).** Provider-reported tokens from `npm run qa:ai:suite` with `openai/gpt-4o-mini`, prompts `incident-analysis.v3` and `incident-question.v4`, five synthetic fixtures (about 200–250 characters each), three repeats per fixture, 45 calls total, 2026-10-01 (see `docs/qa/LIVE_SUITE.md` Runs). Averages below are over all 15 analyses or all 30 questions in that run, not a single incident shape:
+**Measured samples (historical v3/v4 prompts).** Provider-reported tokens from `npm run qa:ai:suite` with `openai/gpt-4o-mini`, prompts `incident-analysis.v3` and `incident-question.v4`, five synthetic fixtures (about 200–250 characters each), three repeats per fixture, 45 calls total, 2026-10-01 (see `docs/qa/LIVE_SUITE.md` Runs). Averages below are over all 15 analyses or all 30 questions in that run, not a single incident shape:
 
 | Call | Average (input / output tokens) | Cost per call (at prices above) |
 |---|---|---|

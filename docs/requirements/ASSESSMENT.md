@@ -16,7 +16,7 @@ Source: Full Stack AI Engineer Assessment PDF, received on 2026-09-29. The appli
 | R09 | AI separation | Prompt construction, invocation and post-processing separated. |
 | R10 | Provider switch | Common contract with mock, OpenAI and OpenRouter implementations. |
 | R11 | Prompt versioning or configuration | Versioned prompt; version and model stored with each result. |
-| R12 | Input safety and costs | Basic limits implemented; injection mitigation, budgets and production rate limits explained in the README. |
+| R12 | Input safety and costs | Basic limits and a native observation-only signal detector; injection boundaries/evasions, budgets and production rates explained in the [README](../../README.md) and [security use cases](../security/PROMPT_INJECTION.md). No guarantee of prevention or extra LLM. |
 | R13 | React, two pages | New analysis and history/detail, plus login; empty, loading and error states. |
 | R14 | AI status and refinement | Processing, completed and failed states; ask again and retry. Streaming is optional and tokens are not faked. |
 | R15 | Uncertainty | Evidence vs hypotheses; missing information; no invented certainty or sources. |

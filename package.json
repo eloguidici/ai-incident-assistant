@@ -21,6 +21,7 @@
     "qa:reset": "npm run reset -w @app/api",
     "qa:seed": "npm run seed:test -w @app/api",
     "qa:eval": "npm run eval -w @app/api",
+    "qa:security:signals": "npm run test -w @app/api -- --testPathPatterns=prompt-injection",
     "qa:ai:live": "npm run live -w @app/api",
     "qa:ai:live-openrouter": "npm run live-openrouter -w @app/api",
     "qa:ai:suite": "npm run live-suite -w @app/api --",

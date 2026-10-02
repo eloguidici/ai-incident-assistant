@@ -1,4 +1,23 @@
 import { analysisResultSchema, questionResultSchema, type AnalysisResult, type QuestionResult } from './contracts';
+import { findAssistantActionClaim } from './assistant-action-claims';
+
+/**
+ * Extracts complete HTTP(S) lexemes, ignoring prose quotes/punctuation and unmatched closers.
+ * Balanced parentheses in paths are preserved; paths, ports and query suffixes are not normalized.
+ * @param text Source or output prose. @returns Distinct URL lexemes, without fetching them.
+ */
+function urlsIn(text: string): Set<string> {
+  return new Set((text.match(/https?:\/\/[^\s<>"`]+/g) ?? []).map((candidate) => {
+    let url = candidate.replace(/[.,;:!'\u2019]+$/g, '');
+    for (;;) {
+      const closer = url.at(-1);
+      const opener = closer === ')' ? '(' : closer === ']' ? '[' : closer === '}' ? '{' : undefined;
+      if (!opener || url.split(closer!).length <= url.split(opener).length) break;
+      url = url.slice(0, -1).replace(/[.,;:!'\u2019]+$/g, '');
+    }
+    return url;
+  }));
+}
 
 /** Model output that is not JSON, does not match the schema, or is not grounded in the incident. */
 export class OutputValidationError extends Error {
@@ -23,7 +42,7 @@ export function parseModelJson(raw: string): unknown {
 }
 
 /**
- * Rejects quotes and URLs that are not exact substrings of the incident.
+ * Rejects non-exact quotes, foreign complete URL lexemes and impossible assistant actions.
  * An empty evidence list is accepted only with uncertainty and missing information.
  * @throws OutputValidationError when the output is not grounded.
  */
@@ -41,10 +60,17 @@ function assertGrounded(analysis: AnalysisResult, incidentText: string): void {
     ...analysis.hypotheses.map((hypothesis) => hypothesis.statement),
   ];
   if ('answer' in analysis && typeof analysis.answer === 'string') groundedTexts.push(analysis.answer);
+  const sourceUrls = urlsIn(incidentText);
   for (const groundedText of groundedTexts) {
-    for (const url of groundedText.match(/https?:\/\/\S+/g) ?? []) {
-      if (!incidentText.includes(url)) throw new OutputValidationError('The output includes a URL that is not in the incident.');
+    for (const url of urlsIn(groundedText)) {
+      if (!sourceUrls.has(url)) throw new OutputValidationError('The output includes a URL that is not in the incident.');
     }
+  }
+  const narrativeTexts = [analysis.summary, analysis.uncertainty, ...analysis.missingInformation,
+    ...analysis.evidence.map((item) => item.note), ...analysis.hypotheses.map((item) => item.statement)];
+  if ('answer' in analysis && typeof analysis.answer === 'string') narrativeTexts.push(analysis.answer);
+  if (narrativeTexts.some((text) => findAssistantActionClaim(text) !== null)) {
+    throw new OutputValidationError('The assistant cannot claim to have performed external actions.');
   }
   if (analysis.evidence.length === 0 && (analysis.uncertainty.trim().length === 0 || analysis.missingInformation.length === 0)) {
     throw new OutputValidationError('Without quotes, the output must state uncertainty and missing information.');

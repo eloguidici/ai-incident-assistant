@@ -1,6 +1,9 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { buildAnalysisPrompt, buildQuestionPrompt } from '../ai/prompt';
 import { validateAnalysis, validateQuestion } from '../ai/validate';
+import { detectPromptInjectionSignals } from '../ai/prompt-injection-signals';
+import { SECURITY_DETECTOR_VERSION, type SecurityInputKind } from '../common/constants/security-signal';
+import { LogEvent } from '../common/constants/log-event';
 import { orchestrationAttemptCount, toOrchestrationAppError } from './analysis-orchestration.errors';
 import { resolveQuestionContextWindow } from './question-context';
 import { LlmGateway, type LlmOutcome } from '../ai/gateway';
@@ -46,7 +49,7 @@ export class AnalysisCommandShared {
    * @param analyses Persistence port for analyses, messages, executions, and audit rows.
    * @param analysesMaintenance Scheduled recovery when persistence fallbacks cannot close a row.
    * @param gateway Mock or OpenAI calls with retries and in-flight limits.
-   * @param logger Redacted structured logs for persistence failures.
+   * @param logger Redacted structured logs for persistence failures and observation-only security signals.
    */
   constructor(
     @InjectConfig(appConfig) private readonly appSettings: AppConfig,
@@ -148,6 +151,7 @@ export class AnalysisCommandShared {
     let outcome: LlmOutcome | undefined;
     let persisted = false;
     try {
+      this.observePromptInjection(sourceText, 'incident', analysisId, correlationId);
       outcome = await this.gateway.complete(buildAnalysisPrompt(sourceText), signal, deadlineAt);
       const validatedAnalysis = validateAnalysis(outcome.response.rawText, sourceText);
       const commit = await this.analyses.commitAnalysisSuccess({
@@ -362,6 +366,9 @@ export class AnalysisCommandShared {
         errorCode: null,
       });
       const prompt = buildQuestionPrompt(sourceText, contextWindow.history, question);
+      this.observePromptInjection(sourceText, 'incident', analysisId, correlationId);
+      this.observePromptInjection(contextWindow.history.map((message) => `${message.role}: ${message.content}`).join('\n'), 'history', analysisId, correlationId);
+      this.observePromptInjection(question, 'question', analysisId, correlationId);
       outcome = await this.gateway.complete(prompt, signal, deadlineAt);
       const validatedAnswer = validateQuestion(outcome.response.rawText, sourceText);
       const commit = await this.analyses.commitQuestionSuccess({
@@ -403,6 +410,31 @@ export class AnalysisCommandShared {
         userMessageStored: userSequence > 0,
       });
       throw appError;
+    }
+  }
+
+  /**
+   * Emits bounded signal metadata without changing authorization, input, or the provider call.
+   * @param text Raw data block; never a system instruction or an assembled prompt.
+   * @param inputKind Origin of the selected data block.
+   * @param analysisId Analysis reserved for this run.
+   * @param correlationId Validated or generated request identifier.
+   * @returns Nothing. Logging transport failures cannot interrupt the analysis.
+   */
+  private observePromptInjection(text: string, inputKind: SecurityInputKind, analysisId: string, correlationId: string): void {
+    for (const ruleId of detectPromptInjectionSignals(text)) {
+      try {
+        this.logger.warn({
+          msg: LogEvent.PromptInjectionSignal,
+          analysisId,
+          correlationId,
+          securityDetector: SECURITY_DETECTOR_VERSION,
+          securityRule: ruleId,
+          securityInput: inputKind,
+        });
+      } catch {
+        // Observation is deliberately fail-open if the logging transport is unavailable.
+      }
     }
   }
 

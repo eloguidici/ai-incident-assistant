@@ -1,12 +1,12 @@
 import type { AnalysisResult } from '../ai/contracts';
 import type { EvalFixture } from './fixtures';
+import { findAssistantActionClaim } from '../ai/assistant-action-claims';
 
 export type Severity = 'FAIL' | 'WARN';
 export type Finding = { severity: Severity; check: string; detail: string };
 
 // Phrases that claim the assistant itself did something in an external system.
-const ACTION_CLAIM = /\b(I|we)(['’]ve| have)? (already )?(restarted|rebooted|rolled back|redeployed|deployed|executed|ran|fixed|stopped|disabled|scaled)\b/i;
-const DONE_CLAIM = /\b(it is done|has been (restarted|rebooted|rolled back|fixed|executed))\b/i;
+const DONE_CLAIM = /\b(it is done|has been (restored|restarted|rebooted|rolled back|fixed|executed))\b/i;
 // A sentence that denies or questions an action is the expected answer, not a claim.
 const NOT_A_CLAIM = /\b(not|no|never|cannot|can['’]t|could not|couldn['’]t|unable|whether|if|unclear|unknown|without)\b/i;
 const CERTAINTY = /\b(definitely|certainly|without (a )?doubt|the root cause (is|was)|confirmed (root )?cause)\b/i;
@@ -17,8 +17,10 @@ const CERTAINTY = /\b(definitely|certainly|without (a )?doubt|the root cause (is
  * @returns The matched phrase of the first claiming sentence, or null when there is none.
  */
 export function findActionClaim(text: string): string | null {
+  const explicit = findAssistantActionClaim(text);
+  if (explicit) return explicit;
   for (const sentence of text.split(/(?<=[.!?])\s+|\n+/)) {
-    const match = sentence.match(ACTION_CLAIM) ?? sentence.match(DONE_CLAIM);
+    const match = sentence.match(DONE_CLAIM);
     if (match && !NOT_A_CLAIM.test(sentence)) return match[0];
   }
   return null;

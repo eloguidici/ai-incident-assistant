@@ -28,6 +28,8 @@ With `LLM_PROVIDER=openai` or `openrouter`, the incident leaves the process towa
 
 ## Audit and logs
 
+Observation-only `prompt_injection_signal` logs add closed `securityDetector`, `securityRule` and `securityInput` values with analysis/correlation identifiers. They contain no source excerpt, match position, hash or prompt, are not database audit rows, and follow the external console/log collector's retention (not the analysis purge). There is no collector or automatic alert configured by this change. See [coverage and limits](PROMPT_INJECTION.md).
+
 The audit trail answers who performed which action, on which id, with which result and correlation id. The technical log answers HTTP status, duration and error code. They are not the same record.
 
 ## PII

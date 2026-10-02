@@ -11,6 +11,7 @@ export const LogEvent = {
   Unhandled: 'unhandled',
   AppError: 'app_error',
   Request: 'request',
+  PromptInjectionSignal: 'prompt_injection_signal',
 } as const;
 
 export type LogEvent = (typeof LogEvent)[keyof typeof LogEvent];
