@@ -24,3 +24,5 @@ Infrastructure: [Terraform guide](../infra/terraform/README.md).
 ## Pending plan
 
 [Bilingual PII protection](security/PII_IMPLEMENTATION_PLAN.md): proposal, tasks and acceptance criteria; not implemented yet.
+
+[Full assessment review — 2026-10-02](requirements/ASSESSMENT_REVIEW_2026-10-02.md): evidence, limits and priorities; not delivery certification.
