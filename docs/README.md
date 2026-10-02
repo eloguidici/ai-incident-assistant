@@ -20,3 +20,7 @@ Infrastructure: [Terraform guide](../infra/terraform/README.md).
 ## Outside the deployment
 
 `docs/` is excluded from the runtime images. The frontend publishes only its build, and `npm run check:web-docs` verifies that these documents are not in it.
+
+## Pending plan
+
+[Bilingual PII protection](security/PII_IMPLEMENTATION_PLAN.md): proposal, tasks and acceptance criteria; not implemented yet.
