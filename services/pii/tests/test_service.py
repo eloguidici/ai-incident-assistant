@@ -15,10 +15,31 @@ from sanitizer import (
     Sanitizer, SanitizationError, Span, deterministic_spans, label_for, load_key,
     select_spans, PERSON_NER_LABEL,
     ContactsOnlyDetector, CONTACT_POLICY_VERSION, CONTACT_ENGINE_VERSION, person_layer_enabled,
+    model_thread_count,
 )
 
 KEY = b"synthetic-unit-key-not-production-0123456789"
 SCOPE = "synthetic-user/incident-1"
+
+
+@pytest.mark.parametrize('value,expected', [('1', 1), ('2', 2), ('4', 4)])
+def test_bounded_model_threads(value, expected):
+    """Accept only measured thread profiles without changing the detector policy."""
+    with patch.dict(os.environ, {'PII_TORCH_THREADS': value}):
+        assert model_thread_count() == expected
+
+
+@pytest.mark.parametrize('value', ['0', '3', '8', 'auto', '', '1.0'])
+def test_invalid_model_threads_fail_closed(value):
+    """Reject oversubscription/invalid settings without silently falling back."""
+    with patch.dict(os.environ, {'PII_TORCH_THREADS': value}), pytest.raises(SanitizationError):
+        model_thread_count()
+
+
+def test_model_threads_default_to_one():
+    """Keep conservative base behavior when the operator has no override."""
+    with patch.dict(os.environ, {}, clear=True):
+        assert model_thread_count() == 1
 
 
 class NoPersons:

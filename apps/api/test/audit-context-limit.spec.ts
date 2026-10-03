@@ -14,8 +14,8 @@ import { USER_REPOSITORY } from '../src/db/repositories/tokens';
 import type { UserRepository } from '../src/db/repositories/user.repository';
 import { resetMockState } from '../src/ai/mock.provider';
 
-const password = 'local-demo-password';
-const userA = 'analyst.a@example.test';
+const password = 'Demo1234$';
+const userA = 'demo1@demo.com';
 const shortIncident = 'HTTP 503 on payments for 12 minutes.';
 
 describe('N02 context budget (isolated config)', () => {

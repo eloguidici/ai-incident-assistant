@@ -53,7 +53,7 @@ test.describe('limits session @limits-session', () => {
     await page.getByRole('link', { name: 'History', exact: true }).click();
     await expect(page).toHaveURL(/\/login$/);
     await page.getByLabel('Email').fill(ANALYST_A);
-    await page.getByLabel('Password').fill('local-demo-password');
+    await page.getByLabel('Password').fill('Demo1234$');
     await page.getByRole('button', { name: 'Sign in' }).click();
     await expect(page.getByRole('heading', { name: 'History', exact: true })).toBeVisible();
     await page.goto(analysisUrl);
@@ -68,7 +68,7 @@ test.describe('limits session @limits-session', () => {
       await page.getByRole('button', { name: 'Sign in' }).click();
       await expect(page.getByTestId('login-error')).toContainText('Invalid credentials');
     }
-    await page.getByLabel('Password').fill('local-demo-password');
+    await page.getByLabel('Password').fill('Demo1234$');
     await page.getByRole('button', { name: 'Sign in' }).click();
     await expect(page.getByTestId('login-error')).toContainText('Too many sign-in attempts. Try again in');
     await expect(page).toHaveURL(/\/login$/);

@@ -23,7 +23,7 @@ Rules for generated tests:
 
 ## 2. Test data
 
-**Users** (seeded, synthetic): `analyst.a@example.test` and `analyst.b@example.test`, password `local-demo-password`.
+**Users** (seeded, synthetic): `demo1@demo.com` and `demo2@demo.com`, password `Demo1234$`.
 
 **Incident texts** (canonical copy in `qa/fixtures/incident-texts.ts`; synthetic narratives with postmortem-style timelines, impact, and ruled-out causes so browser tests can exercise evidence, missing information, and follow-up questions):
 
@@ -59,7 +59,7 @@ Rules for generated tests:
 
 | ID | Case | Steps | Expected |
 |---|---|---|---|
-| AUTH-01 | Valid sign-in | Open `/login`, fill analyst A and the password, click `Sign in` | URL `/history`; the Shell shows `analyst.a@example.test` and `Sign out` |
+| AUTH-01 | Valid sign-in | Open `/login`, fill analyst A and the password, click `Sign in` | URL `/history`; the Shell shows `demo1@demo.com` and `Sign out` |
 | AUTH-02 | Wrong password | Same with password `wrong-password` | `[data-testid=login-error]` contains `Invalid credentials.`; URL stays `/login` |
 | AUTH-03 | Empty fields | Clear email or password, click `Sign in` | Native `required` validation; no request is sent; no error banner |
 | AUTH-04 | Guarded routes | Without a session, open `/history`, `/new` and `/history/<any-uuid>` | Each redirects to `/login` |
@@ -68,6 +68,7 @@ Rules for generated tests:
 | AUTH-07 | Cookies | After sign-in, read the browser cookies | `ia_session` is HttpOnly and SameSite=Lax; `ia_csrf` is readable by the page |
 | AUTH-08 | Expired session | API with `JWT_TTL_SECONDS=60`; sign in, open an analysis, wait 62 s, click `History` | The cookies expire with the session (`Max-Age` equals the lifetime), so the next navigation lands on `/login`; signing in again works |
 | AUTH-09 | Sign-in lockout | API with `LOGIN_MAX_ATTEMPTS=3`; fail 3 times, try again with the right password | `login-error` contains `Too many sign-in attempts. Try again in … seconds.` |
+| AUTH-10 | Password visibility | Type a password; click or keyboard-activate the eye button twice | Starts masked; `Show password` reveals it and becomes `Hide password`; toggling back masks it. Value unchanged, no login request or navigation. New login mount starts empty and masked. |
 
 ## 5. New analysis
 

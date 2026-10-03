@@ -6,13 +6,13 @@ const incident =
 async function login(page: import('@playwright/test').Page, email: string) {
   await page.goto('/login');
   await page.getByLabel('Email').fill(email);
-  await page.getByLabel('Password').fill('local-demo-password');
+  await page.getByLabel('Password').fill('Demo1234$');
   await page.getByRole('button', { name: 'Sign in' }).click();
   await expect(page.getByRole('heading', { name: 'There are no analyses yet' }).or(page.getByRole('heading', { name: 'History' }))).toBeVisible();
 }
 
 test('walks through login, analysis, question, and history', async ({ page }) => {
-  await login(page, 'analyst.a@example.test');
+  await login(page, 'demo1@demo.com');
   await expect(page.getByTestId('empty-history')).toBeVisible();
   await page.getByRole('link', { name: 'Create the first one' }).click();
   await page.getByTestId('source-input').fill(incident);
@@ -33,11 +33,11 @@ test('walks through login, analysis, question, and history', async ({ page }) =>
 
 test('shows a login error and keeps the script as text', async ({ page }) => {
   await page.goto('/login');
-  await page.getByLabel('Email').fill('analyst.a@example.test');
+  await page.getByLabel('Email').fill('demo1@demo.com');
   await page.getByLabel('Password').fill('wrong-password');
   await page.getByRole('button', { name: 'Sign in' }).click();
   await expect(page.getByTestId('login-error')).toContainText('Invalid credentials');
-  await login(page, 'analyst.a@example.test');
+  await login(page, 'demo1@demo.com');
   await page.goto('/new');
   const source = `${incident} Embedded text: <script>alert(1)</script>.`;
   await page.getByTestId('source-input').fill(source);
@@ -51,7 +51,7 @@ test('shows a login error and keeps the script as text', async ({ page }) => {
 });
 
 test('another user cannot open the analysis by URL', async ({ browser, page }) => {
-  await login(page, 'analyst.a@example.test');
+  await login(page, 'demo1@demo.com');
   await page.goto('/new');
   await page.getByTestId('source-input').fill(`${incident} Visible only to A.`);
   await page.getByRole('button', { name: 'Analyze' }).click();
@@ -59,7 +59,7 @@ test('another user cannot open the analysis by URL', async ({ browser, page }) =
   const url = page.url();
   await page.getByRole('button', { name: 'Sign out' }).click();
   const other = await browser.newPage();
-  await login(other, 'analyst.b@example.test');
+  await login(other, 'demo2@demo.com');
   await other.goto(url);
   await expect(other.getByRole('alert')).toContainText('not found');
   await other.close();

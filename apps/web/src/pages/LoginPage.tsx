@@ -1,4 +1,5 @@
 import { FormEvent, useState } from 'react';
+import { Eye, EyeOff } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { api, ApiError } from '../api';
 
@@ -8,8 +9,9 @@ import { api, ApiError } from '../api';
  */
 export function LoginPage() {
   const navigate = useNavigate();
-  const [email, setEmail] = useState('analyst.a@example.test');
+  const [email, setEmail] = useState('demo1@demo.com');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
 
@@ -40,16 +42,30 @@ export function LoginPage() {
           Email
           <input type="email" autoComplete="username" value={email} onChange={(event) => setEmail(event.target.value)} required />
         </label>
-        <label>
-          Password
-          <input
-            type="password"
-            autoComplete="current-password"
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-            required
-          />
-        </label>
+        <div className="password-field">
+          <label htmlFor="login-password">Password</label>
+          <div className="password-input">
+            <input
+              id="login-password"
+              type={showPassword ? 'text' : 'password'}
+              autoComplete="current-password"
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              required
+            />
+            <button
+              className="password-toggle"
+              type="button"
+              aria-label={showPassword ? 'Hide password' : 'Show password'}
+              title={showPassword ? 'Hide password' : 'Show password'}
+              aria-controls="login-password"
+              aria-pressed={showPassword}
+              onClick={() => setShowPassword((visible) => !visible)}
+            >
+              {showPassword ? <EyeOff size={20} aria-hidden="true" /> : <Eye size={20} aria-hidden="true" />}
+            </button>
+          </div>
+        </div>
         {error ? (
           <p className="error" role="alert" data-testid="login-error">
             {error}

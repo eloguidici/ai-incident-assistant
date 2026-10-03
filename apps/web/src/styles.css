@@ -78,6 +78,26 @@ button, .session button {
 
 button:disabled { opacity: 0.6; cursor: wait; }
 
+.password-field { margin-bottom: 0.8rem; }
+.password-field > label { margin-bottom: 0.35rem; }
+.password-input { position: relative; }
+.password-input input { padding-right: 3.4rem; }
+.password-toggle {
+  position: absolute;
+  right: 0.25rem;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #57534e;
+}
+.password-toggle:hover { background: #f3efe6; }
+
 button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visible {
   outline: 3px solid #1f1a17;
   outline-offset: 2px;

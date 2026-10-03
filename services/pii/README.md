@@ -104,7 +104,7 @@ the file takes precedence and a bad file never falls back to the environment.
 Key size is 32..4096 bytes. Do not bake it into the image. Preserve the key for incident continuity;
 rotating it changes future labels and requires coordination with Nest's policy/history boundary.
 
-The image runs UID/GID 65532, one uvicorn worker, one Torch intra/inter-op thread, internal port 8000,
+The image runs UID/GID 65532, one uvicorn worker, one Torch inter-op thread, internal port 8000,
 no access logs, `HF_HUB_OFFLINE=1` and `TRANSFORMERS_OFFLINE=1`. Installed assets are root-owned;
 use `--read-only`, `--tmpfs /tmp:rw,noexec,nosuid,size=16m`, `--cap-drop ALL`,
 `--security-opt no-new-privileges` and an internal Docker network. PyTorch imports generate
@@ -114,6 +114,28 @@ The optional host-development overlay publishes loopback 18080 through an extra 
 it permits egress and is not the network-isolated normal QA/runtime topology.
 Provisional resources: 1 CPU / 4 GiB, to be replaced by measured results in the comparison report.
 No runtime cache writes/downloads are required.
+
+`PII_TORCH_THREADS` controls intra-op CPU parallelism: only 1,2,4 are accepted;
+the base default remains 1. Invalid settings fail model readiness, not coverage.
+Compose's `PII_CPUS` controls the CPU quota; align it with the chosen thread count.
+The real-demo script selects 4 threads/4 CPUs with 4 GiB and a 4000-character source cap.
+It keeps the exact FP32 assets, labels, threshold, windows and scoped replacement.
+Do not silently switch to contacts-only protection to reduce latency.
+
+The offline comparison in `qa/pii-comparison/performance.py` measured 67 synthetic
+cases with identical protected text and detected spans at 1/2/4 threads. Aggregate
+times were 119.1/72.6/45.5 seconds; peak RSS 2751 MiB. This is sampled equivalence and
+variable-host performance, not universal accuracy or a latency SLA. Earlier PII
+misses and false positives remain. `--long-only --threads 1 4` provides a shorter
+repeat and splits NER time from contact validation/masking/replacement overhead.
+Six actual runtime HTTP tests of 4000-character English/Spanish sources completed
+in 5.570-8.517 s. The actual Nest adapter measured 6.978 s for a Spanish source and
+0.276 s for four narrative output leaves. No provider calls were made. Earlier
+loaded-host cases exceeded 10 s, so this is not a universal completion guarantee.
+The real-demo adapter stops waiting at 9.5 s and fails closed; an in-flight model
+worker can still retain the single slot until it finishes. Eight threads were
+tested only offline and not selected: marginal benefit did not justify doubling
+the quota. Current CPU settings do not fix existing detection limitations.
 
 ## Verification
 

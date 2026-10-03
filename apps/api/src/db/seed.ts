@@ -3,7 +3,7 @@ import { assertDemoSeedAllowed } from '../config/env';
 import type { AuthConfig } from '../config/slices';
 import type { UserRepository } from './repositories/user.repository';
 
-export const DEMO_EMAILS = ['analyst.a@example.test', 'analyst.b@example.test'] as const;
+export const DEMO_EMAILS = ['demo1@demo.com', 'demo2@demo.com'] as const;
 
 /**
  * Inserts the two local demo analysts when they are missing.

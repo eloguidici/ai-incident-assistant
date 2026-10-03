@@ -104,7 +104,7 @@ describe('pure rules', () => {
       status: 200,
       apiKey: 'sk-secret',
       sourceText: 'TOKEN-PII-998877',
-      password: 'local-demo-password',
+      password: 'Demo1234$',
       authorization: 'Bearer abc',
     });
     expect(redactedLog).toEqual({ msg: 'request', status: 200 });

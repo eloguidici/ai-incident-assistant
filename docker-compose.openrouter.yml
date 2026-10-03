@@ -8,9 +8,9 @@ services:
       LLM_PROVIDER: openrouter
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
       OPENROUTER_MODEL: ${OPENROUTER_MODEL:-openai/gpt-4o-mini}
-      LLM_DEADLINE_MS: "45000"
+      LLM_DEADLINE_MS: ${LLM_DEADLINE_MS:-45000}
       LLM_ATTEMPT_TIMEOUT_MS: "20000"
   web:
     environment:
-      # Allow the API's 45 s deadline plus time to return a controlled JSON error.
-      API_PROXY_READ_TIMEOUT: "60s"
+      # Keep the proxy above the configured API deadline to return controlled errors.
+      API_PROXY_READ_TIMEOUT: ${API_PROXY_READ_TIMEOUT:-60s}

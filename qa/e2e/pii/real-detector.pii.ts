@@ -218,7 +218,7 @@ test.describe('T22 real PII detector through Compose HTTP and browser', () => {
     try {
       const other = await otherContext.newPage();
       const checkResponsesB = observeContentResponses(other, sentinels);
-      await login(other, 'analyst.b@example.test');
+      await login(other, 'demo2@demo.com');
       const third = await createAnalysis(other, source, sentinels);
       const thirdLabels = readLabels(third.sourceText, 2);
       expect(third.sourceText).toBe(expectedProtectedText(source, contact, thirdLabels));

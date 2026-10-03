@@ -174,7 +174,7 @@ async function run() {
       warn(fields);
     };
     const agent = request.agent(app.getHttpServer());
-    const login = await agent.post('/api/auth/login').send({ email: 'analyst.a@example.test', password: 'local-demo-password' });
+    const login = await agent.post('/api/auth/login').send({ email: 'demo1@demo.com', password: 'Demo1234$' });
     assert.equal(login.status, 201, 'Existing synthetic test user must be available; no reset or reseed.');
     const csrf = login.body.csrfToken;
     for (const scenario of cases) {

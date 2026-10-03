@@ -6,8 +6,8 @@ services:
       LLM_PROVIDER: openai
       OPENAI_API_KEY: ${OPENAI_API_KEY:?Set OPENAI_API_KEY in your private .env}
       OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
-      LLM_DEADLINE_MS: "45000"
+      LLM_DEADLINE_MS: ${LLM_DEADLINE_MS:-45000}
       LLM_ATTEMPT_TIMEOUT_MS: "20000"
   web:
     environment:
-      API_PROXY_READ_TIMEOUT: "60s"
+      API_PROXY_READ_TIMEOUT: ${API_PROXY_READ_TIMEOUT:-60s}

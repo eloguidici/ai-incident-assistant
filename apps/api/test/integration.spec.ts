@@ -22,9 +22,9 @@ import { AnalysesService } from '../src/analyses/analyses.service';
 import { AnalysisCommandShared } from '../src/analyses/analysis-command.shared';
 import { resetMockState } from '../src/ai/mock.provider';
 
-const password = 'local-demo-password';
-const userA = 'analyst.a@example.test';
-const userB = 'analyst.b@example.test';
+const password = 'Demo1234$';
+const userA = 'demo1@demo.com';
+const userB = 'demo2@demo.com';
 const incident =
   'On 2026-09-29 at 10:15 UTC the payments service returned HTTP 503 for 12 minutes. The load balancer showed unhealthy tasks. There was no deployment in that window.';
 

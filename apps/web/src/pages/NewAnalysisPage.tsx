@@ -1,6 +1,7 @@
 import { FormEvent, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { api, ApiError, type AnalysisDetail } from '../api';
+import { ApiErrorCode } from '../constants';
 
 import { useContentLimits } from '../hooks/useContentLimits';
 
@@ -12,6 +13,7 @@ export function NewAnalysisPage() {
   const navigate = useNavigate();
   const [sourceText, setSourceText] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [invalidOutput, setInvalidOutput] = useState(false);
   const [pending, setPending] = useState(false);
   const { limits, error: limitsError } = useContentLimits();
   const tooLong = Boolean(limits && sourceText.trim().length > limits.sourceTextMax);
@@ -25,6 +27,7 @@ export function NewAnalysisPage() {
     if (!limits || tooLong || pending) return;
     setPending(true);
     setError(null);
+    setInvalidOutput(false);
     try {
       const createdAnalysis = await api<AnalysisDetail>('/api/analyses', {
         method: 'POST',
@@ -33,6 +36,7 @@ export function NewAnalysisPage() {
       navigate(`/history/${createdAnalysis.id}`);
     } catch (failure) {
       setError(failure instanceof ApiError ? failure.message : 'The incident could not be analyzed.');
+      setInvalidOutput(failure instanceof ApiError && failure.code === ApiErrorCode.InvalidOutput);
     } finally {
       setPending(false);
     }
@@ -70,6 +74,7 @@ export function NewAnalysisPage() {
             {error}
           </p>
         ) : null}
+        {invalidOutput ? <p><Link to="/history">View failed attempts</Link></p> : null}
         {pending ? <p className="status" role="status">{limits?.contentProtectionEnabled
           ? limits.personProtectionEnabled ? 'Protecting detected personal data and analyzing...'
             : 'Protecting detected emails and phones and analyzing...'

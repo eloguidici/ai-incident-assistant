@@ -83,7 +83,7 @@ React colors the literal token by entity type in source, history, chat, results 
 | `PII_ENABLED` | Defaults to `true`; explicit `false` is unprotected mode, never automatic failure recovery |
 | `PII_PERSON_ENABLED` | Defaults to `true`; explicit `false` skips the name model and protects email/phone only under `pii-contacts-v1` |
 | `PII_SERVICE_URL` | Host setup: `http://127.0.0.1:18080` in the example; Compose: `http://pii:8000`; ECS proposal: same-task `http://127.0.0.1:8000` |
-| `PII_TIMEOUT_MS` | 10,000 ms per internal HTTP request by default and at most; not a measured endpoint SLA |
+| `PII_TIMEOUT_MS` | 10,000 ms per internal HTTP request by default; configurable up to 60,000 ms, not a measured endpoint SLA |
 | `SOURCE_TEXT_MAX` / `QUESTION_MAX` | 1,000 / 500 trimmed characters by default; effective API settings also drive React |
 | `PII_HMAC_KEY_PATH` | Compose secret file; default `.local/pii-hmac.key` |
 | `npm run pii:init-key` | Creates the key once with requested mode 0600; does not overwrite an existing key |
@@ -95,6 +95,19 @@ The authenticated `GET /api/analyses/limits` returns `sourceTextMax`, `questionM
 The page declares full coverage, contacts-only coverage (names are not protected), or disabled protection. Pending text combines protection and analysis/answer preparation; it does not invent independent completion stages. Operators change layers explicitly. No automatic downgrade occurs on a slow or failed request. Both enabled modes use distinct stored policy markers and reject cross-policy historical records. Standard Compose still provisions a healthy PII service even when API protection is disabled.
 
 The controller's overall default 20 s request deadline also covers protection through its abort signal. The 10 s service timeout is per HTTP request, not a guaranteed extension. General tests with short 2.5 s deadlines explicitly bypass PII; they do not measure the actual protected flow.
+
+The real-demo startup script now explicitly selects 4,000/500 characters, a 9.5 s
+internal protection timeout, 45 s overall API deadline and 60 s proxy wait. These
+demo overrides do not change the conservative API/Compose/Terraform defaults or
+turn a configured wait into a latency guarantee. Larger local sources require
+measured CPU/resource checks. Model/threshold/coverage remain unchanged.
+The demo also selects 4 Torch intra-op threads with a matching 4 CPU quota. Base
+Compose remains 1 thread/1 CPU; Terraform is unchanged and was not runtime-tested
+at the demo resource profile. Sampled protected outputs/spans matched across 67
+cases at 1/2/4 threads. Known privacy limitations are neither fixed nor reapproved.
+Under CPU saturation the target can fail; the adapter stops waiting after 9.5 s
+and rejects rather than returning raw/partial content. This target concerns each
+protection HTTP call, not total analysis latency or guaranteed inference completion.
 
 Preliminary CPU measurements showed the former 8,000-character source cap and sequential narrative batches could exceed request budgets. The 1,000/500 defaults are a conditional starting envelope, not a latency guarantee. Batching and new NER context labels require final retesting of inputs, multi-leaf outputs, quality and resources before approval. Raising limits also requires checking protected-text expansion, context/service bounds and the 32 KB HTTP body.
 

@@ -157,6 +157,14 @@ def person_layer_enabled() -> bool:
     return value == "true"
 
 
+def model_thread_count() -> int:
+    """Read bounded CPU parallelism; reject invalid values instead of changing coverage."""
+    value = os.environ.get("PII_TORCH_THREADS", "1").strip()
+    if value not in ("1", "2", "4"):
+        raise SanitizationError("Invalid PII CPU configuration.")
+    return int(value)
+
+
 class GlinerPersonDetector:
     """One CPU model; token-aware overlapping windows prevent silent truncation."""
 
@@ -171,7 +179,7 @@ class GlinerPersonDetector:
             manifest = json.loads((Path(model_path) / "manifest.json").read_text())
             if manifest["revision"] != "443d26d654e0324125a96bebd8e796c14ff2efe6":
                 raise ValueError
-            torch.set_num_threads(1)
+            torch.set_num_threads(model_thread_count())
             torch.set_num_interop_threads(1)
             self.model = GLiNER.from_pretrained(model_path, local_files_only=True, load_tokenizer=True, map_location="cpu")
             self.model.eval()

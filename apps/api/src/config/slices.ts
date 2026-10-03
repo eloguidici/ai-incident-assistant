@@ -56,7 +56,7 @@ export const piiConfig = defineConfigSlice<PiiConfig>({
     PII_ENABLED: Joi.boolean().default(true),
     PII_PERSON_ENABLED: Joi.boolean().default(true),
     PII_SERVICE_URL: Joi.string().uri({ scheme: ['http', 'https'] }).default('http://127.0.0.1:8000'),
-    PII_TIMEOUT_MS: Joi.number().integer().min(100).max(10000).default(10000),
+    PII_TIMEOUT_MS: Joi.number().integer().min(100).max(60000).default(10000),
   }),
   map: (env) => ({ enabled: env.PII_ENABLED as boolean, personEnabled: env.PII_PERSON_ENABLED as boolean,
     url: (env.PII_SERVICE_URL as string).replace(/\/$/, ''), timeoutMs: env.PII_TIMEOUT_MS as number }),
@@ -106,7 +106,7 @@ export const authConfig = defineConfigSlice<AuthConfig>({
     COOKIE_SECURE: flag,
     SEED_DEMO: flag,
     ALLOW_SEED_DEMO: flag,
-    SEED_PASSWORD: Joi.string().min(8).default('local-demo-password'),
+    SEED_PASSWORD: Joi.string().min(8).default('Demo1234$'),
     LOGIN_MAX_ATTEMPTS: Joi.number().integer().min(1).max(100).default(10),
   }),
   map: (env) => ({

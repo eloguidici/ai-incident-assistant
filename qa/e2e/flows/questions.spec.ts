@@ -60,7 +60,7 @@ test('ASK-06 failed question keeps completed analysis and a clean retry works', 
   await page.getByTestId('question-input').fill('Why? [MOCK:invalid-json]');
   await page.getByRole('button', { name: 'Ask' }).click();
   await expect(page.getByTestId('action-error')).toContainText(
-    'The model output did not match the contract and is not shown as a result.',
+    'The model response could not be validated. Model output is not JSON. No result was accepted.',
   );
   await expect(page.getByTestId('message-failed').last()).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Analysis completed' })).toBeVisible();

@@ -14,7 +14,7 @@ services:
       RATE_LIMIT_QUESTIONS_PER_HOUR: "500"
       SEED_DEMO: "true"
       ALLOW_SEED_DEMO: "true"
-      SEED_PASSWORD: local-demo-password
+      SEED_PASSWORD: "Demo1234$$"
       COOKIE_SECURE: "false"
   pii:
     environment:

@@ -5,6 +5,18 @@ import { OutputValidationError } from '../ai/validate';
 import { ErrorCode } from '../common/constants/error-code';
 import { AppError } from '../common/http';
 
+const PUBLIC_VALIDATION_REASONS = new Set([
+  'Model output is not JSON.',
+  'The output does not match the analysis schema.',
+  'The output does not match the question schema.',
+  'A quote does not appear in the incident.',
+  'The output includes a URL that is not in the incident.',
+  'The assistant cannot claim to have performed external actions.',
+  'Without quotes, the output must state uncertainty and missing information.',
+  'The output includes a malformed privacy label.',
+  'The output includes an unknown privacy label.',
+]);
+
 /**
  * Maps orchestration failures to a public {@link AppError}, preserving provider attempt counts when present.
  * @param error Failure from the gateway, validation, or persistence layer.
@@ -21,10 +33,11 @@ export function toOrchestrationAppError(error: unknown, analysisId: string, outc
     return providerFailure(error, analysisId);
   }
   if (error instanceof OutputValidationError) {
+    const reason = PUBLIC_VALIDATION_REASONS.has(error.message) ? ` ${error.message}` : '';
     return new AppError(
       ErrorCode.InvalidOutput,
       422,
-      'The model output did not match the contract and is not shown as a result.',
+      `The model response could not be validated.${reason} No result was accepted.`,
       analysisId,
     );
   }

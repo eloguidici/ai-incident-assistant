@@ -5,6 +5,7 @@ services:
     environment:
       PII_HMAC_KEY_FILE: /run/secrets/pii_hmac_key
       PII_PERSON_ENABLED: ${PII_PERSON_ENABLED:-true}
+      PII_TORCH_THREADS: ${PII_TORCH_THREADS:-1}
       HF_HUB_OFFLINE: "1"
       TRANSFORMERS_OFFLINE: "1"
     secrets:
@@ -15,7 +16,7 @@ services:
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]
     mem_limit: 4g
-    cpus: 1
+    cpus: ${PII_CPUS:-1}
     networks: [pii_internal]
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3)"]
@@ -59,7 +60,8 @@ services:
       QUESTION_MAX: ${QUESTION_MAX:-500}
       SEED_DEMO: "true"
       ALLOW_SEED_DEMO: "true"
-      SEED_PASSWORD: local-demo-password
+      # Compose escapes $$ to preserve the literal dollar in this synthetic password.
+      SEED_PASSWORD: "Demo1234$$"
       COOKIE_SECURE: "false"
       TRUST_PROXY: "true"
       PORT: "3000"

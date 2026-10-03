@@ -1,10 +1,10 @@
 import { expect, type APIRequestContext, type Page } from '@playwright/test';
 export { INC_HTML, INC_INJECTION, INC_OK, INC_SHORT } from '../../fixtures/incident-texts';
 
-export const PASSWORD = 'local-demo-password';
+export const PASSWORD = 'Demo1234$';
 
-export const ANALYST_A = 'analyst.a@example.test';
-export const ANALYST_B = 'analyst.b@example.test';
+export const ANALYST_A = 'demo1@demo.com';
+export const ANALYST_B = 'demo2@demo.com';
 
 /** Appends a run-unique suffix so mock fault counters and history rows do not collide. */
 export function uniqueIncident(base: string): string {

@@ -17,10 +17,10 @@ const entityStyles = {
  * @returns Resolves when authenticated history is displayed.
  * @throws Assertion failure if login or history loading fails.
  */
-export async function login(page: Page, email = 'analyst.a@example.test'): Promise<void> {
+export async function login(page: Page, email = 'demo1@demo.com'): Promise<void> {
   await page.goto('/login');
   await page.getByLabel('Email').fill(email);
-  await page.getByLabel('Password').fill('local-demo-password');
+  await page.getByLabel('Password').fill('Demo1234$');
   await page.getByRole('button', { name: 'Sign in', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'History', exact: true })
     .or(page.getByRole('heading', { name: 'There are no analyses yet' }))).toBeVisible();

@@ -23,7 +23,7 @@ are outside evaluated scope, not declared impossible because execution is local.
 Final validation, 2026-10-03: both real providers and one correction iteration executed;
 **semantic quality FAIL**, while the manual workflow operates. [Results/remaining work](docs/qa/ASSESSMENT_CLOSURE.md).
 [Manual OpenAI testing](docs/qa/MANUAL_ACCEPTANCE.md): synthetic data, full protection
-and 1,000/500 limits. Accepted output is not a verified root cause.
+and 4,000/500 limits. Accepted output is not a verified root cause.
 
 | Assessment section | Where it is answered |
 |---|---|
@@ -219,7 +219,14 @@ For host Node, set `PII_ENABLED=true`, `PII_SERVICE_URL=http://127.0.0.1:18080`,
 
 Change `SOURCE_TEXT_MAX` and/or `QUESTION_MAX` in the API environment, then restart host Node or recreate the Compose API and reload the browser page. No frontend build is needed. Review existing local settings explicitly: an older `.env` can still supply 8,000/1,000 and override the new Compose defaults. This documentation does not modify it. The previous 8,000-character source cap is historical, not a current CPU-latency guarantee. Larger settings require real source/output-batch QA within service and overall deadlines.
 
-Local demo users are `analyst.a@example.test` and `analyst.b@example.test`, password `local-demo-password`. These are synthetic local credentials; production demo seeding is disabled.
+Local demo users are `demo1@demo.com` and `demo2@demo.com`, password `Demo1234$`. These are synthetic local credentials; production demo seeding is disabled.
+
+A new installation with `SEED_DEMO=true` automatically creates both accounts with
+empty history. Login suggests `demo1@demo.com`. Restarting does not duplicate
+accounts or overwrite passwords; the seed only adds missing accounts. Deleting
+previous installation data requires an explicit decision, never normal startup.
+Compose uses `$$` to preserve the literal `$` in the demo password; the Node/`.env`
+password is `Demo1234$`.
 
 For a real model, set `LLM_PROVIDER=openrouter` with `OPENROUTER_API_KEY`, or `LLM_PROVIDER=openai` with `OPENAI_API_KEY`. Optional model overrides are `OPENROUTER_MODEL` and `OPENAI_MODEL`. Never commit `.env` or keys. On Windows, see the [runbook](docs/operations/RUNBOOK.md) for TLS troubleshooting; do not disable certificate verification.
 
@@ -236,7 +243,34 @@ Compose reads `JWT_SECRET` from `.env` and stops with an error if it is missing;
 
 The web image serves React at http://localhost:8080 and proxies `/api/` to the API. It renders its nginx template using `API_UPSTREAM`, defaulting to `api:3000` in Compose, and `API_PROXY_READ_TIMEOUT`, defaulting to `30s`. The OpenRouter overlay sets a 45 s API deadline, 20 s attempts and a 60 s proxy timeout, leaving time for the API to return a controlled error. Rebuild the image after template changes and recreate the web container after environment changes.
 
-Compose keeps PII on an internal network at `http://pii:8000`, with a secret mount, read-only root, dropped capabilities and provisional 4 GiB / 1 CPU. Model/key readiness precedes API startup. The controller's overall deadline includes protection overhead; 10 s is the default and maximum internal request timeout, not an extra guaranteed allowance.
+Compose keeps PII on an internal network at `http://pii:8000`, with a secret mount, read-only root, dropped capabilities and provisional 4 GiB / 1 CPU. Model/key readiness precedes API startup. The controller's overall deadline includes protection overhead; 10 s is the default internal request timeout (configurable up to 60 s), not an extra guaranteed allowance.
+
+The real-demo script selects 4,000/500 characters, four CPU threads/four CPU quota,
+a 9.5 s protection timeout,
+a 45 s overall API deadline and a 60 s proxy read timeout. Override input limits
+with `-SourceTextMax 5000 -QuestionMax 500`; larger inputs are not latency-certified.
+It preserves private `.env` settings and restores its process environment after
+startup. The conservative base API/Compose defaults remain 1,000/500 and 10 s.
+Before CPU tuning, one synthetic 4,000-character local protection request took 19.2 s;
+earlier attempts timed out. This is not a p95 or an end-to-end model benchmark.
+Protection never falls back to raw text or contacts-only mode on timeout.
+Use `-PiiThreads 1` or `-PiiThreads 2` for a smaller resource allocation. The
+unchanged FP32 detector produced identical protected text/spans in 67 sampled cases
+at 1/2/4 threads; aggregate times were 119.1/72.6/45.5 s on a variable-load host.
+Known detection limits remain; the larger CPU allocation is not a new privacy
+guarantee. See the [service runtime notes](services/pii/README.md).
+The protection target is under 10 seconds per internal request, not total analysis
+time. CPU saturation can still cause rejection: the 9.5 s adapter deadline fails
+closed with `PII_UNAVAILABLE`, never an incomplete successful result. The worker
+may continue finishing its in-flight task and retaining its single slot after
+the client times out. No universal latency guarantee or new detector approval.
+
+For diagnosis, request logs record total HTTP `latencyMs` and a `correlationId`;
+execution rows record gateway `latencyMs` (provider attempts and retry waits).
+These are different measurements. Per-stage protection/validation/database timings
+are not currently instrumented. `INVALID_OUTPUT` now exposes only a fixed safe
+validation reason, not the provider's raw response. Older failed rows keep their
+generic message; their specific original rejection reason cannot be recovered.
 
 ## Verification
 

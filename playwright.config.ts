@@ -11,7 +11,7 @@ const apiEnv = {
   QUESTION_MAX: '1000',
   SEED_DEMO: 'true',
   ALLOW_SEED_DEMO: 'true',
-  SEED_PASSWORD: 'local-demo-password',
+  SEED_PASSWORD: 'Demo1234$',
   COOKIE_SECURE: 'false',
   E2E_RESET: 'true',
   FAULT_INJECTION: 'false',

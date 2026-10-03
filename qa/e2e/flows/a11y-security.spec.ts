@@ -50,7 +50,7 @@ test('A11Y-01 keyboard navigation reaches sign-in analyze ask and sign-out', asy
   await page.keyboard.press('ControlOrMeta+a');
   await page.keyboard.type(ANALYST_A);
   await tabTo(page, page.getByLabel('Password'));
-  await page.keyboard.type('local-demo-password');
+  await page.keyboard.type('Demo1234$');
   await tabTo(page, page.getByRole('button', { name: 'Sign in' }));
   await page.keyboard.press('Enter');
   await expect(page.getByRole('heading', { name: 'History', exact: true }).or(page.getByTestId('empty-history'))).toBeVisible();

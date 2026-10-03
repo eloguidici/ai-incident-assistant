@@ -5,7 +5,7 @@ export class UserDto {
   @ApiProperty({ format: 'uuid' })
   id!: string;
 
-  @ApiProperty({ example: 'analyst.a@example.test' })
+  @ApiProperty({ example: 'demo1@demo.com' })
   email!: string;
 }
 

@@ -80,14 +80,20 @@ test('NEW-09 timeout shows deadline error on the form', async ({ page }) => {
 });
 
 test('NEW-10 invalid model output shows contract error for ungrounded schema and invalid-json tags', async ({ page }) => {
-  for (const tag of ['[MOCK:ungrounded]', '[MOCK:schema]', '[MOCK:invalid-json]']) {
+  for (const [tag, reason] of [
+    ['[MOCK:ungrounded]', 'A quote does not appear in the incident.'],
+    ['[MOCK:schema]', 'The output does not match the analysis schema.'],
+    ['[MOCK:invalid-json]', 'Model output is not JSON.'],
+  ]) {
     const text = uniqueIncident(`${INC_OK} ${tag}`);
     await page.goto('/new');
     await page.getByTestId('source-input').fill(text);
     await page.getByRole('button', { name: 'Analyze' }).click();
     await expect(page.getByTestId('form-error')).toContainText(
-      'The model output did not match the contract and is not shown as a result.',
+      `The model response could not be validated. ${reason} No result was accepted.`,
     );
+    await expect(page.getByRole('link', { name: 'View failed attempts' })).toHaveAttribute('href', '/history');
+    await expect(page.getByTestId('source-input')).toHaveValue(text);
     await expect(page.getByTestId('analysis-result')).toHaveCount(0);
   }
 });

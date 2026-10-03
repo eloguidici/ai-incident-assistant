@@ -123,8 +123,8 @@ describe('T22 protected API + PostgreSQL + synthetic HTTP detector (not detector
     await truncateDomain(dataSource);
     await seedDemoUsers(app.get<UserRepository>(USER_REPOSITORY), config.get(authConfig), config.get(databaseConfig).url);
     repository = app.get<AnalysisRepository>(ANALYSIS_REPOSITORY);
-    a = await login('analyst.a@example.test');
-    b = await login('analyst.b@example.test');
+    a = await login('demo1@demo.com');
+    b = await login('demo2@demo.com');
   });
   beforeEach(() => {
     mode = 'ok';
@@ -174,7 +174,7 @@ describe('T22 protected API + PostgreSQL + synthetic HTTP detector (not detector
   /** @param email Account fixture, intentionally outside content sanitation. @returns Authenticated session. @throws Assertion failure on login rejection. */
   async function login(email: string): Promise<Session> {
     const agent = request.agent(app.getHttpServer());
-    const response = await agent.post('/api/auth/login').send({ email, password: 'local-demo-password' });
+    const response = await agent.post('/api/auth/login').send({ email, password: 'Demo1234$' });
     expect(response.status).toBe(201);
     return { agent, csrf: response.body.csrfToken as string, ownerId: response.body.user.id as string };
   }
@@ -227,7 +227,7 @@ describe('T22 protected API + PostgreSQL + synthetic HTTP detector (not detector
     const rows = await dataSource.query('select pii_policy_version, source_text from analyses where id = $1', [analysisId]);
     expect(rows).toEqual([{ pii_policy_version: PII_POLICY_VERSION, source_text: response.body.sourceText }]);
     for (const evidence of response.body.result.evidence) expect(response.body.sourceText).toContain(evidence.quote);
-    expect((await a.agent.get('/api/auth/session')).body.user.email).toBe('analyst.a@example.test');
+    expect((await a.agent.get('/api/auth/session')).body.user.email).toBe('demo1@demo.com');
   });
 
   it('sanitizes questions, known output PII and stored history before the next actual provider input', async () => {

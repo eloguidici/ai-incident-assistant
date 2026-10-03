@@ -2,6 +2,7 @@
 export const ApiErrorCode = {
   HttpError: 'HTTP_ERROR',
   InvalidCredentials: 'INVALID_CREDENTIALS',
+  InvalidOutput: 'INVALID_OUTPUT',
   SessionExpired: 'SESSION_EXPIRED',
 } as const;
 

@@ -26,6 +26,7 @@ describe('NewAnalysisPage', () => {
     apiMock.mockReset();
     configuration.contentProtectionEnabled = true;
     configuration.personProtectionEnabled = true;
+    configuration.sourceTextMax = 8000;
   });
 
   it.each([
@@ -85,5 +86,31 @@ describe('NewAnalysisPage', () => {
     await screen.findByTestId('form-error');
     expect(screen.getByTestId('source-input')).toHaveValue(draft);
     expect(screen.getByTestId('form-error')).toHaveTextContent('The text is too short.');
+  });
+
+  it('preserves rejected output drafts and offers the failed-attempt history', async () => {
+    apiMock.mockRejectedValue(new ApiError('INVALID_OUTPUT', 'The model response could not be validated. No result was accepted.', 422));
+    const user = userEvent.setup();
+    render(<MemoryRouter><NewAnalysisPage /></MemoryRouter>);
+    await user.type(screen.getByTestId('source-input'), 'Synthetic incident details.');
+    await user.click(screen.getByRole('button', { name: 'Analyze' }));
+    expect(await screen.findByRole('link', { name: 'View failed attempts' })).toHaveAttribute('href', '/history');
+    expect(screen.getByTestId('source-input')).toHaveValue('Synthetic incident details.');
+    expect(navigate).not.toHaveBeenCalled();
+  });
+
+  it('uses the runtime limit without truncating an over-limit draft', async () => {
+    configuration.sourceTextMax = 4000;
+    const user = userEvent.setup();
+    render(<MemoryRouter><NewAnalysisPage /></MemoryRouter>);
+    const input = screen.getByTestId('source-input');
+    await user.click(input);
+    await user.paste('x'.repeat(4000));
+    expect(screen.getByRole('button', { name: 'Analyze' })).toBeEnabled();
+    expect(screen.getByText('4000/4000')).toBeVisible();
+    await user.type(input, 'x');
+    expect(input).toHaveValue('x'.repeat(4001));
+    expect(screen.getByRole('button', { name: 'Analyze' })).toBeDisabled();
+    expect(apiMock).not.toHaveBeenCalled();
   });
 });

@@ -1,6 +1,10 @@
 param(
   [ValidateSet('openai', 'openrouter')][string]$Provider = 'openai',
-  [string]$Model = ''
+  [string]$Model = '',
+  [ValidateRange(20, 5000)][int]$SourceTextMax = 4000,
+  [ValidateRange(1, 5000)][int]$QuestionMax = 500,
+  [ValidateRange(100, 60000)][int]$PiiTimeoutMs = 9500,
+  [ValidateSet(1, 2, 4)][int]$PiiThreads = 4
 )
 
 $ErrorActionPreference = 'Stop'
@@ -10,14 +14,21 @@ try {
   if (-not (Test-Path -LiteralPath '.env')) { throw 'Configure a private .env before starting the demo.' }
   if (-not $Model) { $Model = if ($Provider -eq 'openrouter') { 'openai/gpt-4.1-mini' } else { 'gpt-4o-mini' } }
   $modelVariable = if ($Provider -eq 'openrouter') { 'OPENROUTER_MODEL' } else { 'OPENAI_MODEL' }
-  $names = @($modelVariable, 'PII_ENABLED', 'PII_PERSON_ENABLED', 'SOURCE_TEXT_MAX', 'QUESTION_MAX')
+  $names = @($modelVariable, 'PII_ENABLED', 'PII_PERSON_ENABLED', 'SOURCE_TEXT_MAX', 'QUESTION_MAX',
+    'PII_TIMEOUT_MS', 'LLM_DEADLINE_MS', 'API_PROXY_READ_TIMEOUT', 'PII_TORCH_THREADS', 'PII_CPUS')
   $saved = @{}
   foreach ($name in $names) { $saved[$name] = [Environment]::GetEnvironmentVariable($name, 'Process') }
   [Environment]::SetEnvironmentVariable($modelVariable, $Model, 'Process')
   $env:PII_ENABLED = 'true'
   $env:PII_PERSON_ENABLED = 'true'
-  $env:SOURCE_TEXT_MAX = '1000'
-  $env:QUESTION_MAX = '500'
+  $env:SOURCE_TEXT_MAX = [string]$SourceTextMax
+  $env:QUESTION_MAX = [string]$QuestionMax
+  $env:PII_TIMEOUT_MS = [string]$PiiTimeoutMs
+  $env:PII_TORCH_THREADS = [string]$PiiThreads
+  $env:PII_CPUS = [string]$PiiThreads
+  # Reserve headroom for a controlled failure before the 10-second protection target.
+  $env:LLM_DEADLINE_MS = '45000'
+  $env:API_PROXY_READ_TIMEOUT = '60s'
   npm run pii:init-key
   if ($LASTEXITCODE -ne 0) { throw 'HMAC initialization failed.' }
   $compose = @('compose', '-f', 'docker-compose.yml')
@@ -26,6 +37,8 @@ try {
   & docker @compose up --build -d --wait --wait-timeout 180
   if ($LASTEXITCODE -ne 0) { throw 'Demo startup failed; inspect service health without printing secrets.' }
   Write-Host "Real-provider demo: http://localhost:8080 ($Provider / $Model). Synthetic input only; each submission may be charged."
+  Write-Host "Input limits: $SourceTextMax/$QuestionMax characters. Protection timeout: ${PiiTimeoutMs}ms; request deadline: 45000ms."
+  Write-Host "Local name protection: $PiiThreads CPU threads / $PiiThreads CPU quota; same FP32 model and detection policy."
 } finally {
   if ($saved) { foreach ($name in $names) { [Environment]::SetEnvironmentVariable($name, $saved[$name], 'Process') } }
   Pop-Location
