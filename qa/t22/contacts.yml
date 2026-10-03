@@ -1,0 +1,7 @@
+services:
+  api:
+    environment:
+      PII_PERSON_ENABLED: "false"
+  pii:
+    environment:
+      PII_PERSON_ENABLED: "false"

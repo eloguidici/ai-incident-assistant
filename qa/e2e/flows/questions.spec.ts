@@ -46,12 +46,12 @@ test('ASK-04 Ask stays disabled for empty or whitespace question', async ({ page
 
 test('ASK-05 long question shows length validation error', async ({ page }) => {
   await openCompletedAnalysis(page);
-  const longQuestion = 'q'.repeat(1001);
+  const { questionMax } = await (await page.request.get('/api/analyses/limits')).json() as { questionMax: number };
+  const longQuestion = 'q'.repeat(questionMax + 1);
   await page.getByTestId('question-input').fill(longQuestion);
-  await page.getByRole('button', { name: 'Ask' }).click();
-  await expect(page.getByTestId('action-error')).toContainText(
-    'The question exceeds the maximum length. Maximum: 1000 characters.',
-  );
+  await expect(page.getByRole('button', { name: 'Ask' })).toBeDisabled();
+  await expect(page.getByRole('alert')).toContainText('The question exceeds the maximum length.');
+  expect(await page.getByTestId('question-input').inputValue()).toBe(longQuestion);
   await expect(page.getByTestId('message-completed')).toHaveCount(0);
 });
 

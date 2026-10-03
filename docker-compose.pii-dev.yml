@@ -1,0 +1,10 @@
+# Optional loopback-only access for host Node development and real integration QA.
+services:
+  pii:
+    # Host publication requires a non-internal attachment on Docker Desktop.
+    # This optional development profile is not the normal network-isolated topology.
+    networks:
+      - pii_internal
+      - default
+    ports:
+      - "127.0.0.1:18080:8000"

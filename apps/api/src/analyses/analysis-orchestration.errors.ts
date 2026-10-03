@@ -12,7 +12,9 @@ import { AppError } from '../common/http';
  * @param outcome Provider metrics when the model returned before the failure.
  */
 export function toOrchestrationAppError(error: unknown, analysisId: string, outcome?: LlmOutcome): AppError {
-  if (error instanceof AppError) return error;
+  if (error instanceof AppError) return error.analysisId ? error : new AppError(
+    error.errorCode, error.status, error.message, analysisId, error.retryAfterSeconds,
+  );
   if (error instanceof ProviderRequestError) {
     const attempts = outcome?.attempts ?? error.attempts;
     if (attempts !== error.attempts) error.attempts = attempts;

@@ -9,8 +9,8 @@ import { SessionCookieName } from '../common/constants/http';
 import { Pagination } from '../common/constants/pagination';
 import { AppError } from '../common/http';
 import { InjectConfig } from '../config';
-import { llmConfig, type LlmConfig } from '../config/slices';
-import { ApiErrorResponseDto, AnalysisDetailResponseDto, CreateAnalysisRequestDto, ListAnalysesResponseDto, QuestionRequestDto } from '../openapi/dtos';
+import { llmConfig, piiConfig, type LlmConfig, type PiiConfig } from '../config/slices';
+import { ApiErrorResponseDto, AnalysisDetailResponseDto, ContentLimitsResponseDto, CreateAnalysisRequestDto, ListAnalysesResponseDto, QuestionRequestDto } from '../openapi/dtos';
 import { AddQuestionCommand } from './commands/add-question.types';
 import { CreateAnalysisCommand } from './commands/create-analysis.types';
 import { RetryAnalysisCommand } from './commands/retry-analysis.types';
@@ -32,11 +32,13 @@ export class AnalysesController {
    * @param addQuestion CQRS command for follow-up questions.
    * @param retryAnalysis CQRS command for failed analysis retry.
    * @param llmSettings Supplies the model deadline used to abort each request.
+   * @param piiSettings Supplies the operator-controlled content protection mode.
    */
   constructor(
     private readonly queryBus: QueryBus,
     private readonly commandBus: CommandBus,
     @InjectConfig(llmConfig) private readonly llmSettings: LlmConfig,
+    @InjectConfig(piiConfig) private readonly piiSettings: PiiConfig,
   ) {}
 
   /**
@@ -55,6 +57,16 @@ export class AnalysesController {
   list(@Req() request: Request, @Query() query: Record<string, unknown>) {
     const page = readPage(query);
     return this.queryBus.execute(new ListAnalysesQuery(request.user!.id, page.limit, page.offset));
+  }
+
+  /** @returns Effective content limits only, never provider settings or secrets. @throws Authentication errors when the session is invalid. */
+  @Get('limits')
+  @ApiOperation({ summary: 'Read effective incident and question character limits' })
+  @ApiResponse({ status: 200, type: ContentLimitsResponseDto })
+  @ApiResponse({ status: 401, type: ApiErrorResponseDto })
+  limits(): ContentLimitsResponseDto {
+    return { sourceTextMax: this.llmSettings.sourceTextMax, questionMax: this.llmSettings.questionMax,
+      contentProtectionEnabled: this.piiSettings.enabled, personProtectionEnabled: this.piiSettings.personEnabled };
   }
 
   /**
@@ -78,6 +90,7 @@ export class AnalysesController {
   @ApiResponse({ status: 429, type: ApiErrorResponseDto })
   @ApiResponse({ status: 502, type: ApiErrorResponseDto })
   @ApiResponse({ status: 504, type: ApiErrorResponseDto })
+  @ApiResponse({ status: 503, type: ApiErrorResponseDto, description: 'Content protection unavailable; no unprotected fallback.' })
   create(@Req() request: Request, @Res({ passthrough: true }) response: Response, @Body() body: unknown) {
     const createBody = createSchema.safeParse(body);
     if (!createBody.success) throw new AppError(ErrorCode.ValidationError, 400, 'The body must contain only sourceText.');
@@ -99,6 +112,7 @@ export class AnalysesController {
   @ApiResponse({ status: 200, type: AnalysisDetailResponseDto, description: 'Analysis detail with messages and executions.' })
   @ApiResponse({ status: 401, type: ApiErrorResponseDto })
   @ApiResponse({ status: 404, type: ApiErrorResponseDto })
+  @ApiResponse({ status: 409, type: ApiErrorResponseDto, description: 'Legacy content is blocked in protected mode.' })
   get(@Req() request: Request, @Param('id') id: string) {
     return this.queryBus.execute(new GetAnalysisQuery(request.user!.id, parseAnalysisId(id)));
   }
@@ -122,6 +136,7 @@ export class AnalysesController {
   @ApiResponse({ status: 422, type: ApiErrorResponseDto })
   @ApiResponse({ status: 429, type: ApiErrorResponseDto })
   @ApiResponse({ status: 502, type: ApiErrorResponseDto })
+  @ApiResponse({ status: 503, type: ApiErrorResponseDto, description: 'Content protection unavailable.' })
   question(
     @Req() request: Request,
     @Res({ passthrough: true }) response: Response,

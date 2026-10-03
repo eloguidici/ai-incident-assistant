@@ -10,6 +10,7 @@ export type AnalysisListRow = Pick<
   AnalysisEntity,
   'id' | 'status' | 'sourceText' | 'errorCode' | 'createdAt' | 'expiresAt'
 > & {
+  piiPolicyVersion?: string | null;
   /** Summary excerpt from the stored JSON result (list views do not load the full blob). */
   resultSummary: string | null;
   /** Severity excerpt from the stored JSON result. */
@@ -43,6 +44,8 @@ export type ExecutionMetrics = {
 };
 
 export type ReserveAnalysisInput = {
+  analysisId?: string;
+  piiPolicyVersion?: string | null;
   ownerId: string;
   sourceText: string;
   expiresAt: Date;

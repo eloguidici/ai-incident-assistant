@@ -13,6 +13,9 @@ export class AnalysisEntity {
   @Column({ name: 'source_text', type: 'text' })
   sourceText!: string;
 
+  @Column({ name: 'pii_policy_version', type: 'text', nullable: true })
+  piiPolicyVersion!: string | null;
+
   @Column({ type: 'text' })
   status!: RunStatus;
 

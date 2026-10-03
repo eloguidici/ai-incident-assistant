@@ -6,6 +6,9 @@ const apiEnv = {
   JWT_SECRET: 'test-jwt-secret-at-least-32-characters-long',
   WEB_ORIGIN: 'http://127.0.0.1:5173',
   LLM_PROVIDER: 'mock',
+  PII_ENABLED: 'false', // Real detector runs in the dedicated PII/Compose battery.
+  SOURCE_TEXT_MAX: '8000', // Synthetic regression profile, not the recommended CPU envelope.
+  QUESTION_MAX: '1000',
   SEED_DEMO: 'true',
   ALLOW_SEED_DEMO: 'true',
   SEED_PASSWORD: 'local-demo-password',
@@ -52,7 +55,7 @@ export default defineConfig({
     {
       name: 'e2e',
       use: { ...devices['Desktop Chrome'], video: 'retain-on-failure' },
-      testIgnore: [/flows\//, /(demo|compose-stack)\.spec\.ts/],
+      testIgnore: [/flows\//, /pii\//, /(demo|compose-stack)\.spec\.ts/],
     },
     {
       name: 'flows',

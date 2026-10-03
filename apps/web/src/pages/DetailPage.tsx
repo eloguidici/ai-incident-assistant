@@ -2,6 +2,8 @@ import { FormEvent, useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { api, ApiError, RunStatus, type AnalysisDetail, type QuestionResult } from '../api';
 import { ResultView } from '../components/ResultView';
+import { PiiText } from '../components/PiiText';
+import { useContentLimits } from '../hooks/useContentLimits';
 
 /**
  * Shows one analysis with its source text, result, conversation, retry button when failed, and question form when completed.
@@ -13,6 +15,8 @@ export function DetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [question, setQuestion] = useState('');
   const [pending, setPending] = useState(false);
+  const { limits, error: limitsError } = useContentLimits();
+  const tooLong = Boolean(limits && question.trim().length > limits.questionMax);
   // The analysis on screen. Ask and retry responses that arrive after navigation must not overwrite it.
   const shownId = useRef(id);
 
@@ -46,6 +50,7 @@ export function DetailPage() {
    */
   async function ask(event: FormEvent) {
     event.preventDefault();
+    if (!limits || tooLong || pending) return;
     const requestId = id;
     const stillShown = () => shownId.current === requestId;
     setPending(true);
@@ -112,10 +117,15 @@ export function DetailPage() {
         </p>
       ) : null}
       <h2>Submitted text</h2>
-      <pre data-testid="source-text">{detail.sourceText}</pre>
+      {limits ? <p className="meta" data-testid="content-protection-mode">
+        <strong>{!limits.contentProtectionEnabled ? 'Content protection disabled'
+          : limits.personProtectionEnabled ? 'Content protection enabled: names, emails and phones'
+          : 'Contact protection only: emails and phones. Names are not protected.'}</strong>
+      </p> : null}
+      <pre data-testid="source-text"><PiiText text={detail.sourceText} /></pre>
       {detail.status === RunStatus.Failed ? (
         <div className="error" role="alert">
-          <p>{detail.errorMessage}</p>
+          <p><PiiText text={detail.errorMessage ?? ''} /></p>
           <button type="button" onClick={() => void retry()} disabled={pending}>
             Retry
           </button>
@@ -131,7 +141,7 @@ export function DetailPage() {
             {message.role === 'assistant' && message.status === RunStatus.Completed && message.result ? (
               <ThreadAnswer result={message.result} />
             ) : (
-              <p>{message.content}</p>
+              <p><PiiText text={message.content} /></p>
             )}
           </li>
         ))}
@@ -142,8 +152,14 @@ export function DetailPage() {
             Question about this incident
             <textarea data-testid="question-input" value={question} onChange={(event) => setQuestion(event.target.value)} required />
           </label>
-          {pending ? <p className="status">Asking…</p> : null}
-          <button type="submit" disabled={pending || question.trim().length === 0}>
+          <p className="meta">{limits ? `${question.trim().length}/${limits.questionMax}` : 'Loading content limits...'}</p>
+          {limitsError ? <p className="error" role="alert">{limitsError}</p> : null}
+          {tooLong ? <p className="error" role="alert">The question exceeds the maximum length. Shorten it before submitting.</p> : null}
+          {pending ? <p className="status" role="status">{limits?.contentProtectionEnabled
+            ? limits.personProtectionEnabled ? 'Protecting detected personal data and preparing the answer...'
+              : 'Protecting detected emails and phones and preparing the answer...'
+            : 'Asking…'}</p> : null}
+          <button type="submit" disabled={pending || !limits || tooLong || question.trim().length === 0}>
             Ask
           </button>
         </form>
@@ -162,7 +178,7 @@ export function DetailPage() {
 function ThreadAnswer({ result }: { result: QuestionResult }) {
   return (
     <div className="thread-answer">
-      <p data-testid="assistant-answer">{result.answer}</p>
+      <p data-testid="assistant-answer"><PiiText text={result.answer} /></p>
       <details>
         <summary>Evidence, hypotheses, and uncertainty</summary>
         <ResultView result={result} hideAnswer testId="thread-result-detail" />

@@ -23,6 +23,8 @@ import type { AnalysisDetailResult } from './analysis-detail.types';
 import { AnalysesService } from './analyses.service';
 import { logPersistNoOp, logPersistReadFailed, logPersistWriteFailed } from './persistence-orchestration.log';
 import type { QuestionFailureRecord } from './question-failure.types';
+import { PiiService } from '../pii/pii.service';
+import { assertKnownPrivacyLabels } from '../pii/placeholders';
 import { AppError, isUniqueViolation } from '../common/http';
 
 export type AnalysisOwner = { id: string };
@@ -50,6 +52,7 @@ export class AnalysisCommandShared {
    * @param analysesMaintenance Scheduled recovery when persistence fallbacks cannot close a row.
    * @param gateway Mock or OpenAI calls with retries and in-flight limits.
    * @param logger Redacted structured logs for persistence failures and observation-only security signals.
+   * @param pii Local content sanitation and legacy protection boundary.
    */
   constructor(
     @InjectConfig(appConfig) private readonly appSettings: AppConfig,
@@ -59,6 +62,7 @@ export class AnalysisCommandShared {
     private readonly analysesMaintenance: AnalysesService,
     private readonly gateway: LlmGateway,
     private readonly logger: AppLogger,
+    readonly pii: PiiService,
   ) {}
 
   /**
@@ -69,6 +73,7 @@ export class AnalysisCommandShared {
   async loadDetail(ownerId: string, id: string): Promise<AnalysisDetailResult | null> {
     const loaded = await this.analyses.loadDetail(ownerId, id);
     if (!loaded) return null;
+    this.pii.assertProtected(loaded.analysis.piiPolicyVersion);
     return mapAnalysisDetail(loaded);
   }
 
@@ -153,7 +158,10 @@ export class AnalysisCommandShared {
     try {
       this.observePromptInjection(sourceText, 'incident', analysisId, correlationId);
       outcome = await this.gateway.complete(buildAnalysisPrompt(sourceText), signal, deadlineAt);
-      const validatedAnalysis = validateAnalysis(outcome.response.rawText, sourceText);
+      const parsedAnalysis = validateAnalysis(outcome.response.rawText, sourceText);
+      const protectedAnalysis = await this.pii.sanitizeResult(parsedAnalysis, owner.id, analysisId, signal);
+      if (this.pii.policyVersion()) assertKnownPrivacyLabels(JSON.stringify(protectedAnalysis), sourceText);
+      const validatedAnalysis = validateAnalysis(JSON.stringify(protectedAnalysis), sourceText);
       const commit = await this.analyses.commitAnalysisSuccess({
         ownerId: owner.id,
         analysisId,
@@ -370,7 +378,11 @@ export class AnalysisCommandShared {
       this.observePromptInjection(contextWindow.history.map((message) => `${message.role}: ${message.content}`).join('\n'), 'history', analysisId, correlationId);
       this.observePromptInjection(question, 'question', analysisId, correlationId);
       outcome = await this.gateway.complete(prompt, signal, deadlineAt);
-      const validatedAnswer = validateQuestion(outcome.response.rawText, sourceText);
+      const parsedAnswer = validateQuestion(outcome.response.rawText, sourceText);
+      const protectedAnswer = await this.pii.sanitizeResult(parsedAnswer, owner.id, analysisId, signal);
+      if (this.pii.policyVersion()) assertKnownPrivacyLabels(JSON.stringify(protectedAnswer),
+        [sourceText, question, ...contextWindow.history.map((message) => message.content)].join('\n'));
+      const validatedAnswer = validateQuestion(JSON.stringify(protectedAnswer), sourceText);
       const commit = await this.analyses.commitQuestionSuccess({
         ownerId: owner.id,
         analysisId,

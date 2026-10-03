@@ -21,7 +21,7 @@ export function selectContext(
   const kept: ContextMessage[] = [];
   let used = base;
   for (const message of [...history].reverse()) {
-    const content = message.content.slice(0, 1000);
+    const content = truncateProtectedText(message.content, 1000);
     const size = content.length + 16;
     if (used + size > budget) break;
     kept.push({ role: message.role, content });
@@ -30,3 +30,4 @@ export function selectContext(
   kept.reverse();
   return { history: kept, rejected: false };
 }
+import { truncateProtectedText } from '../pii/placeholders';

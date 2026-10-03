@@ -3,12 +3,13 @@ import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { ANALYSIS_REPOSITORY } from './db/repositories/tokens';
 import type { AnalysisRepository } from './db/repositories/analysis.repository';
 import { ApiErrorResponseDto, HealthResponseDto } from './openapi/dtos';
+import { PiiService } from './pii/pii.service';
 
 @ApiTags('health')
 @Controller('health')
 export class HealthController {
-  /** @param analyses Repository pinged by {@link health}. */
-  constructor(@Inject(ANALYSIS_REPOSITORY) private readonly analyses: AnalysisRepository) {}
+  /** @param analyses Repository ping. @param pii Enabled detector readiness. */
+  constructor(@Inject(ANALYSIS_REPOSITORY) private readonly analyses: AnalysisRepository, private readonly pii: PiiService) {}
 
   /**
    * Reports whether the API can reach PostgreSQL.
@@ -22,6 +23,7 @@ export class HealthController {
   async health() {
     try {
       await this.analyses.ping();
+      await this.pii.ready();
     } catch {
       throw new ServiceUnavailableException();
     }

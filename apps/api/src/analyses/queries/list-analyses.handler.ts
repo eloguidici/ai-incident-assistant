@@ -4,12 +4,15 @@ import { AnalysisListExcerptLength } from '../../common/constants/pagination';
 import type { AnalysisRepository } from '../../db/repositories/analysis.repository';
 import { ANALYSIS_REPOSITORY } from '../../db/repositories/tokens';
 import { ListAnalysesQuery, type ListAnalysesResult } from './list-analyses.types';
+import { PiiService } from '../../pii/pii.service';
+import { ErrorCode } from '../../common/constants/error-code';
+import { truncateProtectedText } from '../../pii/placeholders';
 
 /** CQRS query handler: lists analyses for one owner (reference vertical for R00-B). */
 @QueryHandler(ListAnalysesQuery)
 export class ListAnalysesHandler implements IQueryHandler<ListAnalysesQuery> {
-  /** @param analyses Persistence port for list and count queries. */
-  constructor(@Inject(ANALYSIS_REPOSITORY) private readonly analyses: AnalysisRepository) {}
+  /** @param analyses Persistence port for list/count. @param pii Legacy-content protection. */
+  constructor(@Inject(ANALYSIS_REPOSITORY) private readonly analyses: AnalysisRepository, private readonly pii: PiiService) {}
 
   /**
    * Lists one analyst's analyses, newest first.
@@ -23,10 +26,10 @@ export class ListAnalysesHandler implements IQueryHandler<ListAnalysesQuery> {
       items: rows.map((row) => ({
         id: row.id,
         status: row.status,
-        excerpt: row.sourceText.slice(0, AnalysisListExcerptLength),
-        summary: row.resultSummary,
-        suggestedSeverity: row.resultSeverity,
-        errorCode: row.errorCode,
+        excerpt: this.pii.permits(row.piiPolicyVersion) ? truncateProtectedText(row.sourceText, AnalysisListExcerptLength) : 'Legacy content is unavailable. Create a new analysis.',
+        summary: this.pii.permits(row.piiPolicyVersion) ? row.resultSummary : null,
+        suggestedSeverity: this.pii.permits(row.piiPolicyVersion) ? row.resultSeverity : null,
+        errorCode: this.pii.permits(row.piiPolicyVersion) ? row.errorCode : ErrorCode.PiiLegacyRecord,
         createdAt: row.createdAt.toISOString(),
         expiresAt: row.expiresAt.toISOString(),
       })),

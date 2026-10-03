@@ -98,7 +98,21 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 pre {
   white-space: pre-wrap;
   font-family: Consolas, "Courier New", monospace;
+  overflow-wrap: anywhere;
 }
+
+.pii-text {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.pii-token { border-radius: 2px; }
+
+.pii-token--person { color: #1d4ed8; background: #eff6ff; }
+.pii-token--email { color: #166534; background: #f0fdf4; }
+.pii-token--phone { color: #6b21a8; background: #faf5ff; }
+
+.list a > *, .thread > li { min-width: 0; }
 
 blockquote {
   margin: 0;

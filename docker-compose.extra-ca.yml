@@ -10,6 +10,11 @@
 
 services:
 
+  pii:
+    build:
+      secrets:
+        - extra_ca_cert
+
   api:
 
     build:

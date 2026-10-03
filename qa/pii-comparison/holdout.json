@@ -1,0 +1,23 @@
+[
+  {"id":"holdout-en-operator","language":"en","tier":"core","text":"Operator Nora Vega observed Redis timeout E_TIMEOUT at 09:15 UTC.","expected":[["PERSON","Nora Vega"]],"preserve":["Redis","E_TIMEOUT","09:15 UTC"]},
+  {"id":"holdout-es-analyst","language":"es","tier":"core","text":"La analista Inés Suárez confirmó HTTP 502 en checkout-2.","expected":[["PERSON","Inés Suárez"]],"preserve":["HTTP 502","checkout-2"]},
+  {"id":"holdout-mixed-two","language":"mixed","tier":"core","text":"Inés Suárez and Nora Vega investigaron el error E_TIMEOUT.","expected":[["PERSON","Inés Suárez"],["PERSON","Nora Vega"]],"preserve":["E_TIMEOUT"]},
+  {"id":"holdout-repeated-person","language":"es","tier":"core","text":"Inés Suárez abrió INC-9001. Inés Suárez revisó HTTP 502. ¿Inés Suárez confirmó la recuperación?","expected":[["PERSON","Inés Suárez"]],"preserve":["INC-9001","HTTP 502"]},
+  {"id":"holdout-email-plus","language":"en","tier":"core","text":"Contact oncall+case42@example.org; HTTP 429 persists.","expected":[["EMAIL_ADDRESS","oncall+case42@example.org"]],"preserve":["HTTP 429"]},
+  {"id":"holdout-email-json-leaf","language":"mixed","tier":"core","text":"Notification to ops.test@example.net failed with SMTP 451.","expected":[["EMAIL_ADDRESS","ops.test@example.net"]],"preserve":["SMTP 451"]},
+  {"id":"holdout-ar-phone","language":"es","tier":"core","text":"Teléfono de contacto: +54 9 11 4444-2222. API port 8080.","expected":[["PHONE_NUMBER","+54 9 11 4444-2222"]],"preserve":["8080"]},
+  {"id":"holdout-gb-phone","language":"en","tier":"core","text":"Call +44 20 7946 0958 about HTTP 504.","expected":[["PHONE_NUMBER","+44 20 7946 0958"]],"preserve":["HTTP 504"]},
+  {"id":"holdout-domestic-context","language":"en","tier":"core","text":"Contact phone: (415) 555-0132. Retry after 45 seconds.","expected":[["PHONE_NUMBER","(415) 555-0132"]],"preserve":["45 seconds"]},
+  {"id":"holdout-technical-products","language":"en","tier":"core","text":"VictoriaMetrics, Cassandra, Jackson, Jordan service and Spring Boot produced HTTP 503.","expected":[],"preserve":["VictoriaMetrics","Cassandra","Jackson","Jordan service","Spring Boot","HTTP 503"]},
+  {"id":"holdout-numeric-technical","language":"mixed","tier":"core","text":"2026-09-30T10:45:00Z; 198.51.100.25:8443; PostgreSQL 17.1; INC-9912; latency 250ms.","expected":[],"preserve":["2026-09-30T10:45:00Z","198.51.100.25:8443","PostgreSQL 17.1","INC-9912","250ms"]},
+  {"id":"holdout-output-leaf","language":"en","tier":"core","text":"Nora Vega reported the payment-worker restart. Contact ops.test@example.net.","expected":[["PERSON","Nora Vega"],["EMAIL_ADDRESS","ops.test@example.net"]],"preserve":["payment-worker"]},
+  {"id":"holdout-existing-and-new","language":"en","tier":"core","text":"[PERSON_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa] called Nora Vega about INC-9001.","expected":[["PERSON","Nora Vega"]],"preserve":["[PERSON_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa]","INC-9001"]},
+  {"id":"holdout-url-email","language":"en","tier":"core","text":"Email ops@example.org; dashboard https://status.example.org/incidents/INC-9001 shows HTTP 503.","expected":[["EMAIL_ADDRESS","ops@example.org"]],"preserve":["https://status.example.org/incidents/INC-9001","HTTP 503"]},
+  {"id":"holdout-es-two-surnames","language":"es","tier":"challenge","text":"La operadora Valeria de la Cruz atendió el incidente HTTP 502.","expected":[["PERSON","Valeria de la Cruz"]],"preserve":["HTTP 502"]},
+  {"id":"holdout-apostrophe","language":"en","tier":"challenge","text":"Engineer Declan O'Brien confirmed HTTP 503.","expected":[["PERSON","Declan O'Brien"]],"preserve":["HTTP 503"]},
+  {"id":"holdout-decomposed","language":"es","tier":"challenge","text":"La analista Inés Suárez recibió HTTP 503.","expected":[["PERSON","Inés Suárez"]],"preserve":["HTTP 503"]},
+  {"id":"holdout-obfuscated","language":"en","tier":"challenge","text":"Email ops [at] example [dot] org after HTTP 503.","expected":[["EMAIL_ADDRESS","ops [at] example [dot] org"]],"preserve":["HTTP 503"]},
+  {"id":"holdout-address","language":"en","tier":"exploratory","text":"Contact address: 456 Sample Road, Bristol; HTTP 503.","expected":[["STREET_ADDRESS","456 Sample Road, Bristol"]],"preserve":["HTTP 503"]},
+  {"id":"holdout-single-word-person","language":"en","tier":"challenge","text":"Operator Priya reported HTTP 503.","expected":[["PERSON","Priya"]],"preserve":["HTTP 503"]},
+  {"id":"holdout-reserved-email","language":"en","tier":"core","text":"Email lucia.exampleperson@example.test after HTTP 503.","expected":[["EMAIL_ADDRESS","lucia.exampleperson@example.test"]],"preserve":["HTTP 503"]}
+]

@@ -1,6 +1,7 @@
 import type { AnalysisResult, QuestionResult } from './contracts';
 import { ANALYSIS_PROMPT_VERSION, ProviderRequestError, QUESTION_PROMPT_VERSION, type LlmRequest, type LlmResponse } from './contracts';
 import { MockFaultTag } from './mock-fault-tags';
+import { truncateProtectedText } from '../pii/placeholders';
 
 const onceCalls = new Map<string, number>();
 
@@ -24,6 +25,10 @@ function incidentOf(promptText: string): string {
  * @returns A quote of 12 to 80 characters, or null when none qualifies.
  */
 function excerpt(source: string): string | null {
+  if (/\[(?:PERSON|EMAIL_ADDRESS|PHONE_NUMBER)_[a-f0-9]{32}\]/.test(source)) {
+    const protectedQuote = truncateProtectedText(source, 160).trim();
+    return protectedQuote.length >= 12 ? protectedQuote : null;
+  }
   const match = source.match(/[\p{L}0-9][^[\]]{15,160}/u);
   if (!match) return null;
   const quote = match[0].slice(0, 80).trim();

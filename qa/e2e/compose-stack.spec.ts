@@ -22,10 +22,10 @@ test.describe('nginx compose stack', () => {
 
   test('walks login, analysis, follow-up, history, reload, logout', async ({ page }) => {
     await login(page, 'analyst.a@example.test');
-    await page.getByRole('link', { name: 'New' }).click();
+    await page.getByRole('link', { name: 'New', exact: true }).click();
     await page.getByTestId('source-input').fill(incident);
     await page.getByRole('button', { name: 'Analyze' }).click();
-    await expect(page.getByText('Analyzing… this can take a few seconds.')).toBeVisible();
+    await expect(page.getByRole('status')).toContainText('Protecting detected personal data and analyzing');
     await expect(page.getByTestId('analysis-result')).toBeVisible({ timeout: 30_000 });
     await expect(page.getByTestId('uncertainty')).not.toBeEmpty();
     await page.getByTestId('question-input').fill('What evidence is still missing?');
@@ -41,7 +41,7 @@ test.describe('nginx compose stack', () => {
 
   test('rejects invalid input and blocks cross-user access', async ({ browser, page }) => {
     await login(page, 'analyst.a@example.test');
-    await page.getByRole('link', { name: 'New' }).click();
+    await page.getByRole('link', { name: 'New', exact: true }).click();
     await page.getByTestId('source-input').fill(`${incident} Private to analyst A.`);
     await page.getByRole('button', { name: 'Analyze' }).click();
     await expect(page.getByTestId('analysis-result')).toBeVisible({ timeout: 30_000 });

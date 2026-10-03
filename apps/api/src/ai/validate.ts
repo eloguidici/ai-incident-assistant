@@ -6,7 +6,7 @@ import { findAssistantActionClaim } from './assistant-action-claims';
  * Balanced parentheses in paths are preserved; paths, ports and query suffixes are not normalized.
  * @param text Source or output prose. @returns Distinct URL lexemes, without fetching them.
  */
-function urlsIn(text: string): Set<string> {
+export function urlsIn(text: string): Set<string> {
   return new Set((text.match(/https?:\/\/[^\s<>"`]+/g) ?? []).map((candidate) => {
     let url = candidate.replace(/[.,;:!'\u2019]+$/g, '');
     for (;;) {
@@ -42,13 +42,22 @@ export function parseModelJson(raw: string): unknown {
 }
 
 /**
- * Rejects non-exact quotes, foreign complete URL lexemes and impossible assistant actions.
+ * Rejects non-exact quotes, partial privacy tokens, foreign URLs and impossible assistant actions.
  * An empty evidence list is accepted only with uncertainty and missing information.
  * @throws OutputValidationError when the output is not grounded.
  */
 function assertGrounded(analysis: AnalysisResult, incidentText: string): void {
+  const privacyRanges = Array.from(incidentText.matchAll(/\[(?:PERSON|EMAIL_ADDRESS|PHONE_NUMBER)_[a-f0-9]{32}\]/g),
+    (match) => ({ start: match.index, end: match.index + match[0].length }));
   for (const evidenceItem of analysis.evidence) {
-    if (!incidentText.includes(evidenceItem.quote)) {
+    let occurrence = incidentText.indexOf(evidenceItem.quote);
+    while (occurrence >= 0 && privacyRanges.some((range) => {
+      const end = occurrence + evidenceItem.quote.length;
+      return (range.start < occurrence && occurrence < range.end) || (range.start < end && end < range.end);
+    })) {
+      occurrence = incidentText.indexOf(evidenceItem.quote, occurrence + 1);
+    }
+    if (occurrence < 0) {
       throw new OutputValidationError('A quote does not appear in the incident.');
     }
   }

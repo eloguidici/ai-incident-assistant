@@ -40,20 +40,20 @@ export function isUniqueViolation(error: unknown): boolean {
 
 /**
  * Assigns a correlation id and logs the completed request without the body.
- * @param req Incoming request. A valid correlation header is reused when valid.
+ * @param req Incoming request. A server-generated id avoids recording client-controlled content.
  * @param res Response that receives the same id.
  */
 export function correlationMiddleware(req: Request, res: Response, next: NextFunction): void {
-  const correlationHeader = req.header(CorrelationIdHeaderName);
-  const correlationId = correlationHeader && /^[A-Za-z0-9-]{8,80}$/.test(correlationHeader) ? correlationHeader : randomUUID();
+  const correlationId = randomUUID();
   req.correlationId = correlationId;
   res.setHeader(CorrelationIdHeaderName, correlationId);
   const started = Date.now();
   res.on('finish', () => {
+    const matchedRoute = req.route as { path?: unknown } | undefined;
     logSafe({
       msg: LogEvent.Request,
       method: req.method,
-      path: req.path,
+      path: typeof matchedRoute?.path === 'string' ? matchedRoute.path : 'unmatched',
       status: res.statusCode,
       correlationId,
       latencyMs: Date.now() - started,
@@ -91,4 +91,4 @@ export function csrfMiddleware(req: Request, res: Response, next: NextFunction):
   }
   next();
 }
-
+

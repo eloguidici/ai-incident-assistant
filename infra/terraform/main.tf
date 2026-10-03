@@ -33,6 +33,10 @@ resource "aws_secretsmanager_secret" "jwt" {
   name = "${var.name}/jwt-secret"
 }
 
+resource "aws_secretsmanager_secret" "pii" {
+  name = "${var.name}/pii-hmac-key"
+}
+
 data "aws_iam_policy_document" "ecs_assume" {
   statement {
     actions = ["sts:AssumeRole"]
@@ -60,6 +64,7 @@ data "aws_iam_policy_document" "secrets" {
       aws_secretsmanager_secret.database_url.arn,
       aws_secretsmanager_secret.llm.arn,
       aws_secretsmanager_secret.jwt.arn,
+      aws_secretsmanager_secret.pii.arn,
     ]
   }
 }
@@ -131,17 +136,25 @@ resource "aws_ecs_task_definition" "api" {
   family                   = var.name
   requires_compatibilities = ["FARGATE"]
   network_mode             = "awsvpc"
-  cpu                      = "256"
-  memory                   = "512"
-  execution_role_arn       = aws_iam_role.execution.arn
-  task_role_arn            = aws_iam_role.task.arn
+  # Provisional local-model envelope; validate in AWS before enabling desired_count.
+  cpu                = "1024"
+  memory             = "4096"
+  execution_role_arn = aws_iam_role.execution.arn
+  task_role_arn      = aws_iam_role.task.arn
   container_definitions = jsonencode([
     {
       name         = "api"
       image        = var.container_image
       portMappings = [{ containerPort = 3000, protocol = "tcp" }]
+      dependsOn    = [{ containerName = "pii", condition = "HEALTHY" }]
       environment = concat([
         { name = "LLM_PROVIDER", value = var.llm_provider },
+        { name = "PII_ENABLED", value = tostring(var.pii_enabled) },
+        { name = "PII_PERSON_ENABLED", value = tostring(var.pii_person_enabled) },
+        { name = "PII_SERVICE_URL", value = "http://127.0.0.1:8000" },
+        { name = "PII_TIMEOUT_MS", value = "10000" },
+        { name = "SOURCE_TEXT_MAX", value = tostring(var.source_text_max) },
+        { name = "QUESTION_MAX", value = tostring(var.question_max) },
         { name = "WEB_ORIGIN", value = var.web_origin },
         { name = "PORT", value = "3000" },
         { name = "SEED_DEMO", value = "false" },
@@ -161,6 +174,34 @@ resource "aws_ecs_task_definition" "api" {
           awslogs-group         = aws_cloudwatch_log_group.api.name
           awslogs-region        = var.aws_region
           awslogs-stream-prefix = "api"
+        }
+      }
+    },
+    {
+      name                   = "pii"
+      image                  = var.pii_container_image
+      essential              = true
+      memory                 = 3072
+      readonlyRootFilesystem = true
+      environment = [
+        { name = "PII_PERSON_ENABLED", value = tostring(var.pii_person_enabled) },
+        { name = "HF_HUB_OFFLINE", value = "1" },
+        { name = "TRANSFORMERS_OFFLINE", value = "1" }
+      ]
+      secrets = [{ name = "PII_HMAC_KEY", valueFrom = aws_secretsmanager_secret.pii.arn }]
+      healthCheck = {
+        command     = ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3)"]
+        interval    = 30
+        timeout     = 5
+        retries     = 3
+        startPeriod = 120
+      }
+      logConfiguration = {
+        logDriver = "awslogs"
+        options = {
+          awslogs-group         = aws_cloudwatch_log_group.api.name
+          awslogs-region        = var.aws_region
+          awslogs-stream-prefix = "pii"
         }
       }
     },
@@ -216,5 +257,6 @@ output "secret_arns" {
     database_url = aws_secretsmanager_secret.database_url.arn
     llm_api_key  = aws_secretsmanager_secret.llm.arn
     jwt_secret   = aws_secretsmanager_secret.jwt.arn
+    pii_hmac_key = aws_secretsmanager_secret.pii.arn
   }
 }

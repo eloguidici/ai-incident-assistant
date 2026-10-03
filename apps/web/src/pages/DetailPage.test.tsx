@@ -4,6 +4,7 @@ import { MemoryRouter, Route, Routes, useNavigate } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { RunStatus, type AnalysisDetail } from '../api';
 import { DetailPage } from './DetailPage';
+vi.mock('../hooks/useContentLimits', () => ({ useContentLimits: () => ({ limits: { sourceTextMax: 8000, questionMax: 1000, contentProtectionEnabled: true, personProtectionEnabled: true }, error: null }) }));
 
 const apiMock = vi.fn();
 vi.mock('../api', async () => {
@@ -79,6 +80,55 @@ describe('DetailPage', () => {
     expect(screen.getByRole('button', { name: 'Retry' })).toBeEnabled();
   });
 
+  it('colors backend tokens in source, persisted chat and new answers without rewriting requests or quotes', async () => {
+    const person = '[PERSON_0123456789abcdef0123456789abcdef]';
+    const email = '[EMAIL_ADDRESS_0123456789abcdef0123456789abcdef]';
+    const phone = '[PHONE_NUMBER_0123456789abcdef0123456789abcdef]';
+    const source = `  ${person}\n${email} ${phone} <img src=x onerror="alert(1)">  `;
+    const detail = completedDetail('protected', source);
+    const quote = `${person}\n${email}`;
+    const questionResult = {
+      ...detail.result!,
+      answer: `Ask ${person} at ${email}. <script>alert(1)</script>`,
+      evidence: [{ quote, note: `Call ${phone}.` }],
+    };
+    const updatedDetail: AnalysisDetail = {
+      ...detail,
+      messages: [
+        { id: 'user', role: 'user', content: `Ask ${person}?`, status: RunStatus.Completed, result: null, errorCode: null, sequence: 1 },
+        { id: 'assistant', role: 'assistant', content: questionResult.answer, status: RunStatus.Completed, result: questionResult, errorCode: null, sequence: 2 },
+        { id: 'failed', role: 'assistant', content: `Unable to answer ${phone}.`, status: RunStatus.Failed, result: null, errorCode: 'FAILED', sequence: 3 },
+      ],
+    };
+    apiMock.mockResolvedValueOnce(updatedDetail).mockResolvedValueOnce(updatedDetail);
+    const { container } = render(
+      <MemoryRouter initialEntries={['/history/protected']}>
+        <Routes><Route path="/history/:id" element={<DetailPage />} /></Routes>
+      </MemoryRouter>,
+    );
+
+    const sourceElement = await screen.findByTestId('source-text');
+    expect(sourceElement.textContent).toBe(source);
+    expect(sourceElement.querySelectorAll('.pii-token')).toHaveLength(3);
+    expect(screen.getAllByTestId(`message-${RunStatus.Completed}`)[0].querySelector('.pii-token--person')?.textContent).toBe(person);
+    expect(screen.getByTestId(`message-${RunStatus.Failed}`).querySelector('.pii-token--phone')?.textContent).toBe(phone);
+    expect(screen.getByTestId('assistant-answer').textContent).toBe(questionResult.answer);
+    expect(screen.getByTestId('assistant-answer').querySelectorAll('.pii-token')).toHaveLength(2);
+    fireEvent.click(screen.getByText('Evidence, hypotheses, and uncertainty'));
+    expect(container.querySelector('blockquote')?.textContent).toBe(quote);
+    expect(container.querySelector('img, script')).toBeNull();
+
+    const question = `Follow up with ${phone}?`;
+    fireEvent.change(screen.getByTestId('question-input'), { target: { value: question } });
+    fireEvent.click(screen.getByRole('button', { name: 'Ask' }));
+    await waitFor(() => expect(screen.getByTestId('question-input')).toHaveValue(''));
+    expect(apiMock).toHaveBeenLastCalledWith('/api/analyses/protected/messages', {
+      method: 'POST', body: JSON.stringify({ question }),
+    });
+    expect(screen.getByTestId('assistant-answer').textContent).toBe(questionResult.answer);
+    expect(container.querySelector('blockquote')?.textContent).toBe(quote);
+  });
+
   it('does not apply a late response after navigating to another analysis', async () => {
     let resolveSlow: (value: AnalysisDetail) => void = () => undefined;
     const slowPromise = new Promise<AnalysisDetail>((resolve) => {
@@ -147,7 +197,7 @@ describe('DetailPage', () => {
 
     fireEvent.change(await screen.findByTestId('question-input'), { target: { value: 'What failed in A?' } });
     fireEvent.click(screen.getByRole('button', { name: 'Ask' }));
-    expect(await screen.findByText('Asking…')).toBeInTheDocument();
+    expect(await screen.findByRole('status')).toHaveTextContent('Protecting detected personal data and preparing the answer...');
     fireEvent.click(screen.getByRole('button', { name: 'Open B' }));
     await waitFor(() => expect(screen.getByTestId('source-text')).toHaveTextContent('Incident B.'));
 

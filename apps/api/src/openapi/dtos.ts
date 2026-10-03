@@ -45,15 +45,30 @@ export class HealthResponseDto {
   status!: 'ok';
 }
 
+/** Effective runtime character limits; no sensitive configuration is exposed. */
+export class ContentLimitsResponseDto {
+  @ApiProperty({ description: 'Whether this runtime requires local content protection.' })
+  contentProtectionEnabled!: boolean;
+
+  @ApiProperty({ description: 'Whether the optional PERSON detector is enabled; email/phone protection remains on when content protection is enabled.' })
+  personProtectionEnabled!: boolean;
+
+  @ApiProperty({ minimum: 20, maximum: 50000 })
+  sourceTextMax!: number;
+
+  @ApiProperty({ minimum: 1, maximum: 8000 })
+  questionMax!: number;
+}
+
 /** Body for `POST /analyses`. No extra fields are allowed. */
 export class CreateAnalysisRequestDto {
-  @ApiProperty({ minLength: 1, maxLength: 8000, description: 'Incident narrative pasted by the analyst.' })
+  @ApiProperty({ minLength: 1, description: 'Incident narrative. The effective maximum is returned by GET /analyses/limits.' })
   sourceText!: string;
 }
 
 /** Body for `POST /analyses/:id/messages`. */
 export class QuestionRequestDto {
-  @ApiProperty({ minLength: 1, maxLength: 1000 })
+  @ApiProperty({ minLength: 1, description: 'Question text. The effective maximum is returned by GET /analyses/limits.' })
   question!: string;
 }
 

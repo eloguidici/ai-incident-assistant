@@ -1,4 +1,5 @@
 import type { AnalysisResult, QuestionResult } from '../api';
+import { PiiText } from './PiiText';
 
 /**
  * Renders a validated analysis or answer: summary, category, severity, evidence, hypotheses, missing information, and uncertainty.
@@ -20,14 +21,14 @@ export function ResultView({
       {answer && !hideAnswer ? (
         <section>
           <h2>Answer</h2>
-          <p>{answer}</p>
+          <p><PiiText text={answer} /></p>
         </section>
       ) : null}
       <section>
         <h2>Summary</h2>
-        <p>{result.summary}</p>
+        <p><PiiText text={result.summary} /></p>
         <p className="meta">
-          Category: {result.category}. Suggested severity: {result.suggestedSeverity}.
+          Category: <PiiText text={result.category} />. Suggested severity: <PiiText text={result.suggestedSeverity} />.
         </p>
       </section>
       <section data-testid="evidence">
@@ -36,8 +37,8 @@ export function ResultView({
         <ul>
           {result.evidence.map((evidenceItem, index) => (
             <li key={`${index}-${evidenceItem.quote}`}>
-              <blockquote>{evidenceItem.quote}</blockquote>
-              <p>{evidenceItem.note}</p>
+              <blockquote><PiiText text={evidenceItem.quote} /></blockquote>
+              <p><PiiText text={evidenceItem.note} /></p>
             </li>
           ))}
         </ul>
@@ -48,7 +49,7 @@ export function ResultView({
         <ul>
           {result.hypotheses.map((hypothesis, index) => (
             <li key={`${index}-${hypothesis.statement}`}>
-              {hypothesis.statement} <span className="meta">Confidence {hypothesis.confidence}.</span>
+              <PiiText text={hypothesis.statement} /> <span className="meta">Confidence <PiiText text={hypothesis.confidence} />.</span>
             </li>
           ))}
         </ul>
@@ -58,13 +59,13 @@ export function ResultView({
         {result.missingInformation.length === 0 ? <p>No missing information was recorded.</p> : null}
         <ul>
           {result.missingInformation.map((missingFact, index) => (
-            <li key={`${index}-${missingFact}`}>{missingFact}</li>
+            <li key={`${index}-${missingFact}`}><PiiText text={missingFact} /></li>
           ))}
         </ul>
       </section>
       <section data-testid="uncertainty">
         <h2>Uncertainty</h2>
-        <p>{result.uncertainty || 'No uncertainty note.'}</p>
+        <p><PiiText text={result.uncertainty || 'No uncertainty note.'} /></p>
       </section>
     </article>
   );

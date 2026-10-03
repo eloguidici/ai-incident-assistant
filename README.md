@@ -3,7 +3,27 @@
 
 An authenticated analyst submits incident text, receives a structured analysis, asks follow-up questions and returns to saved results. The output separates evidence (exact quotes from the text), hypotheses and missing information. The application does not execute remediation in external systems.
 
+T22 background, 2026-10-02 (Buenos Aires): the local candidate implementation was subject to detector, integration and resource checks. Subsequent verification and scoped acceptance are described below and in the [integration report](docs/qa/LOCAL_PII_INTEGRATION.md), [implementation guide](docs/security/PII_IMPLEMENTATION_PLAN.md) and [ADR-007](docs/decisions/ADR-007-local-pii.md). T21's [Presidio/spaCy experiment](docs/qa/PII_SPIKE.md) remains NO-GO; its metrics do not certify the new service.
+
+Decision, 2026-10-03: the owner accepts scoped local PII for the synthetic assessment/demo with known
+limitations. Software/browser and core corpus passed; the partial-surname/non-idempotence test remains FAIL.
+This is not complete privacy certification. See the [accepted limitation](docs/qa/LOCAL_PII_INTEGRATION.md#accepted-limitation)
+and [future options](docs/security/PII_IMPLEMENTATION_PLAN.md#accepted-limitation-and-evolution); costs/effectiveness were not compared.
+
 ## Assessment coverage
+
+**Delivery acceptance, 2026-10-03:** the owner accepts known injection, unsupported
+conclusion and partial-name limits for the assessment/synthetic, human-reviewed
+demo. No further mitigation is planned in this stage; measured FAIL results remain.
+The owner's personal manual test is deferred.
+[Decision and rationale](docs/security/AI_RISK_DECISIONS.md#demonstration-risk-acceptance).
+This does not authorize confidential data or production use; additional technologies
+are outside evaluated scope, not declared impossible because execution is local.
+
+Final validation, 2026-10-03: both real providers and one correction iteration executed;
+**semantic quality FAIL**, while the manual workflow operates. [Results/remaining work](docs/qa/ASSESSMENT_CLOSURE.md).
+[Manual OpenAI testing](docs/qa/MANUAL_ACCEPTANCE.md): synthetic data, full protection
+and 1,000/500 limits. Accepted output is not a verified root cause.
 
 | Assessment section | Where it is answered |
 |---|---|
@@ -22,11 +42,18 @@ NestJS/TypeScript modular monolith, React frontend and PostgreSQL with TypeORM r
 
 The model path has one responsibility per step:
 
-1. **Prompt construction** (`apps/api/src/ai/prompt.ts`): versioned prompts `incident-analysis.v4` and `incident-question.v5`.
+1. **Prompt construction** (`apps/api/src/ai/prompt.ts`): versioned prompts `incident-analysis.v6` and `incident-question.v7`, with exact PII-token preservation, no identity guesses and no invented labels.
 2. **Model invocation** (`apps/api/src/ai/gateway.ts` and the providers): a deterministic mock, OpenAI and OpenRouter implement the same `LlmProvider` contract, selected with `LLM_PROVIDER`. SDK retries are disabled; the gateway owns deadlines and at most one retry.
 3. **Response post-processing** (`apps/api/src/ai/validate.ts`): Zod schema validation, exact quotes, complete URL comparison and a narrow impossible-assistant-action check before accepting a result. These do not certify semantic truth.
 
 The prompt version, provider, model, attempts, latency and token counts are stored with every execution. No database transaction is held open during the model call.
+
+With `PII_ENABLED=true` (default), Nest calls a bounded local Python service before source/question content writes or provider invocation. The service uses GLiNER 0.2.27 directly with a pinned multilingual model, plus `email-validator` and `phonenumbers`; it is an offline detection guard, without another external LLM or orchestration framework. A schema-validated provider result then has its narrative fields sanitized and its schema/grounding revalidated against the sanitized source before persistence.
+
+`PII_PERSON_ENABLED=true` is the full default. Explicit `false` selects contacts-only coverage without loading
+the name model; names remain visible. `PII_ENABLED=false` disables all protection. React declares the effective
+coverage, configured limits and combined processing state. Failures never reduce coverage automatically;
+cross-policy historical records are blocked in enabled modes. See the [runbook](docs/operations/RUNBOOK.md).
 
 More detail: [architecture rationale](docs/architecture/RATIONALE.md), [design](docs/architecture/DESIGN.md), [API contracts](docs/features/MVP.md) and [decision records](docs/decisions/).
 
@@ -38,7 +65,7 @@ More detail: [architecture rationale](docs/architecture/RATIONALE.md), [design](
 - **Observation-only pattern detector.** Native `RegExp` scans incident, selected history and question before invocation. It emits six closed signal identifiers without excerpts, blocking, input rewriting or an extra LLM. Known evasions and legitimate attack reports are tested; no match does not mean safe. See [behavior, use cases and future alternatives](docs/security/PROMPT_INJECTION.md). Run `npm run qa:security:signals` with the test database.
 - **The model has no tools.** There is no function calling and the application never executes actions based on model output, so an injected instruction has nothing to trigger.
 - **Output is validated, not trusted.** A strict schema rejects unexpected fields. Every quote must appear verbatim in the incident, and a URL is accepted only if it already appears in the text. Output that fails is stored as a failed execution, never shown as a result.
-- **Input is bounded.** Incident text 1–8,000 characters, question 1–1,000, no NUL characters, request body 32 KB, and a context budget of 12,000 characters checked before the model is called.
+- **Input is bounded and configurable.** `SOURCE_TEXT_MAX` defaults to 1,000 characters and `QUESTION_MAX` to 500; the API checks trimmed content, rejects NUL characters, limits request bodies to 32 KB and checks a 12,000-character context budget before model invocation. The authenticated `GET /api/analyses/limits` returns `sourceTextMax`, `questionMax`, `contentProtectionEnabled` and `personProtectionEnabled`. React reads them at runtime, preserves over-limit drafts, shows an inline error and disables submission; the server still enforces its own limits.
 - **Rendering is safe.** React renders model output as text, never as HTML; an end-to-end test checks that injected HTML is not executed.
 - **Limit:** these controls reduce risk; they do not make a language model immune to manipulation. A human reviews every analysis.
 
@@ -60,26 +87,37 @@ Token usage is recorded per execution, which is the basis for cost reporting. Fo
 
 ### Data, retention, PII, logging and audit
 
-- **Stored:** user email and password hash; incident text, validated result, questions and answers; execution metadata (prompt version, model, attempts, latency, tokens); audit events (who, what, which resource, result, correlation id).
-- **Not stored:** plain passwords, provider keys, the raw model response, the full prompt, cookies or authorization headers.
-- **Retention:** analyses and everything attached to them expire after `RETENTION_DAYS` (30 by default); a purge runs at startup and every hour. The provider's own retention is outside this application's control.
-- **PII:** incident text may contain personal data pasted by the user. It is kept until expiry and sent to the provider in real mode. There is no automatic PII detector; the demo uses synthetic data only.
-- **Logging:** logs accept only an allowlist of fields (status, latency, error code, ids, model, prompt version). An integration test sends a marker in the incident text and checks it never reaches the logs.
-- **Audit:** audit events answer who did what and with which result; they never contain the incident text.
+Section 2.1 closed on 2026-10-03 (Buenos Aires): all five requested topics are explained here and in the linked policy. This closes assessment scope, not privacy or production certification.
+
+- **Stored:** user login email and password hash; sanitized source, protected result/questions/answers and policy marker for new protected records; execution metadata (prompt version, model, attempts, latency, tokens); audit events (who, what, which resource, result, correlation id). Account email is unchanged.
+- **Not stored in the content-pipeline database:** plain passwords, provider keys, the raw model response, the full prompt, cookies or authorization headers. Private QA artifacts may retain synthetic responses/traces for diagnosis; there is no automatic purge and operator cleanup is required.
+- **Retention:** analyses, messages and executions expire after `RETENTION_DAYS` (30 by default) from creation; questions do not renew it. Purge runs at startup and hourly, not instantaneously. Account deletion and independent audit purge are not implemented. Local logs depend on operator policy; Terraform proposes CloudWatch 14 days and RDS backups 7 days, without deployment. Provider copies are not deleted by our purge.
+- **PII:** detected people, emails and phones become owner/incident-scoped HMAC labels with 32 hexadecimal characters. Stability requires the same key and detected text/boundaries; name variants are not resolved. There is no reversible map or original restoration. Misses and identifying context remain possible: this is pseudonymization, not universal anonymization. A paid provider route does not guarantee privacy.
+- **Modes and accepted limits:** full mode protects detected names/contacts; contacts-only leaves names visible; disabled mode stores/forwards unprotected content. These are explicit operator choices shown on the page, never automatic downgrades. Partial-surname/non-idempotence remains FAIL and is accepted only for a synthetic demo; do not submit confidential real data.
+- **Failures and history:** input-sanitation service failure stops new content writes and provider calls; a detection miss may still store/forward unchanged PII. Output-sanitation failure occurs after a sanitized-input model call; no raw response is persisted as a result. Migration `002_pii_policy` leaves old records intact and unmarked: protected mode blocks detail/questions/retry and hides list content.
+- **Logging:** structured logs use allowed fields; API HTTP logs use server-generated UUIDs and route templates. The supplied nginx raw request logs are disabled. Existing marker tests do not certify every log level, dependency, collector or proxy.
+- **Audit:** actor/action/resource/result/correlation/timestamp, without incident text. Coverage includes `analysis.create`, `question.add` and aggregate purge; retries have no separate action. This is neither universal nor immutable auditing. Reduced database-error closes may omit events; purge records its event after deletion, outside that transaction. Operator access only, without an audit-management UI or separate reader role.
 
 Details: [data policy](docs/security/DATA_POLICY.md).
 
 ### Evaluation and reliability
 
-- **Measuring output quality:** `npm run qa:eval` scores five fixtures (clear outage, insufficient text, injection attempt, HTML, contradictory report) against a rubric: non-empty summary, quotes present in the source, no invented URLs, uncertainty when evidence is missing, no claimed actions after an injection attempt. `npm run qa:ai:live` runs the same rubric against a real model.
-- **Detecting regressions:** every execution stores the prompt version and model, so results can be compared per version. A prompt or model change should pass the mock rubric in CI and a live sample before release; the live pass rate and schema-failure rate are the signals to compare.
-- **When the AI gives a wrong answer in production:** the answer shows its quotes and uncertainty so the analyst can check it against the text; invalid output is rejected and can be retried; the prompt version identifies which executions are affected, and a prompt or model can be rolled back by configuration. A feedback button and a curated set of real failure cases would be the next step; they are not implemented.
-- **Limit:** mock results do not certify a real model's accuracy, latency or cost.
+Section 2.2 explanatory scope closed on 2026-10-03 (Buenos Aires). It does not require a complete evaluation system or imply that the current model passed actual-provider revalidation.
+
+- **Measuring output quality:** `npm run qa:eval` validates/scores five synthetic cases: clear outage, insufficient input, injection, HTML and contradictory facts. It checks contracts/quotes, uncertainty and complete URLs using runtime extraction; the rubric injection check is an English-phrase heuristic, not universal semantic verification. `npm run qa:ai:live` uses a real model. Use human review of all responses against expected facts, including rejected ones, to measure usefulness/fidelity rather than equate valid JSON/quotes with correct causes. Compare false rejections, accepted attacks, latency/tokens/cost and repeated-run variation; there is no automatic dashboard for these measures.
+- **Detecting regressions:** stored version/provider/model supports comparison of identical cases before/after; fix limits/deadlines and protection mode too. Changes require software checks and a comparable real sample, reviewing contracts, fidelity, confidence, latency and consumption. Defined CI runs mock evaluation, not paid requests or semantic certification. Different provider matrices are not equivalent comparisons.
+- **When the AI gives a wrong answer in production:** distinguish technical failure from an incorrect answer that passed its contract; do not use a hypothesis as an automatic decision. Showing quotes/uncertainty, rejecting invalid output and preserving a valid analysis after question failure are implemented. The proposed process investigates execution/version/model/correlation with privacy, adds a regression case and rolls back harmful changes: environment provider/model with restart, prompt through code and controlled deployment. There is no dynamic historical-prompt selector, feedback, semantic alerts or automatic rollback.
+- **Limit:** general offline API/browser regression explicitly disables PII; mocks do not certify real detector quality or resources. T22 reports actual verification with accepted synthetic-demo failures. T25 tested both providers and one v6/v7 correction: semantic quality remains FAIL, including an accepted GPT-4.1-mini injection. See the [measured closure](docs/qa/ASSESSMENT_CLOSURE.md).
+
+Details/evidence: [AI evaluation and reliability](docs/qa/AI_EVALUATION.md). Rubric correction reproduced before/after, 30 new cases and unit regression passed; historical provider FAIL outcomes are unchanged.
+
+[Decisions on the three AI limitations](docs/security/AI_RISK_DECISIONS.md): injection, unsupported conclusions and partial names; route/model examples and primary-sourced local/managed alternatives. Research, not an implemented extra layer or comparative effectiveness evidence.
 
 ### Secrets, rotation and bursty usage
 
 - **Where AI keys live:** locally in `.env` (git-ignored). On AWS, in Secrets Manager, injected into the ECS task at start. They are never in the image, the frontend bundle, Terraform variables or logs.
 - **Rotation:** create a new secret version, then replace the ECS tasks so they read it. Running containers do not reload secrets. Rotating the JWT secret invalidates existing sessions.
+- **PII key:** `npm run pii:init-key` creates a private 48-byte binary file once at `.local/pii-hmac.key`, requesting mode 0600 and preserving existing files. Review Windows ACLs separately. Keep the key stable for retained incidents; rotation changes new labels without automatically relabeling stored content.
 - **Bursty usage:** the concurrency cap and per-user limits shed load early with 429 responses; the gateway honours the provider's `Retry-After` within the deadline and never retries indefinitely. More ECS tasks do not raise the provider quota, so bursts beyond it need a queue (see below).
 
 Details: [Terraform guide](infra/terraform/README.md) and [runbook](docs/operations/RUNBOOK.md).
@@ -87,7 +125,7 @@ Details: [Terraform guide](infra/terraform/README.md) and [runbook](docs/operati
 ### Scaling constraints of AI workloads
 
 - Requests are long (seconds, not milliseconds), so each one holds a connection and a concurrency slot; nginx, ALB and application timeouts must be aligned (30 s proxy, 20 s model deadline).
-- The real bottleneck is the provider's quota and tokens per minute, not CPU. Adding replicas multiplies per-process limits, which is why quotas must be shared before scaling out.
+- Provider quota/tokens and local detector CPU/memory can both limit throughput. Adding replicas multiplies per-process limits, which is why quotas must be shared before scaling out. Preliminary CPU timings motivated smaller starting input limits; full-path latency and resource certification are pending. Raising limits is conditional on those measurements.
 - PostgreSQL connections limit the number of replicas.
 - For higher volume I would move model calls to a queue with workers (the API returns 202 and the client polls), which smooths bursts and makes retries and cost control central.
 
@@ -96,6 +134,7 @@ Details: [Terraform guide](infra/terraform/README.md) and [runbook](docs/operati
 - Pages: login, new analysis, history, detail with conversation.
 - Loading, error and empty states on every page; the analysis shows a "processing" state while the model runs.
 - The analyst can ask follow-up questions and retry a failed analysis; a retry never deletes an existing result.
+- Source, history, chat, results and quotes color literal `[PERSON_hex]`, `[EMAIL_ADDRESS_hex]` and `[PHONE_NUMBER_hex]` tokens with their complete 32-hex suffix. React renders safe text without aliases or restoring originals; previews/context preserve complete tokens.
 - Uncertainty is part of the output: evidence is shown as quotes, hypotheses carry a confidence level, and missing information is listed. There is no token streaming, so there are no partial results.
 
 ## Cost estimate for 1k / 10k / 100k requests
@@ -111,6 +150,8 @@ Details: [Terraform guide](infra/terraform/README.md) and [runbook](docs/operati
 | 2nd follow-up question | 681 / 404 | ~USD 0.00034 |
 
 Follow-up questions resend the incident and the recent conversation, so input grows with each turn (about +90 tokens between the first and second question in this sample). The suite mixes fixture types; long incidents cost more.
+
+These historical costs exclude local PII resources and do not measure current v6/v7 prompts or expanded label text. T25 recorded full-protection token usage, not an invoice or current prices: [report](docs/qa/ASSESSMENT_CLOSURE.md).
 
 **Historical samples (superseded prompts).** Before v3/v4, three analysis calls with `incident-analysis.v2` averaged 456 / 472 input/output tokens (~USD 0.00035 per analysis); two follow-ups with `incident-question.v3` averaged 645 / 590 (~USD 0.00045). Those five calls are not comparable one-to-one with the table above.
 
@@ -148,18 +189,19 @@ The assessment asks to pick any bonus. I chose the cost estimate and per-user is
 |---|---|---|
 | Streaming (token by token) | Every answer is validated before it is shown (strict schema, quotes that must appear verbatim, no new URLs). Streaming would show text that may still be rejected. The wait is covered by an explicit loading state. | Long free-text answers where latency matters more; stream only the `answer` field and validate at the end. |
 | Tool / function calling | The model has no tools, which is part of the prompt-injection defense: an injected instruction has nothing to trigger. The product assists an analyst and does not run remediation. | A read-only lookup (for example runbooks or recent deploys) with allowlisted, side-effect-free tools. |
-| Queues and workers | One synchronous call with a 20 s deadline, at most one retry, a concurrency cap and per-user quotas is enough at this volume and easier to test. | Higher volume or bursts: the API returns 202, a worker processes, the client polls. PostgreSQL can be the queue, so no new infrastructure. |
-| Vector store / RAG (section 2.1) | The user pastes one incident of up to 8,000 characters, which fits in the context. There is no corpus to search. | Searching runbooks or past incidents. |
+| Queues and workers | The current bounded synchronous workflow keeps one request and explicit loading/error states. Local detector and output-batch performance must still be verified within its deadline. | Higher volume or bursts: the API returns 202, a worker processes, the client polls. PostgreSQL can be the queue, so no new infrastructure. |
+| Vector store / RAG (section 2.1) | The user pastes one incident within the configured source/context limits (1,000 source characters by default). There is no corpus to search. | Searching runbooks or past incidents. |
 | Multi-tenant isolation | Implemented as per-user isolation. Organizations and roles are not part of the product, so adding them would only serve the bonus. | Teams that share incidents under an organization with roles. |
 
 ## Local setup
 
-Use Node.js 22 and Docker for PostgreSQL. Copy the example configuration and use only synthetic incident data for the demo.
+Use Node.js 22 and Docker for PostgreSQL and the local PII service. Copy the example only for a new local configuration; preserve an existing `.env`. Configure a strong `JWT_SECRET` before startup. Use synthetic incidents only: T22 is accepted with limitations for a demo, not certified for confidential data.
 
 ```powershell
 Copy-Item .env.example .env
-docker compose up -d postgres
 npm ci
+npm run pii:init-key
+docker compose -f docker-compose.yml -f docker-compose.pii-dev.yml up --build -d postgres pii
 npm run db:migrate
 npm run db:seed
 npm run dev:api
@@ -173,21 +215,28 @@ npm run dev:web
 
 The example uses API port 3001 and frontend http://127.0.0.1:5173. OpenAPI is at http://127.0.0.1:3001/api/docs, with JSON at `/api/docs-json`.
 
+For host Node, set `PII_ENABLED=true`, `PII_SERVICE_URL=http://127.0.0.1:18080`, `PII_TIMEOUT_MS=10000`, `SOURCE_TEXT_MAX=1000` and `QUESTION_MAX=500` as in the example. The optional overlay publishes PII on loopback only. The first image build downloads pinned model assets; inference loads them offline. See the [runbook](docs/operations/RUNBOOK.md) for readiness and failures.
+
+Change `SOURCE_TEXT_MAX` and/or `QUESTION_MAX` in the API environment, then restart host Node or recreate the Compose API and reload the browser page. No frontend build is needed. Review existing local settings explicitly: an older `.env` can still supply 8,000/1,000 and override the new Compose defaults. This documentation does not modify it. The previous 8,000-character source cap is historical, not a current CPU-latency guarantee. Larger settings require real source/output-batch QA within service and overall deadlines.
+
 Local demo users are `analyst.a@example.test` and `analyst.b@example.test`, password `local-demo-password`. These are synthetic local credentials; production demo seeding is disabled.
 
 For a real model, set `LLM_PROVIDER=openrouter` with `OPENROUTER_API_KEY`, or `LLM_PROVIDER=openai` with `OPENAI_API_KEY`. Optional model overrides are `OPENROUTER_MODEL` and `OPENAI_MODEL`. Never commit `.env` or keys. On Windows, see the [runbook](docs/operations/RUNBOOK.md) for TLS troubleshooting; do not disable certificate verification.
 
-For the complete local stack (PostgreSQL, API and React served by nginx), with `.env` copied from `.env.example` and a generated `JWT_SECRET`:
+For the complete local stack (PostgreSQL, PII, API and React served by nginx), with configured `.env`, generated `JWT_SECRET` and the initialized HMAC file:
 
 ```powershell
+npm run pii:init-key
 docker compose up --build
 ```
 
-On Windows, if `npm ci` inside the image build or provider HTTPS from the API container fails with a certificate error, export your HTTPS inspection root and use the optional overlay (see [runbook](docs/operations/RUNBOOK.md#tls-problems-on-windows)): `npm run docker:export-ca`, then `docker compose -f docker-compose.yml -f docker-compose.extra-ca.yml up --build` (build secret plus a read-only runtime mount for the API).
+On Windows, if dependency/model downloads or provider HTTPS fail with a certificate error, export your HTTPS inspection root and use the optional overlay (see [runbook](docs/operations/RUNBOOK.md#tls-problems-on-windows)): `npm run docker:export-ca`, then `docker compose -f docker-compose.yml -f docker-compose.extra-ca.yml up --build` (API/web/PII build secret plus a read-only API runtime trust mount).
 
 Compose reads `JWT_SECRET` from `.env` and stops with an error if it is missing; no secret is written in the Compose file or baked into an image. The API applies migrations and creates the two synthetic demo users at startup; data lives in the `pgdata` volume and survives `docker compose down` (not `down -v`). For a real model, add `-f docker-compose.openrouter.yml`; it reads `OPENROUTER_API_KEY` and `OPENROUTER_MODEL` from `.env`, so check that `OPENROUTER_MODEL` is the model you intend to pay for. Browser checks against this stack: `npm run qa:e2e:compose`.
 
 The web image serves React at http://localhost:8080 and proxies `/api/` to the API. It renders its nginx template using `API_UPSTREAM`, defaulting to `api:3000` in Compose, and `API_PROXY_READ_TIMEOUT`, defaulting to `30s`. The OpenRouter overlay sets a 45 s API deadline, 20 s attempts and a 60 s proxy timeout, leaving time for the API to return a controlled error. Rebuild the image after template changes and recreate the web container after environment changes.
+
+Compose keeps PII on an internal network at `http://pii:8000`, with a secret mount, read-only root, dropped capabilities and provisional 4 GiB / 1 CPU. Model/key readiness precedes API startup. The controller's overall deadline includes protection overhead; 10 s is the default and maximum internal request timeout, not an extra guaranteed allowance.
 
 ## Verification
 
@@ -208,12 +257,15 @@ The web image serves React at http://localhost:8080 and proxies `/api/` to the A
 | `npm run qa:e2e:flows` / `qa:e2e:flows:limits` | Browser cases from [UI flows](docs/qa/UI_FLOWS.md) (mock provider) |
 | `npm run qa:ai:suite` | [Live quality suite](docs/qa/LIVE_SUITE.md): all fixtures, analysis plus two follow-ups, against a paid model (manual, ~USD 0.005 per run) |
 | `npm run check:web-docs` | Verify internal documents are absent from the React build |
+| `scripts\qa-local-pii.bat` / `npm run qa:pii` | Full synthetic battery: real local detector, three modes, outage and browser/regression evidence; mock downstream provider |
 
 Integration tests require an isolated PostgreSQL database with `test` in its name; they truncate data and test migration rollback. CI runs lint, typecheck (including frontend test files), API tests with coverage, frontend tests, the mock evaluation, the build and `terraform validate` on every push.
 
+The commands above are verification procedures, not T22 results. General regression's explicit PII bypass does not certify protected operation. Real detector quality, integration, resource measurements and colored-label evidence are in the [local PII report](docs/qa/LOCAL_PII_INTEGRATION.md). Real LLM failures are separately recorded in [assessment closure](docs/qa/ASSESSMENT_CLOSURE.md).
+
 ## Infrastructure proposal
 
-The [Terraform guide](infra/terraform/README.md) describes an HTTPS ALB, a Fargate task with web and API containers, private RDS, secrets and logs. It supports OpenAI or OpenRouter, requires real image references and defaults to zero ECS tasks until secrets and deployment prerequisites are prepared. It is a validated proposal, not a deployment: `terraform fmt -check`, `init -backend=false` and `validate` pass with Terraform 1.9.8 (run locally on 2026-10-01; CI runs the same job). No `plan` or `apply` has been run and no AWS resources exist.
+The [Terraform guide](infra/terraform/README.md) describes an HTTPS ALB, a Fargate task with web/API/PII, private RDS, secrets and logs. T22 proposes 4 GiB / 1 vCPU total, a 3,072 MiB PII sidecar, `pii_container_image` and a dedicated HMAC secret; `desired_count = 0` remains. Local `fmt` and `validate` passed for the new configuration with Terraform 1.9.8 on 2026-10-02 using cached providers, without a new `init`. AWS runtime and model resource sizing remain unverified. No `plan`, `apply` or cloud deployment has been performed.
 
 ## Deliberate limits
 
@@ -223,3 +275,4 @@ The [Terraform guide](infra/terraform/README.md) describes an HTTPS ALB, a Farga
 - Default retention is 30 days with periodic purge. Expiry is not instantaneous physical deletion; provider retention is separate.
 - Recovery of interrupted runs is eventual after the database becomes available. A minimal failure closure may omit audit or message details if their full transaction failed.
 - Mocks do not certify real-model accuracy, latency, spend or provider privacy.
+- Local PII is a candidate with possible misses and identifying context; legacy data is retained, and explicit disabled mode provides no content protection.

@@ -6,6 +6,8 @@ export const ErrorCode = {
   Conflict: 'CONFLICT',
   ContextLimit: 'CONTEXT_LIMIT',
   InvalidOutput: 'INVALID_OUTPUT',
+  PiiUnavailable: 'PII_UNAVAILABLE',
+  PiiLegacyRecord: 'PII_LEGACY_RECORD',
   DataNotSaved: 'DATA_NOT_SAVED',
   Unauthenticated: 'UNAUTHENTICATED',
   SessionExpired: 'SESSION_EXPIRED',

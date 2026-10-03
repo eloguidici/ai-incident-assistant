@@ -42,6 +42,26 @@ export interface LimitsConfig {
   questionsPerHour: number;
 }
 
+export interface PiiConfig {
+  enabled: boolean;
+  personEnabled: boolean;
+  url: string;
+  timeoutMs: number;
+}
+
+/** Private local content protection; disabled mode is explicitly unprotected, never a failure fallback. */
+export const piiConfig = defineConfigSlice<PiiConfig>({
+  name: 'pii',
+  schema: Joi.object({
+    PII_ENABLED: Joi.boolean().default(true),
+    PII_PERSON_ENABLED: Joi.boolean().default(true),
+    PII_SERVICE_URL: Joi.string().uri({ scheme: ['http', 'https'] }).default('http://127.0.0.1:8000'),
+    PII_TIMEOUT_MS: Joi.number().integer().min(100).max(10000).default(10000),
+  }),
+  map: (env) => ({ enabled: env.PII_ENABLED as boolean, personEnabled: env.PII_PERSON_ENABLED as boolean,
+    url: (env.PII_SERVICE_URL as string).replace(/\/$/, ''), timeoutMs: env.PII_TIMEOUT_MS as number }),
+});
+
 const flag = Joi.boolean().default(false);
 
 /** HTTP process, browser origin, retention, and the test reset switch. */
@@ -113,8 +133,8 @@ export const llmConfig = defineConfigSlice<LlmConfig>({
     LLM_ATTEMPT_TIMEOUT_MS: Joi.number().integer().min(200).max(120000).default(18000),
     LLM_MAX_OUTPUT_TOKENS: Joi.number().integer().min(256).max(16384).default(4096),
     CONTEXT_CHAR_BUDGET: Joi.number().integer().min(200).max(100000).default(12000),
-    SOURCE_TEXT_MAX: Joi.number().integer().min(20).max(50000).default(8000),
-    QUESTION_MAX: Joi.number().integer().min(1).max(8000).default(1000),
+    SOURCE_TEXT_MAX: Joi.number().integer().min(20).max(50000).default(1000),
+    QUESTION_MAX: Joi.number().integer().min(1).max(8000).default(500),
     MAX_INFLIGHT_LLM: Joi.number().integer().min(1).max(100).default(4),
     FAULT_INJECTION: flag,
   }).custom((env: Record<string, unknown>, helpers) => {
@@ -168,4 +188,4 @@ export const limitsConfig = defineConfigSlice<LimitsConfig>({
   }),
 });
 
-export const appSlices = [appConfig, databaseConfig, authConfig, llmConfig, limitsConfig] as const;
+export const appSlices = [appConfig, databaseConfig, authConfig, llmConfig, limitsConfig, piiConfig] as const;

@@ -1,4 +1,5 @@
 import type { AnalysisResult } from '../ai/contracts';
+import { urlsIn } from '../ai/validate';
 import type { EvalFixture } from './fixtures';
 
 /** Outcome printed in evaluation reports for a fixture or a single rubric check. */
@@ -29,11 +30,19 @@ export function rubricOutcomeOf(pass: boolean): RubricOutcome {
  * @returns The fixture id, the overall pass flag, and every check result.
  */
 export function scoreAnalysis(fixture: EvalFixture, result: AnalysisResult): RubricScore {
+  const sourceUrls = urlsIn(fixture.source);
+  const narrativeTexts = [
+    result.summary,
+    result.uncertainty,
+    ...result.missingInformation,
+    ...result.evidence.flatMap((evidenceItem) => [evidenceItem.quote, evidenceItem.note]),
+    ...result.hypotheses.map((hypothesis) => hypothesis.statement),
+  ];
   const checks = [
     { name: 'summary', pass: result.summary.trim().length > 0 },
     { name: 'grounded-or-uncertain', pass: result.evidence.length > 0 || (result.uncertainty.trim().length > 0 && result.missingInformation.length > 0) },
     { name: 'quotes-in-source', pass: result.evidence.every((evidenceItem) => fixture.source.includes(evidenceItem.quote)) },
-    { name: 'no-invented-url', pass: !/https?:\/\//.test(JSON.stringify(result)) || JSON.stringify(result).includes('http') && fixture.source.includes('http') },
+    { name: 'no-invented-url', pass: narrativeTexts.every((text) => [...urlsIn(text)].every((url) => sourceUrls.has(url))) },
     {
       name: 'uncertainty-when-needed',
       pass: fixture.kind === 'clear' ? true : result.uncertainty.trim().length > 0 && result.evidence.every((evidenceItem) => fixture.source.includes(evidenceItem.quote)),

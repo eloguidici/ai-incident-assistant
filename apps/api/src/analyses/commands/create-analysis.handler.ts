@@ -11,6 +11,7 @@ import { ANALYSIS_REPOSITORY } from '../../db/repositories/tokens';
 import { AnalysisCommandShared } from '../analysis-command.shared';
 import type { AnalysisDetailResult } from '../analysis-detail.types';
 import { CreateAnalysisCommand } from './create-analysis.types';
+import { randomUUID } from 'node:crypto';
 
 /** CQRS command handler: reserves a processing analysis and runs the model. */
 @CommandHandler(CreateAnalysisCommand)
@@ -44,12 +45,18 @@ export class CreateAnalysisHandler implements ICommandHandler<CreateAnalysisComm
       );
     }
     const expiresAt = this.shared.newExpiresAt();
-    let analysisId: string;
+    let analysisId: string = randomUUID();
+    let sourceText: string;
     let executionId: string;
     try {
+      sourceText = await this.shared.pii.sanitizeText(command.sourceText, command.owner.id, analysisId, command.signal);
+      if (sourceText.length > this.llmSettings.contextCharBudget) throw new AppError(ErrorCode.ContextLimit, 400,
+        'The protected incident exceeds the context budget. Submit a shorter incident.');
       const reserved = await this.analyses.reserveProcessingAnalysisWithExecution({
+        analysisId,
+        piiPolicyVersion: this.shared.pii.policyVersion(),
         ownerId: command.owner.id,
-        sourceText: command.sourceText,
+        sourceText,
         expiresAt,
         kind: ExecutionKind.Analysis,
         promptVersion: ANALYSIS_PROMPT_VERSION,
@@ -69,7 +76,7 @@ export class CreateAnalysisHandler implements ICommandHandler<CreateAnalysisComm
     return this.shared.finishAnalysis(
       command.owner,
       analysisId,
-      command.sourceText,
+      sourceText,
       command.correlationId,
       command.signal,
       executionId,

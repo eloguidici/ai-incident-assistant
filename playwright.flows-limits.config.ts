@@ -62,6 +62,7 @@ function apiEnv(overrides: Record<string, string>): Record<string, string> {
     JWT_SECRET: 'test-jwt-secret-at-least-32-characters-long',
     WEB_ORIGIN: webBase,
     LLM_PROVIDER: 'mock',
+    PII_ENABLED: 'false', // The separate PII battery certifies the real detector.
     SEED_DEMO: 'true',
     ALLOW_SEED_DEMO: 'true',
     SEED_PASSWORD: 'local-demo-password',

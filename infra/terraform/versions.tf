@@ -52,6 +52,11 @@ variable "web_container_image" {
   description = "Published React/nginx image built with infra/docker/web.Dockerfile."
 }
 
+variable "pii_container_image" {
+  type        = string
+  description = "Published offline local PII image built with services/pii/Dockerfile; prefer an immutable digest."
+}
+
 variable "llm_provider" {
   type        = string
   default     = "openrouter"
@@ -75,5 +80,37 @@ variable "desired_count" {
   validation {
     condition     = var.desired_count >= 0 && floor(var.desired_count) == var.desired_count
     error_message = "desired_count must be a nonnegative integer."
+  }
+}
+
+variable "source_text_max" {
+  type        = number
+  default     = 1000
+  description = "Runtime incident character limit read by React. Increasing requires real detector latency QA."
+  validation {
+    condition     = var.source_text_max >= 20 && var.source_text_max <= 50000 && floor(var.source_text_max) == var.source_text_max
+    error_message = "source_text_max must be an integer between 20 and 50000."
+  }
+}
+
+variable "pii_enabled" {
+  type        = bool
+  default     = true
+  description = "Operator-controlled content protection flag. False explicitly permits unprotected writes/provider payloads; not an outage fallback."
+}
+
+variable "pii_person_enabled" {
+  type        = bool
+  default     = true
+  description = "Optional local name-model layer. False keeps detected emails/phones only and skips loading model weights."
+}
+
+variable "question_max" {
+  type        = number
+  default     = 500
+  description = "Runtime follow-up character limit read by React. Increasing requires real detector latency QA."
+  validation {
+    condition     = var.question_max >= 1 && var.question_max <= 8000 && floor(var.question_max) == var.question_max
+    error_message = "question_max must be an integer between 1 and 8000."
   }
 }

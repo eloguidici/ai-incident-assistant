@@ -1,4 +1,29 @@
 services:
+  pii:
+    build:
+      context: ./services/pii
+    environment:
+      PII_HMAC_KEY_FILE: /run/secrets/pii_hmac_key
+      PII_PERSON_ENABLED: ${PII_PERSON_ENABLED:-true}
+      HF_HUB_OFFLINE: "1"
+      TRANSFORMERS_OFFLINE: "1"
+    secrets:
+      - pii_hmac_key
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 4g
+    cpus: 1
+    networks: [pii_internal]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 120s
+
   postgres:
     image: postgres:16.10-alpine
     environment:
@@ -17,6 +42,7 @@ services:
       retries: 20
 
   api:
+    networks: [default, pii_internal]
     build:
       context: .
       dockerfile: infra/docker/api.Dockerfile
@@ -25,6 +51,12 @@ services:
       JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env (see .env.example)}
       WEB_ORIGIN: http://localhost:8080
       LLM_PROVIDER: mock
+      PII_ENABLED: ${PII_ENABLED:-true}
+      PII_PERSON_ENABLED: ${PII_PERSON_ENABLED:-true}
+      PII_SERVICE_URL: http://pii:8000
+      PII_TIMEOUT_MS: ${PII_TIMEOUT_MS:-10000}
+      SOURCE_TEXT_MAX: ${SOURCE_TEXT_MAX:-1000}
+      QUESTION_MAX: ${QUESTION_MAX:-500}
       SEED_DEMO: "true"
       ALLOW_SEED_DEMO: "true"
       SEED_PASSWORD: local-demo-password
@@ -32,6 +64,8 @@ services:
       TRUST_PROXY: "true"
       PORT: "3000"
     depends_on:
+      pii:
+        condition: service_healthy
       postgres:
         condition: service_healthy
     ports:
@@ -53,3 +87,11 @@ services:
 
 volumes:
   pgdata:
+
+secrets:
+  pii_hmac_key:
+    file: ${PII_HMAC_KEY_PATH:-./.local/pii-hmac.key}
+
+networks:
+  pii_internal:
+    internal: true

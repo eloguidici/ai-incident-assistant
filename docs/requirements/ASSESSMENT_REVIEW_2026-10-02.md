@@ -5,6 +5,8 @@ Branch: dev. Code reviewed: dcfc0f9b5b9d18538ff097fdcb30d8fc84a3ce26.
 Commit 42e0c362ee553db01857c749b2df0c6ceb590a49 adds the PII plan and links only.
 Source: original Full Stack AI Engineer Assessment PDF. Method: reading the PDF, source, contracts, CI and existing reports. No new tests, paid calls, browser runs, Terraform plan/apply or deployments were executed in this review.
 
+Subsequent note, 2026-10-03 (Buenos Aires): this report preserves the historical 2026-10-02 review, when sanitation was still a plan. Current section 2.1 truth is the [data policy](../security/DATA_POLICY.md): local implementation, actual runs and misses accepted only for a synthetic demo. All five explanatory topics are closed, not privacy-certified. Section 2.2 hosted-model revalidation remains pending.
+
 ## Conclusion
 
 Core functional requirements are implemented and design explanations exist. Full delivery approval remains premature: adversarial real-model verification after remediation is pending, sensitive-data handling needs closure and final operational evidence must match the delivered commit.

@@ -5,7 +5,7 @@ import { migrationSql } from './migration-files';
 import { MigrationAdvisoryLockKey, MigrationId } from '../common/constants/migration';
 
 /**
- * Applies 001_init.sql once, inside a transaction and under an advisory lock so concurrent processes do not race.
+ * Applies ordered migrations once under an advisory lock; legacy content is not silently marked protected.
  * @param pool Connection pool for the target database.
  * @throws The database error after rolling back when the migration fails.
  */
@@ -19,16 +19,18 @@ export async function applyMigrations(pool: Pool): Promise<void> {
   const client = await pool.connect();
   try {
     await client.query('SELECT pg_advisory_lock($1)', [MigrationAdvisoryLockKey]);
-    const existing = await client.query('SELECT id FROM schema_migrations WHERE id = $1', [MigrationId.Init]);
-    if (existing.rowCount) return;
-    await client.query('BEGIN');
-    try {
-      await client.query(migrationSql('001_init.sql'));
-      await client.query('INSERT INTO schema_migrations (id) VALUES ($1)', [MigrationId.Init]);
-      await client.query('COMMIT');
-    } catch (error) {
-      await client.query('ROLLBACK');
-      throw error;
+    for (const [id, file] of [[MigrationId.Init, '001_init.sql'], [MigrationId.PiiPolicy, '002_pii_policy.sql']]) {
+      const existing = await client.query('SELECT id FROM schema_migrations WHERE id = $1', [id]);
+      if (existing.rowCount) continue;
+      await client.query('BEGIN');
+      try {
+        await client.query(migrationSql(file));
+        await client.query('INSERT INTO schema_migrations (id) VALUES ($1)', [id]);
+        await client.query('COMMIT');
+      } catch (error) {
+        await client.query('ROLLBACK');
+        throw error;
+      }
     }
   } finally {
     await client.query('SELECT pg_advisory_unlock($1)', [MigrationAdvisoryLockKey]).catch(() => undefined);

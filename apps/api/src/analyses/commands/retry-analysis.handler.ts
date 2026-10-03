@@ -34,6 +34,7 @@ export class RetryAnalysisHandler implements ICommandHandler<RetryAnalysisComman
   async execute(command: RetryAnalysisCommand): Promise<AnalysisDetailResult> {
     const ownedAnalysis = await this.analyses.findOwned(command.owner.id, command.analysisId);
     if (!ownedAnalysis) throw new AppError(ErrorCode.NotFound, 404, 'That analysis was not found.');
+    this.shared.pii.assertProtected(ownedAnalysis.piiPolicyVersion);
     if (ownedAnalysis.status === RunStatus.Processing) {
       throw new AppError(ErrorCode.Conflict, 409, 'That analysis is still in progress.');
     }

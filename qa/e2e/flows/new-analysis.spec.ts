@@ -14,13 +14,17 @@ test('NEW-02 Analyze stays disabled for empty or whitespace-only text', async ({
   await expect(page.getByText('0/8000')).toBeVisible();
 });
 
-test('NEW-03 textarea enforces 8000 characters and analysis still succeeds', async ({ page }) => {
+test('NEW-03 retains an over-limit draft and accepts the configured boundary', async ({ page }) => {
   await page.goto('/new');
-  const longText = `${'x'.repeat(8100)}`;
+  const { sourceTextMax } = await (await page.request.get('/api/analyses/limits')).json() as { sourceTextMax: number };
+  const longText = 'x'.repeat(sourceTextMax + 100);
   await page.getByTestId('source-input').fill(longText);
   const value = await page.getByTestId('source-input').inputValue();
-  expect(value.length).toBe(8000);
-  await expect(page.getByText('8000/8000')).toBeVisible();
+  expect(value).toBe(longText);
+  await expect(page.getByRole('button', { name: 'Analyze' })).toBeDisabled();
+  await expect(page.getByRole('alert')).toContainText('maximum length');
+  await page.getByTestId('source-input').fill('x'.repeat(sourceTextMax));
+  await expect(page.getByText(`${sourceTextMax}/${sourceTextMax}`)).toBeVisible();
   await page.getByRole('button', { name: 'Analyze' }).click();
   await expect(page.getByTestId('analysis-result')).toBeVisible({ timeout: 30_000 });
 });

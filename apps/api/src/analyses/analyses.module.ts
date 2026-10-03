@@ -5,7 +5,8 @@ import { MockProvider } from '../ai/mock.provider';
 import { OpenAiProvider } from '../ai/openai.provider';
 import { OpenRouterProvider } from '../ai/openrouter.provider';
 import { getConfigToken } from '../config';
-import { llmConfig, type LlmConfig } from '../config/slices';
+import { llmConfig, piiConfig, type LlmConfig, type PiiConfig } from '../config/slices';
+import { HttpPiiSanitizer, PII_SANITIZER, PiiService } from '../pii/pii.service';
 import { AddQuestionHandler } from './commands/add-question.handler';
 import { CreateAnalysisHandler } from './commands/create-analysis.handler';
 import { RetryAnalysisHandler } from './commands/retry-analysis.handler';
@@ -20,6 +21,8 @@ import { AnalysesService } from './analyses.service';
   controllers: [AnalysesController],
   providers: [
     AnalysesService,
+    PiiService,
+    { provide: PII_SANITIZER, inject: [getConfigToken(piiConfig)], useFactory: (settings: PiiConfig) => new HttpPiiSanitizer(settings) },
     AnalysisCommandShared,
     ListAnalysesHandler,
     GetAnalysisHandler,
@@ -41,6 +44,6 @@ import { AnalysesService } from './analyses.service';
       useFactory: (llmSettings: LlmConfig, provider: LlmProvider) => new LlmGateway(llmSettings, provider),
     },
   ],
-  exports: [AnalysesService],
+  exports: [AnalysesService, PiiService],
 })
 export class AnalysesModule {}

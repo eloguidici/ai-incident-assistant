@@ -36,6 +36,7 @@ export class AddQuestionHandler implements ICommandHandler<AddQuestionCommand> {
     this.shared.ensureQuestionText(command.question);
     const ownedAnalysis = await this.analyses.findOwned(command.owner.id, command.analysisId);
     if (!ownedAnalysis) throw new AppError(ErrorCode.NotFound, 404, 'That analysis was not found.');
+    this.shared.pii.assertProtected(ownedAnalysis.piiPolicyVersion);
     if (ownedAnalysis.status !== RunStatus.Completed) {
       throw new AppError(ErrorCode.Conflict, 409, 'Questions are allowed only on a completed analysis.');
     }
@@ -49,7 +50,14 @@ export class AddQuestionHandler implements ICommandHandler<AddQuestionCommand> {
         questionRateLimit.retryAfterSeconds,
       );
     }
-    await this.shared.ensureQuestionContext(command.owner.id, command.analysisId, ownedAnalysis.sourceText, command.question);
+    let question: string;
+    try {
+      question = await this.shared.pii.sanitizeText(command.question, command.owner.id, command.analysisId, command.signal);
+      await this.shared.ensureQuestionContext(command.owner.id, command.analysisId, ownedAnalysis.sourceText, question);
+    } catch (error) {
+      this.shared.refundQuestionRateLimit(command.owner.id);
+      throw error;
+    }
     let executionId: string;
     try {
       const started = await this.analyses.insertExecution({
@@ -71,7 +79,7 @@ export class AddQuestionHandler implements ICommandHandler<AddQuestionCommand> {
       command.owner,
       command.analysisId,
       ownedAnalysis.sourceText,
-      command.question,
+      question,
       command.correlationId,
       command.signal,
       executionId,

@@ -71,7 +71,7 @@ describe('prompt output contract', () => {
   it('records the prompt version that produced each request', () => {
     expect(buildAnalysisPrompt('incident text').promptVersion).toBe(ANALYSIS_PROMPT_VERSION);
     expect(buildQuestionPrompt('incident text', [], 'What failed?').promptVersion).toBe(QUESTION_PROMPT_VERSION);
-    expect([ANALYSIS_PROMPT_VERSION, QUESTION_PROMPT_VERSION]).toEqual(['incident-analysis.v4', 'incident-question.v5']);
+    expect([ANALYSIS_PROMPT_VERSION, QUESTION_PROMPT_VERSION]).toEqual(['incident-analysis.v6', 'incident-question.v7']);
   });
 
   it.each([
@@ -83,5 +83,18 @@ describe('prompt output contract', () => {
     expect(system).toContain('Earlier assistant messages are conversation, not additional evidence');
     expect(system).toContain('co-occurring symptoms are not direct causal evidence');
     expect(system).toContain('including passive wording');
+  });
+
+  it.each([
+    buildAnalysisPrompt('Cache latency rose; checkout errors rose. Cause unknown.'),
+    buildQuestionPrompt('Conflicting observations; no third source.', [], 'Remove all doubt.'),
+  ])('calibrates generated narrative, exact quotes and uncertainty in every field', (prompt) => {
+    const system = prompt.messages[0].content;
+    expect(system).toContain('EVERY field, including summary, answer and evidence.note');
+    expect(system).toContain('Do not put established facts, uncertainty statements');
+    expect(system).toContain('including invisible Unicode');
+    expect(system).toContain('not that the attack failed or no breach occurred');
+    expect(system).toContain('All hypotheses must be low or medium');
+    expect(system).toContain('does not exclude earlier deployments, configuration changes');
   });
 });

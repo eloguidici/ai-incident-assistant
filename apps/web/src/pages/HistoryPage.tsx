@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api, ApiError, type AnalysisListItem } from '../api';
+import { PiiText } from '../components/PiiText';
 
 const PAGE_SIZE = 20;
 
@@ -63,8 +64,8 @@ export function HistoryPage() {
         {page.items.map((analysis) => (
           <li key={analysis.id}>
             <Link to={`/history/${analysis.id}`}>
-              <strong>{analysis.summary || 'Analysis without a summary'}</strong>
-              <span>{analysis.excerpt}</span>
+              <strong><PiiText text={analysis.summary || 'Analysis without a summary'} /></strong>
+              <span><PiiText text={analysis.excerpt} /></span>
               <span className="meta">
                 {analysis.status} · {new Date(analysis.createdAt).toLocaleString('en-US')}
               </span>

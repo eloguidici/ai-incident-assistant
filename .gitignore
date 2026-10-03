@@ -2,12 +2,17 @@ node_modules/
 dist/
 .env
 .env.local
+.local/
+__pycache__/
 # Local QA notes and credentials (never committed)
 qa/local/
 open-router-key.txt
 *.log
 qa-artifacts/
+qa/pii-comparison/evidence/
 playwright-report/
+.playwright-cli/
+output/playwright/
 test-results/
 blob-report/
 coverage/

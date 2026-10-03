@@ -1,0 +1,5 @@
+[
+  {"id":"final-unseen-es-coordination","language":"es","tier":"core","text":"La operadora Paula Benítez y el analista Martín Soto revisaron HTTP 504.","expected":[["PERSON","Paula Benítez"],["PERSON","Martín Soto"]],"preserve":["HTTP 504"]},
+  {"id":"final-unseen-contact-action","language":"en","tier":"core","text":"Contact team.alerts@example.test after reviewing HTTP 429 in invoice-worker.","expected":[["EMAIL_ADDRESS","team.alerts@example.test"]],"preserve":["HTTP 429","invoice-worker"]},
+  {"id":"final-unseen-technical-context","language":"en","tier":"core","text":"Operator Dana Whitfield observed Prometheus and Cassandra timeout E_CONNRESET.","expected":[["PERSON","Dana Whitfield"]],"preserve":["Prometheus","Cassandra","E_CONNRESET"]}
+]

@@ -1,0 +1,5 @@
+[
+  {"id":"reserved-coordinated-people","language":"mixed","tier":"core","text":"Carmen Medina and Evan Brooks confirmed HTTP 502 in payment-worker.","expected":[["PERSON","Carmen Medina"],["PERSON","Evan Brooks"]],"preserve":["HTTP 502","payment-worker"]},
+  {"id":"reserved-structured-people","language":"mixed","tier":"core","text":"{\"operator\":\"Carmen Medina\",\"reviewer\":\"Evan Brooks\",\"status\":502,\"component\":\"Jackson parser\"}","expected":[["PERSON","Carmen Medina"],["PERSON","Evan Brooks"]],"preserve":["\"operator\"","\"reviewer\"","\"status\":502","Jackson parser"]},
+  {"id":"reserved-phone-email-technical","language":"en","tier":"core","text":"Contact ops+reserved@example.test or call +44 20 7946 0958. VictoriaMetrics reports HTTP 503.","expected":[["EMAIL_ADDRESS","ops+reserved@example.test"],["PHONE_NUMBER","+44 20 7946 0958"]],"preserve":["VictoriaMetrics","HTTP 503"]}
+]

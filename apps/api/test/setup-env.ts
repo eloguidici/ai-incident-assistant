@@ -2,6 +2,7 @@ process.env.DATABASE_URL ??= 'postgres://app:app@localhost:5432/incident_assista
 process.env.JWT_SECRET = 'test-jwt-secret-at-least-32-characters-long';
 process.env.WEB_ORIGIN = 'http://127.0.0.1:5173';
 process.env.LLM_PROVIDER = 'mock';
+process.env.PII_ENABLED = 'false'; // General regression is separate from real-detector certification.
 process.env.OPENAI_API_KEY = '';
 process.env.OPENROUTER_API_KEY = '';
 process.env.SEED_DEMO = 'false';

@@ -1,0 +1,21 @@
+# Synthetic QA only. This never targets the development database or a paid provider.
+services:
+  api:
+    environment:
+      DATABASE_URL: postgres://app:app@postgres:5432/incident_assistant_test
+      JWT_SECRET: test-jwt-secret-at-least-32-characters-long
+      LLM_PROVIDER: mock
+      SOURCE_TEXT_MAX: "1000"
+      QUESTION_MAX: "500"
+      PII_TIMEOUT_MS: "10000"
+      PII_ENABLED: "true"
+      PII_PERSON_ENABLED: "true"
+      RATE_LIMIT_ANALYSES_PER_HOUR: "500"
+      RATE_LIMIT_QUESTIONS_PER_HOUR: "500"
+      SEED_DEMO: "true"
+      ALLOW_SEED_DEMO: "true"
+      SEED_PASSWORD: local-demo-password
+      COOKIE_SECURE: "false"
+  pii:
+    environment:
+      PII_PERSON_ENABLED: "true"

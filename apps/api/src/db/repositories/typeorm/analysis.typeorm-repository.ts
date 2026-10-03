@@ -51,6 +51,7 @@ export class TypeOrmAnalysisRepository implements AnalysisRepository {
       .select('analysis.id', 'id')
       .addSelect('analysis.status', 'status')
       .addSelect('analysis.sourceText', 'sourceText')
+      .addSelect('analysis.piiPolicyVersion', 'piiPolicyVersion')
       .addSelect('analysis.errorCode', 'errorCode')
       .addSelect('analysis.createdAt', 'createdAt')
       .addSelect('analysis.expiresAt', 'expiresAt')
@@ -64,6 +65,7 @@ export class TypeOrmAnalysisRepository implements AnalysisRepository {
         id: string;
         status: AnalysisEntity['status'];
         sourceText: string;
+        piiPolicyVersion: string | null;
         errorCode: string | null;
         createdAt: Date;
         expiresAt: Date;
@@ -74,6 +76,7 @@ export class TypeOrmAnalysisRepository implements AnalysisRepository {
       id: row.id,
       status: row.status,
       sourceText: row.sourceText,
+      piiPolicyVersion: row.piiPolicyVersion,
       errorCode: row.errorCode,
       createdAt: row.createdAt,
       expiresAt: row.expiresAt,
@@ -118,6 +121,8 @@ export class TypeOrmAnalysisRepository implements AnalysisRepository {
       const analysis = await manager.save(
         AnalysisEntity,
         manager.create(AnalysisEntity, {
+          id: input.analysisId,
+          piiPolicyVersion: input.piiPolicyVersion ?? null,
           ownerId: input.ownerId,
           sourceText: input.sourceText,
           status: RunStatus.Processing,
