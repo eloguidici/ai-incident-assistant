@@ -10,6 +10,16 @@ account availability and measured superiority are not claimed.
 
 ## Assessment Scope
 
+Documentation update 2026-10-04, Buenos Aires: the current tree uses v7/v9,
+omits nonexact quotes and applies a limited lexical causal rule, without a second
+LLM. The visible injection note is computed on read, not enforcement or output
+judgment. [Later recorded samples, in Spanish](../qa/DEMO_CASOS.es.md) completed
+13 analyses per GPT route without observed compliance with the reviewed attacks,
+but retained a generic answer and PII false positives; Liquid had failures.
+This is not immunity, statistical accuracy or full current regression. T25 cases
+below keep their historical versions/FAIL outcomes. See [evaluation](../qa/AI_EVALUATION.md).
+T26 alternatives research was not repeated and does not certify current availability.
+
 The PDF asks for explanations of injection/unsafe input (1.2), uncertainty (1.3),
 PII (2.1), and quality/regressions/wrong answers (2.2). It does not require agents,
 a second LLM or a complete evaluation system. Scope can be limited; an incorrect
@@ -59,7 +69,7 @@ No deployment **during** the window does not exclude an earlier deployment's eff
 HTTP 503 responses co-occurring with unhealthy targets do not prove causality.
 A tentative hypothesis is valid; an unsupported confirmed cause is not.
 
-**Known:** the current prompt already prohibits these conclusions without causal
+**Known in that historical run:** the prompt already prohibited these conclusions without causal
 support. Quotes may be exact while interpretation is excessive. General factual
 entailment is not validated. Valid JSON and low temperature do not verify truth.
 **Unknown:** prompt/model/route effects were not causally isolated; the fourth pass

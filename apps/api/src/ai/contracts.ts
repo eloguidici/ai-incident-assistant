@@ -94,5 +94,5 @@ export function isRetryable(kind: ProviderErrorKind): boolean {
   return kind === 'timeout' || kind === 'rate_limit' || kind === 'server' || kind === 'network';
 }
 
-export const ANALYSIS_PROMPT_VERSION = 'incident-analysis.v6';
-export const QUESTION_PROMPT_VERSION = 'incident-question.v7';
+export const ANALYSIS_PROMPT_VERSION = 'incident-analysis.v7';
+export const QUESTION_PROMPT_VERSION = 'incident-question.v9';

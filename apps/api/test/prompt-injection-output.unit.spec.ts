@@ -87,3 +87,102 @@ describe('complete grounded URL lexemes', () => {
     expect(() => validateAnalysis(JSON.stringify({ ...result, summary: 'https://status.example.test/a_(b?id=1' }), source)).toThrow('URL');
   });
 });
+
+describe('questions about the incident', () => {
+  const incident = 'On 2026-10-02 at 10:15 UTC the payments API returned HTTP 503 for twelve minutes. Load balancer targets were unhealthy. Contact [EMAIL_ADDRESS_ab235a3631c7decc429cce9519489248].';
+  const question = {
+    summary: 'The payments API returned HTTP 503.',
+    category: 'availability',
+    suggestedSeverity: 'medium',
+    hypotheses: [{ statement: 'The unhealthy targets may be related.', confidence: 'low' }],
+    missingInformation: ['Backend logs.'],
+    uncertainty: 'The cause is unconfirmed.',
+  };
+
+  it('keeps the answer and drops a quote that is not in the incident', () => {
+    const validated = validateQuestion(JSON.stringify({
+      ...question,
+      answer: 'The payments API returned HTTP 503 for twelve minutes. The cause is unconfirmed.',
+      evidence: [
+        { quote: 'el servicio no respondió', note: 'Paraphrase that is not in the incident.' },
+        { quote: 'returned HTTP 503', note: 'Observed status.' },
+      ],
+    }), incident);
+    expect(validated.answer).toContain('HTTP 503');
+    expect(validated.evidence.map((evidenceItem) => evidenceItem.quote)).toEqual(['returned HTTP 503']);
+  });
+
+  it('still answers when every quote was paraphrased', () => {
+    const validated = validateQuestion(JSON.stringify({
+      ...question,
+      answer: 'La API de pagos devolvió HTTP 503 durante doce minutos.',
+      evidence: [{ quote: 'el servicio no respondió', note: 'Paraphrase.' }],
+      uncertainty: '',
+      missingInformation: [],
+    }), incident);
+    expect(validated.answer).toContain('HTTP 503');
+    expect(validated.evidence).toEqual([]);
+    expect(validated.uncertainty).toContain('not copied from the incident');
+    expect(validated.missingInformation.length).toBeGreaterThan(0);
+  });
+
+  it('keeps a new analysis and drops a quote that is not in the incident', () => {
+    const validated = validateAnalysis(JSON.stringify({
+      ...question,
+      evidence: [{ quote: 'el servicio no respondió', note: 'Paraphrase.' }],
+      uncertainty: '',
+      missingInformation: [],
+    }), incident);
+    expect(validated.summary).toContain('HTTP 503');
+    expect(validated.evidence).toEqual([]);
+    expect(validated.uncertainty).toContain('not copied from the incident');
+  });
+
+  it('rejects an email or phone that is not in the incident', () => {
+    expect(() => validateQuestion(JSON.stringify({
+      ...question,
+      answer: 'The analyst email is jane.doe@example.com.',
+      evidence: [],
+    }), incident)).toThrow('original contact details');
+    expect(() => validateQuestion(JSON.stringify({
+      ...question,
+      answer: 'Call +1 415 555 0199 for the original number.',
+      evidence: [],
+    }), incident)).toThrow('original contact details');
+  });
+
+  it('allows the protected label without restoring it', () => {
+    const validated = validateQuestion(JSON.stringify({
+      ...question,
+      answer: 'The original email is not available. The incident shows [EMAIL_ADDRESS_ab235a3631c7decc429cce9519489248].',
+      evidence: [{ quote: 'Contact [EMAIL_ADDRESS_ab235a3631c7decc429cce9519489248].', note: 'Protected contact label.' }],
+    }), incident);
+    expect(validated.answer).toContain('[EMAIL_ADDRESS_ab235a3631c7decc429cce9519489248]');
+    expect(validated.evidence).toHaveLength(1);
+  });
+
+  it('moves an unsupported cause into uncertainty and keeps the observation', () => {
+    const validated = validateQuestion(JSON.stringify({
+      ...question,
+      answer: 'The payments API returned HTTP 503 for twelve minutes. The outage was attributed to unhealthy load balancer targets.',
+      summary: 'Targets were unhealthy. The failure was triggered by a deployment.',
+      hypotheses: [{ statement: 'A deployment caused by a bad release may explain it.', confidence: 'low' }],
+      evidence: [{ quote: 'returned HTTP 503', note: 'Observed status.' }],
+    }), incident);
+    expect(validated.answer).toBe('The payments API returned HTTP 503 for twelve minutes.');
+    expect(validated.answer.toLowerCase()).not.toContain('attributed to');
+    expect(validated.summary).toBe('Targets were unhealthy.');
+    expect(validated.hypotheses).toEqual([]);
+    expect(validated.uncertainty.toLowerCase()).toContain('attributed to');
+    expect(validated.uncertainty.toLowerCase()).toContain('triggered by');
+  });
+
+  it('keeps a cause phrase that the incident already states', () => {
+    const validated = validateAnalysis(JSON.stringify({
+      ...question,
+      summary: 'The report says the outage was due to a blank configuration.',
+      evidence: [{ quote: 'returned HTTP 503', note: 'Observed status.' }],
+    }), `${incident} The outage was due to a blank configuration.`);
+    expect(validated.summary).toContain('due to a blank configuration');
+  });
+});

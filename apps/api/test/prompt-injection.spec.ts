@@ -71,7 +71,7 @@ describe('prompt output contract', () => {
   it('records the prompt version that produced each request', () => {
     expect(buildAnalysisPrompt('incident text').promptVersion).toBe(ANALYSIS_PROMPT_VERSION);
     expect(buildQuestionPrompt('incident text', [], 'What failed?').promptVersion).toBe(QUESTION_PROMPT_VERSION);
-    expect([ANALYSIS_PROMPT_VERSION, QUESTION_PROMPT_VERSION]).toEqual(['incident-analysis.v6', 'incident-question.v7']);
+    expect([ANALYSIS_PROMPT_VERSION, QUESTION_PROMPT_VERSION]).toEqual(['incident-analysis.v7', 'incident-question.v9']);
   });
 
   it.each([

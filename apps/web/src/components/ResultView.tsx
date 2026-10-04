@@ -27,8 +27,9 @@ export function ResultView({
       <section>
         <h2>Summary</h2>
         <p><PiiText text={result.summary} /></p>
-        <p className="meta">
-          Category: <PiiText text={result.category} />. Suggested severity: <PiiText text={result.suggestedSeverity} />.
+        <p className="pills">
+          <span className="pill">Category: <PiiText text={result.category} /></span>
+          <span className={`pill pill--${result.suggestedSeverity}`}>Suggested severity: <PiiText text={result.suggestedSeverity} /></span>
         </p>
       </section>
       <section data-testid="evidence">
@@ -49,7 +50,7 @@ export function ResultView({
         <ul>
           {result.hypotheses.map((hypothesis, index) => (
             <li key={`${index}-${hypothesis.statement}`}>
-              <PiiText text={hypothesis.statement} /> <span className="meta">Confidence <PiiText text={hypothesis.confidence} />.</span>
+              <PiiText text={hypothesis.statement} /> <span className={`pill pill--${hypothesis.confidence}`}>Confidence <PiiText text={hypothesis.confidence} />.</span>
             </li>
           ))}
         </ul>

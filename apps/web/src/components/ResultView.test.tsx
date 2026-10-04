@@ -1,6 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import type { QuestionResult } from '../api';
+import { displayedPrivacyText } from './PiiText';
 import { ResultView } from './ResultView';
 
 const person = '[PERSON_0123456789abcdef0123456789abcdef]';
@@ -22,19 +23,20 @@ describe('ResultView PII rendering', () => {
     const beforeRender = JSON.stringify(answer);
     const { container } = render(<ResultView result={answer} />);
     expect(container.querySelectorAll('.pii-token')).toHaveLength(11);
-    expect(container.querySelector('blockquote')?.textContent).toBe(answer.evidence[0].quote);
+    expect(container.querySelector('blockquote')?.textContent).toBe(displayedPrivacyText(answer.evidence[0].quote));
+    expect(container.querySelector('blockquote .pii-token--person')?.getAttribute('data-privacy-token')).toBe(person);
     expect(container.querySelector('svg')).toBeNull();
     expect(JSON.stringify(answer)).toBe(beforeRender);
-    expect(container.textContent).toContain(answer.answer);
-    expect(container.textContent).toContain(answer.summary);
-    expect(container.textContent).toContain(answer.uncertainty);
+    expect(container.textContent).toContain(displayedPrivacyText(answer.answer));
+    expect(container.textContent).toContain(displayedPrivacyText(answer.summary));
+    expect(container.textContent).toContain(displayedPrivacyText(answer.uncertainty));
   });
 
   it('preserves structured citations when the conversation hides the duplicated answer', () => {
     const { container } = render(<ResultView result={answer} hideAnswer testId="thread-result-detail" />);
     expect(screen.queryByRole('heading', { name: 'Answer' })).toBeNull();
     expect(screen.getByTestId('thread-result-detail')).toBeInTheDocument();
-    expect(container.querySelector('blockquote')?.textContent).toBe(answer.evidence[0].quote);
+    expect(container.querySelector('blockquote')?.textContent).toBe(displayedPrivacyText(answer.evidence[0].quote));
     expect(container.querySelectorAll('.pii-token')).toHaveLength(10);
   });
 });

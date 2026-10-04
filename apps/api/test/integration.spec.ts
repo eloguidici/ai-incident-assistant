@@ -137,11 +137,17 @@ describe('API with PostgreSQL', () => {
     expect(reloaded.body.messages.at(-1).status).toBe(RunStatus.Failed);
   });
 
-  it('Q07 timeout, 500, invalid JSON, and an ungrounded quote stay failed', async () => {
+  it('Q07 timeout, 500 and invalid JSON stay failed, and an ungrounded quote is omitted', async () => {
     const { agent, csrf } = await asUser(userA);
+    const ungrounded = await agent.post('/api/analyses').set(CsrfHeaderName, csrf).send({
+      sourceText: `${incident} ${MockFaultTag.Ungrounded}`,
+    });
+    expect(ungrounded.status).toBe(200);
+    expect(ungrounded.body.status).toBe(RunStatus.Completed);
+    expect(ungrounded.body.result.evidence).toEqual([]);
+    expect(ungrounded.body.result.summary.length).toBeGreaterThan(0);
     const cases = [
       { marker: MockFaultTag.InvalidJson, status: 422 },
-      { marker: MockFaultTag.Ungrounded, status: 422 },
       { marker: MockFaultTag.Auth, status: 502 },
       { marker: MockFaultTag.Server, status: 502 },
     ];

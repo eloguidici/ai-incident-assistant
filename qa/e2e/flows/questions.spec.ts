@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { ANALYST_A, INC_OK, INC_SHORT, analyzeFromNew, login, uniqueIncident } from './helpers';
+import { ANALYST_A, INC_OK, INC_SHORT, analyzeFromNew, login, openQuestions, uniqueIncident } from './helpers';
 
 const followUpQuestion = 'What information is missing to confirm the cause?';
 
@@ -9,6 +9,7 @@ test.beforeEach(async ({ page }) => {
 
 async function openCompletedAnalysis(page: import('@playwright/test').Page): Promise<void> {
   await analyzeFromNew(page, uniqueIncident(INC_OK));
+  await openQuestions(page);
 }
 
 test('ASK-02 two questions appear in Analyst Assistant order', async ({ page }) => {
@@ -64,7 +65,9 @@ test('ASK-06 failed question keeps completed analysis and a clean retry works', 
   );
   await expect(page.getByTestId('message-failed').last()).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Analysis completed' })).toBeVisible();
+  await page.getByRole('tab', { name: 'Result' }).click();
   await expect(page.getByTestId('analysis-result')).toBeVisible();
+  await openQuestions(page);
   await page.getByTestId('question-input').fill('Why did the outage happen?');
   await page.getByRole('button', { name: 'Ask' }).click();
   await expect(page.getByTestId('message-completed').filter({ hasText: 'Assistant' })).toBeVisible({
@@ -111,6 +114,7 @@ test('ASK-10 per-user hourly question limit blocks the third question @limits-qu
 
 test('ASK-11 context budget rejects long question without calling the model @limits-context', async ({ page }) => {
   await analyzeFromNew(page, uniqueIncident(INC_SHORT));
+  await openQuestions(page);
   const longQuestion = 'L'.repeat(400);
   await page.getByTestId('question-input').fill(longQuestion);
   await page.getByRole('button', { name: 'Ask' }).click();

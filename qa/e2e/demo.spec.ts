@@ -12,6 +12,7 @@ test('synthetic demo of login, analysis, and question', async ({ page }) => {
   await page.getByTestId('source-input').fill(incident);
   await page.getByRole('button', { name: 'Analyze' }).click();
   await expect(page.getByTestId('analysis-result')).toBeVisible();
+  await page.getByRole('tab', { name: 'Questions' }).click();
   await page.getByTestId('question-input').fill('What is missing to confirm the cause?');
   await page.getByRole('button', { name: 'Ask' }).click();
   await expect(page.getByText('Analyst')).toBeVisible();

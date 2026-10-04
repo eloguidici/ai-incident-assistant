@@ -1,3 +1,4 @@
+import { incidentNotesAssistantInstructions } from '../ai/prompt-injection-signals';
 import type { AnalysisRepository } from '../db/repositories/analysis.repository';
 import type { AnalysisDetailResult } from './analysis-detail.types';
 
@@ -8,6 +9,7 @@ export function mapAnalysisDetail(loaded: NonNullable<Awaited<ReturnType<Analysi
     id: row.id,
     status: row.status,
     sourceText: row.sourceText,
+    assistantInstructionsNoted: incidentNotesAssistantInstructions(row.sourceText),
     result: row.result ?? null,
     errorCode: row.errorCode,
     errorMessage: row.errorMessage,

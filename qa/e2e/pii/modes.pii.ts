@@ -52,6 +52,7 @@ test.describe(`operator protection flags: ${mode}`, () => {
     await expect(page.getByTestId('source-text')).toHaveText(created.sourceText);
     await expect(page.getByTestId('content-protection-mode')).toHaveText(expectedMode);
     const oversizedQuestion = 'x'.repeat(501);
+    await page.getByRole('tab', { name: 'Questions' }).click();
     await page.getByTestId('question-input').fill(oversizedQuestion);
     await expect(page.getByRole('button', { name: 'Ask', exact: true })).toBeDisabled();
     await expect(page.getByRole('alert')).toContainText('maximum length');

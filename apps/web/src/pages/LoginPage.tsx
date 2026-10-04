@@ -2,6 +2,7 @@ import { FormEvent, useState } from 'react';
 import { Eye, EyeOff } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { api, ApiError } from '../api';
+import { WaitStatus } from '../components/WaitStatus';
 
 /**
  * Sign-in form. On success it goes to /history.
@@ -74,6 +75,7 @@ export function LoginPage() {
         <button type="submit" disabled={pending}>
           {pending ? 'Signing in…' : 'Sign in'}
         </button>
+        {pending ? <WaitStatus>Signing in…</WaitStatus> : null}
       </form>
     </main>
   );

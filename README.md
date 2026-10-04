@@ -42,9 +42,9 @@ NestJS/TypeScript modular monolith, React frontend and PostgreSQL with TypeORM r
 
 The model path has one responsibility per step:
 
-1. **Prompt construction** (`apps/api/src/ai/prompt.ts`): versioned prompts `incident-analysis.v6` and `incident-question.v7`, with exact PII-token preservation, no identity guesses and no invented labels.
+1. **Prompt construction** (`apps/api/src/ai/prompt.ts`): versioned prompts `incident-analysis.v7` and `incident-question.v9`, with exact PII-token preservation, no identity guesses and no invented labels.
 2. **Model invocation** (`apps/api/src/ai/gateway.ts` and the providers): a deterministic mock, OpenAI and OpenRouter implement the same `LlmProvider` contract, selected with `LLM_PROVIDER`. SDK retries are disabled; the gateway owns deadlines and at most one retry.
-3. **Response post-processing** (`apps/api/src/ai/validate.ts`): Zod schema validation, exact quotes, complete URL comparison and a narrow impossible-assistant-action check before accepting a result. These do not certify semantic truth.
+3. **Response post-processing** (`apps/api/src/ai/validate.ts`): Zod schema validation, omission of nonexact quotes, a lexical rule moving selected sentences to uncertainty when their English causal expression is absent from the source, URL comparison and a bounded external-action check. Questions also check recognized contact values absent from the source. This does not verify the specific cause or semantic truth; useful facts may be removed and errors may survive. See [evaluation and limits](docs/qa/AI_EVALUATION.md).
 
 The prompt version, provider, model, attempts, latency and token counts are stored with every execution. No database transaction is held open during the model call.
 
@@ -64,7 +64,7 @@ More detail: [architecture rationale](docs/architecture/RATIONALE.md), [design](
 - **Data and instructions have explicit boundaries.** Incident, conversation and question use data blocks with fresh random identifiers absent from the input. The system message names those identifiers and treats other markers as data. This prevents forging the expected closing marker, not semantic manipulation (`apps/api/test/prompt-injection.spec.ts`).
 - **Observation-only pattern detector.** Native `RegExp` scans incident, selected history and question before invocation. It emits six closed signal identifiers without excerpts, blocking, input rewriting or an extra LLM. Known evasions and legitimate attack reports are tested; no match does not mean safe. See [behavior, use cases and future alternatives](docs/security/PROMPT_INJECTION.md). Run `npm run qa:security:signals` with the test database.
 - **The model has no tools.** There is no function calling and the application never executes actions based on model output, so an injected instruction has nothing to trigger.
-- **Output is validated, not trusted.** A strict schema rejects unexpected fields. Every quote must appear verbatim in the incident, and a URL is accepted only if it already appears in the text. Output that fails is stored as a failed execution, never shown as a result.
+- **Output is validated, not trusted.** A strict schema rejects unexpected fields. Nonexact quotes or quotes cutting a privacy label are omitted; a report may survive remaining checks. Without evidence, uncertainty/missing information are required. Foreign URLs cause rejection. Remaining failures are recorded when possible rather than shown as results; a database outage may prevent that record. Quote omission does not prove the explanation correct.
 - **Input is bounded and configurable.** `SOURCE_TEXT_MAX` defaults to 1,000 characters and `QUESTION_MAX` to 500; the API checks trimmed content, rejects NUL characters, limits request bodies to 32 KB and checks a 12,000-character context budget before model invocation. The authenticated `GET /api/analyses/limits` returns `sourceTextMax`, `questionMax`, `contentProtectionEnabled` and `personProtectionEnabled`. React reads them at runtime, preserves over-limit drafts, shows an inline error and disables submission; the server still enforces its own limits.
 - **Rendering is safe.** React renders model output as text, never as HTML; an end-to-end test checks that injected HTML is not executed.
 - **Limit:** these controls reduce risk; they do not make a language model immune to manipulation. A human reviews every analysis.
@@ -107,7 +107,7 @@ Section 2.2 explanatory scope closed on 2026-10-03 (Buenos Aires). It does not r
 - **Measuring output quality:** `npm run qa:eval` validates/scores five synthetic cases: clear outage, insufficient input, injection, HTML and contradictory facts. It checks contracts/quotes, uncertainty and complete URLs using runtime extraction; the rubric injection check is an English-phrase heuristic, not universal semantic verification. `npm run qa:ai:live` uses a real model. Use human review of all responses against expected facts, including rejected ones, to measure usefulness/fidelity rather than equate valid JSON/quotes with correct causes. Compare false rejections, accepted attacks, latency/tokens/cost and repeated-run variation; there is no automatic dashboard for these measures.
 - **Detecting regressions:** stored version/provider/model supports comparison of identical cases before/after; fix limits/deadlines and protection mode too. Changes require software checks and a comparable real sample, reviewing contracts, fidelity, confidence, latency and consumption. Defined CI runs mock evaluation, not paid requests or semantic certification. Different provider matrices are not equivalent comparisons.
 - **When the AI gives a wrong answer in production:** distinguish technical failure from an incorrect answer that passed its contract; do not use a hypothesis as an automatic decision. Showing quotes/uncertainty, rejecting invalid output and preserving a valid analysis after question failure are implemented. The proposed process investigates execution/version/model/correlation with privacy, adds a regression case and rolls back harmful changes: environment provider/model with restart, prompt through code and controlled deployment. There is no dynamic historical-prompt selector, feedback, semantic alerts or automatic rollback.
-- **Limit:** general offline API/browser regression explicitly disables PII; mocks do not certify real detector quality or resources. T22 reports actual verification with accepted synthetic-demo failures. T25 tested both providers and one v6/v7 correction: semantic quality remains FAIL, including an accepted GPT-4.1-mini injection. See the [measured closure](docs/qa/ASSESSMENT_CLOSURE.md).
+- **Limit:** general offline regression disables PII; mocks do not certify detector quality/resources. T22/T25 retain accepted historical synthetic-demo failures, including a GPT-4.1-mini injection. [Later v7/v9 samples, in Spanish](docs/qa/DEMO_CASOS.es.md) completed 13 analyses on each GPT route without observed compliance with the reviewed attacks, but with a generic answer and PII false positives; Liquid had errors/rejections. This is not semantic approval, immunity or full current regression. See [historical T25 closure](docs/qa/ASSESSMENT_CLOSURE.md).
 
 Details/evidence: [AI evaluation and reliability](docs/qa/AI_EVALUATION.md). Rubric correction reproduced before/after, 30 new cases and unit regression passed; historical provider FAIL outcomes are unchanged.
 
@@ -134,7 +134,7 @@ Details: [Terraform guide](infra/terraform/README.md) and [runbook](docs/operati
 - Pages: login, new analysis, history, detail with conversation.
 - Loading, error and empty states on every page; the analysis shows a "processing" state while the model runs.
 - The analyst can ask follow-up questions and retry a failed analysis; a retry never deletes an existing result.
-- Source, history, chat, results and quotes color literal `[PERSON_hex]`, `[EMAIL_ADDRESS_hex]` and `[PHONE_NUMBER_hex]` tokens with their complete 32-hex suffix. React renders safe text without aliases or restoring originals; previews/context preserve complete tokens.
+- Storage/prompts retain full 32-hex `[PERSON_hex]`, `[EMAIL_ADDRESS_hex]` and `[PHONE_NUMBER_hex]` tokens. React presents colored Person/Email/Phone labels numbered by token within an analysis/history card, not recovered identities. Previews/context preserve full tokens. Detail separates Incident, Result and Questions; question supporting detail is expandable. The wait bar is indeterminate; the injection note observes patterns without blocking or judging output.
 - Uncertainty is part of the output: evidence is shown as quotes, hypotheses carry a confidence level, and missing information is listed. There is no token streaming, so there are no partial results.
 
 ## Cost estimate for 1k / 10k / 100k requests
@@ -151,7 +151,7 @@ Details: [Terraform guide](infra/terraform/README.md) and [runbook](docs/operati
 
 Follow-up questions resend the incident and the recent conversation, so input grows with each turn (about +90 tokens between the first and second question in this sample). The suite mixes fixture types; long incidents cost more.
 
-These historical costs exclude local PII resources and do not measure current v6/v7 prompts or expanded label text. T25 recorded full-protection token usage, not an invoice or current prices: [report](docs/qa/ASSESSMENT_CLOSURE.md).
+These historical costs exclude local PII resources and do not measure current v7/v9 prompts or expanded label text. T25 recorded full-protection token usage under its v6/v7 versions, not an invoice or current prices: [historical report](docs/qa/ASSESSMENT_CLOSURE.md).
 
 **Historical samples (superseded prompts).** Before v3/v4, three analysis calls with `incident-analysis.v2` averaged 456 / 472 input/output tokens (~USD 0.00035 per analysis); two follow-ups with `incident-question.v3` averaged 645 / 590 (~USD 0.00045). Those five calls are not comparable one-to-one with the table above.
 
@@ -217,7 +217,7 @@ The example uses API port 3001 and frontend http://127.0.0.1:5173. OpenAPI is at
 
 For host Node, set `PII_ENABLED=true`, `PII_SERVICE_URL=http://127.0.0.1:18080`, `PII_TIMEOUT_MS=10000`, `SOURCE_TEXT_MAX=1000` and `QUESTION_MAX=500` as in the example. The optional overlay publishes PII on loopback only. The first image build downloads pinned model assets; inference loads them offline. See the [runbook](docs/operations/RUNBOOK.md) for readiness and failures.
 
-Change `SOURCE_TEXT_MAX` and/or `QUESTION_MAX` in the API environment, then restart host Node or recreate the Compose API and reload the browser page. No frontend build is needed. Review existing local settings explicitly: an older `.env` can still supply 8,000/1,000 and override the new Compose defaults. This documentation does not modify it. The previous 8,000-character source cap is historical, not a current CPU-latency guarantee. Larger settings require real source/output-batch QA within service and overall deadlines.
+Change `SOURCE_TEXT_MAX` and/or `QUESTION_MAX` in the API environment, restart/recreate the API and reload the page; no frontend build is needed. Existing `.env` or startup overrides may differ from defaults. The latest recorded demo uses 8,000/1,000; the parameterless script uses 4,000/500 and base API/Compose uses 1,000/500. This documentation changes no environment and promises no CPU latency for these sizes. See [configuration profiles](docs/operations/RUNBOOK.md#configuration-profiles).
 
 Local demo users are `demo1@demo.com` and `demo2@demo.com`, password `Demo1234$`. These are synthetic local credentials; production demo seeding is disabled.
 
@@ -263,7 +263,9 @@ The protection target is under 10 seconds per internal request, not total analys
 time. CPU saturation can still cause rejection: the 9.5 s adapter deadline fails
 closed with `PII_UNAVAILABLE`, never an incomplete successful result. The worker
 may continue finishing its in-flight task and retaining its single slot after
-the client times out. No universal latency guarantee or new detector approval.
+the client times out. The next request waits up to `PII_SLOT_WAIT_SECONDS`
+(20 s by default) for that slot and then runs; it does not start a second
+inference. No universal latency guarantee or new detector approval.
 
 For diagnosis, request logs record total HTTP `latencyMs` and a `correlationId`;
 execution rows record gateway `latencyMs` (provider attempts and retry waits).

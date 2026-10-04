@@ -1,4 +1,4 @@
-import { assertKnownPrivacyLabels, truncateProtectedText } from '../src/pii/placeholders';
+import { assertKnownPrivacyLabels, privacyLabelsIntroduced, truncateProtectedText } from '../src/pii/placeholders';
 import { OutputValidationError, validateAnalysis } from '../src/ai/validate';
 import type { AnalysisResult } from '../src/ai/contracts';
 import { selectContext } from '../src/ai/context';
@@ -52,6 +52,13 @@ describe('PII placeholder truncation and provenance contracts', () => {
     expect(() => assertKnownPrivacyLabels(`Summary ${label}`, `[PERSON_${'d'.repeat(32)}]`)).toThrow(OutputValidationError);
   });
 
+  it('keeps a label the sanitizer added and still rejects one the model already wrote', () => {
+    const introduced = privacyLabelsIntroduced('{"summary":"Jane Doe reported HTTP 503."}', `{"summary":"${personLabel} reported HTTP 503."}`);
+    expect(introduced).toEqual([personLabel]);
+    expect(() => assertKnownPrivacyLabels(`{"summary":"${personLabel} reported HTTP 503."}`, 'Payments returned HTTP 503.', introduced)).not.toThrow();
+    expect(() => assertKnownPrivacyLabels(`{"summary":"${personLabel} reported HTTP 503."}`, 'Payments returned HTTP 503.')).toThrow(OutputValidationError);
+  });
+
   it('rejects type substitution even when an opaque identifier matches', () => {
     expect(() => assertKnownPrivacyLabels(`[EMAIL_ADDRESS_${'a'.repeat(32)}]`, personLabel)).toThrow(OutputValidationError);
   });
@@ -64,12 +71,14 @@ describe('PII placeholder truncation and provenance contracts', () => {
     expect(() => assertKnownPrivacyLabels(JSON.stringify({ summary: token }), personLabel)).toThrow(OutputValidationError);
   });
 
-  it.each([personLabel, emailLabel, phoneLabel])('rejects evidence that cuts %s at either boundary', (label) => {
+  it.each([personLabel, emailLabel, phoneLabel])('drops evidence that cuts %s at either boundary', (label) => {
     const source = `${label} reported HTTP 503.`;
     const candidate: AnalysisResult = { summary: 'Reported symptom.', category: 'availability', suggestedSeverity: 'medium',
       evidence: [], hypotheses: [], missingInformation: ['Metrics.'], uncertainty: 'Cause unknown.' };
     for (const quote of [label.slice(0, 12), label.slice(4), `${label.slice(4)} reported HTTP 503.`]) {
-      expect(() => validateAnalysis(JSON.stringify({ ...candidate, evidence: [{ quote, note: 'Reported symptom.' }] }), source)).toThrow(OutputValidationError);
+      const validated = validateAnalysis(JSON.stringify({ ...candidate, evidence: [{ quote, note: 'Reported symptom.' }] }), source);
+      expect(validated.summary).toBe('Reported symptom.');
+      expect(validated.evidence).toEqual([]);
     }
     expect(validateAnalysis(JSON.stringify({ ...candidate, evidence: [{ quote: 'HTTP 503', note: 'Reported symptom.' }] }), source).evidence[0].quote).toBe('HTTP 503');
   });
@@ -79,10 +88,12 @@ describe('PII placeholder truncation and provenance contracts', () => {
     const result: AnalysisResult = { summary: 'Reported payments symptom.', category: 'availability', suggestedSeverity: 'high',
       evidence: [{ quote: protectedSource, note: 'Reported symptom.' }], hypotheses: [], missingInformation: ['Metrics.'], uncertainty: 'Cause unknown.' };
     expect(validateAnalysis(JSON.stringify(result), protectedSource).evidence[0].quote).toBe(protectedSource);
-    expect(() => validateAnalysis(JSON.stringify({ ...result, evidence: [{ quote: 'Alicia Exampleperson reported HTTP 503.', note: 'Original identity.' }] }), protectedSource))
-      .toThrow(OutputValidationError);
-    expect(() => validateAnalysis(JSON.stringify({ ...result, evidence: [{ quote: `[PERSON_${'d'.repeat(32)}] reported HTTP 503.`, note: 'Foreign label.' }] }), protectedSource))
-      .toThrow(OutputValidationError);
+    const restored = validateAnalysis(JSON.stringify({ ...result, evidence: [{ quote: 'Alicia Exampleperson reported HTTP 503.', note: 'Original identity.' }] }), protectedSource);
+    expect(restored.summary).toBe(result.summary);
+    expect(restored.evidence).toEqual([]);
+    const foreign = validateAnalysis(JSON.stringify({ ...result, evidence: [{ quote: `[PERSON_${'d'.repeat(32)}] reported HTTP 503.`, note: 'Foreign label.' }] }), protectedSource);
+    expect(foreign.evidence).toEqual([]);
+    expect(foreign.summary).not.toContain('Alicia');
   });
 
   it('accepts a complete ordinary occurrence even when the same text appears inside a privacy token', () => {

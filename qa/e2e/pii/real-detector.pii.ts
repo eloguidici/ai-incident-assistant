@@ -119,6 +119,7 @@ test.describe('T22 real PII detector through Compose HTTP and browser', () => {
 
       const question = `Did ${contact.person} confirm HTTP 503? Contact email ${contact.email}; phone ${contact.phone}. ` +
         'Which facts remain unconfirmed?';
+      await page.getByRole('tab', { name: 'Questions' }).click();
       await page.getByTestId('question-input').fill(question);
       const questionResponsePromise = page.waitForResponse((response) =>
         new URL(response.url()).pathname === `/api/analyses/${created.id}/messages` && response.request().method() === 'POST',

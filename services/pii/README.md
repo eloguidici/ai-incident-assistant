@@ -133,8 +133,11 @@ in 5.570-8.517 s. The actual Nest adapter measured 6.978 s for a Spanish source 
 0.276 s for four narrative output leaves. No provider calls were made. Earlier
 loaded-host cases exceeded 10 s, so this is not a universal completion guarantee.
 The real-demo adapter stops waiting at 9.5 s and fails closed; an in-flight model
-worker can still retain the single slot until it finishes. Eight threads were
-tested only offline and not selected: marginal benefit did not justify doubling
+worker can still retain the single slot until it finishes. A later request waits
+up to `PII_SLOT_WAIT_SECONDS` (20 s unless set otherwise) for that slot and then
+runs. The wait does not start a second inference. If the slot is still taken when
+the wait ends, the response is 503 `PII_BUSY` and the text is not returned.
+Eight threads were tested only offline and not selected: marginal benefit did not justify doubling
 the quota. Current CPU settings do not fix existing detection limitations.
 
 ## Verification

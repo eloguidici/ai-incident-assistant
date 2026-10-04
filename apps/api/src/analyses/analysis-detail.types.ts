@@ -36,6 +36,8 @@ export type AnalysisDetailResult = {
   id: string;
   status: RunStatus;
   sourceText: string;
+  /** True when the stored incident matches assistant-instruction patterns. Not a verdict or a block. */
+  assistantInstructionsNoted: boolean;
   result: AnalysisResult | null;
   errorCode: string | null;
   errorMessage: string | null;

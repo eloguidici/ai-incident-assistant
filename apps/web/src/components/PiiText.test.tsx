@@ -1,6 +1,6 @@
 import { render } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
-import { PiiText } from './PiiText';
+import { displayedPrivacyText, PiiText, PrivacyLabelScope } from './PiiText';
 
 const digest = '0123456789abcdef0123456789abcdef';
 
@@ -12,8 +12,10 @@ describe('PiiText', () => {
     const text = `  Report\n${person}${email}\t${phone}, ${person}.  `;
     const { container } = render(<PiiText text={text} />);
 
-    expect(container.textContent).toBe(text);
+    expect(container.textContent).toBe(displayedPrivacyText(text));
     expect(Array.from(container.querySelectorAll('.pii-token'), (token) => token.textContent))
+      .toEqual(['Person', 'Email', 'Phone', 'Person']);
+    expect(Array.from(container.querySelectorAll('.pii-token'), (token) => token.getAttribute('data-privacy-token')))
       .toEqual([person, email, phone, person]);
     expect(container.querySelectorAll('.pii-token--person')).toHaveLength(2);
     expect(container.querySelectorAll('.pii-token--email')).toHaveLength(1);
@@ -45,18 +47,43 @@ describe('PiiText', () => {
     const text = `<img src=x onerror="alert(1)"><script>alert(2)</script>&lt;b&gt;` +
       `<a href="javascript:alert(3)">[PERSON_${digest}]</a>`;
     const { container } = render(<PiiText text={text} />);
-    expect(container.textContent).toBe(text);
+    expect(container.textContent).toBe(displayedPrivacyText(text));
     expect(container.querySelector('img, script, a, b')).toBeNull();
-    expect(container.querySelector('.pii-token--person')?.textContent).toBe(`[PERSON_${digest}]`);
+    expect(container.querySelector('.pii-token--person')?.textContent).toBe('Person');
+    expect(container.querySelector('.pii-token--person')?.getAttribute('data-privacy-token')).toBe(`[PERSON_${digest}]`);
   });
 
   it('updates tokens without carrying matches from previous renders', () => {
     const { container, rerender } = render(<PiiText text={`[PERSON_${digest}]`} />);
     rerender(<PiiText text={`[PHONE_NUMBER_${digest}]`} />);
     expect(container.querySelector('.pii-token--person')).toBeNull();
-    expect(container.querySelector('.pii-token--phone')?.textContent).toBe(`[PHONE_NUMBER_${digest}]`);
+    expect(container.querySelector('.pii-token--phone')?.textContent).toBe('Phone');
     rerender(<PiiText text="Plain report" />);
     expect(container.textContent).toBe('Plain report');
     expect(container.querySelector('.pii-token')).toBeNull();
+  });
+
+  it('numbers a second distinct person and keeps one email as a single word', () => {
+    const first = `[PERSON_${digest}]`;
+    const second = `[PERSON_${'a'.repeat(32)}]`;
+    const email = `[EMAIL_ADDRESS_${digest}]`;
+    const { container } = render(<PiiText text={`${second} then ${first} and ${email}`} />);
+    expect(Array.from(container.querySelectorAll('.pii-token'), (token) => token.textContent))
+      .toEqual(['Person 1', 'Person 2', 'Email']);
+  });
+
+  it('keeps the same person number across separate fields in one scope', () => {
+    const first = `[PERSON_${digest}]`;
+    const second = `[PERSON_${'a'.repeat(32)}]`;
+    const { container } = render(
+      <PrivacyLabelScope texts={[`${first} met ${second}`, second]}>
+        <div data-privacy-scope>
+          <p><PiiText text={`${first} met ${second}`} /></p>
+          <p><PiiText text={second} /></p>
+        </div>
+      </PrivacyLabelScope>,
+    );
+    expect(Array.from(container.querySelectorAll('.pii-token'), (token) => token.textContent))
+      .toEqual(['Person 1', 'Person 2', 'Person 2']);
   });
 });

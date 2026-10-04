@@ -15,6 +15,7 @@ const PUBLIC_VALIDATION_REASONS = new Set([
   'Without quotes, the output must state uncertainty and missing information.',
   'The output includes a malformed privacy label.',
   'The output includes an unknown privacy label.',
+  'The original contact details are not available.',
 ]);
 
 /**

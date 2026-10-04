@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api, ApiError, type AnalysisListItem } from '../api';
-import { PiiText } from '../components/PiiText';
+import { PiiText, PrivacyLabelScope } from '../components/PiiText';
+import { WaitStatus } from '../components/WaitStatus';
 
 const PAGE_SIZE = 20;
 
@@ -40,10 +41,10 @@ export function HistoryPage() {
   }, [offset]);
 
   if (error) return <p className="error" role="alert">{error}</p>;
-  if (!page) return <p className="status">Loading history…</p>;
+  if (!page) return <WaitStatus>Loading history…</WaitStatus>;
   if (page.items.length === 0 && page.page.total === 0) {
     return (
-      <section data-testid="empty-history">
+      <section className="reading" data-testid="empty-history">
         <h1>There are no analyses yet</h1>
         <p>When you analyze an incident, it will appear in this list.</p>
         <Link to="/new">Create the first one</Link>
@@ -62,14 +63,16 @@ export function HistoryPage() {
       </p>
       <ul className="list">
         {page.items.map((analysis) => (
-          <li key={analysis.id}>
-            <Link to={`/history/${analysis.id}`}>
+          <li key={analysis.id} className={`list-item list-item--${analysis.status}`}>
+            <PrivacyLabelScope texts={[analysis.summary || 'Analysis without a summary', analysis.excerpt]}>
+            <Link to={`/history/${analysis.id}`} data-privacy-scope>
               <strong><PiiText text={analysis.summary || 'Analysis without a summary'} /></strong>
               <span><PiiText text={analysis.excerpt} /></span>
               <span className="meta">
                 {analysis.status} · {new Date(analysis.createdAt).toLocaleString('en-US')}
               </span>
             </Link>
+            </PrivacyLabelScope>
           </li>
         ))}
       </ul>

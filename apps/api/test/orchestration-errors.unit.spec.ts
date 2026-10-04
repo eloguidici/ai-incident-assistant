@@ -14,6 +14,7 @@ describe('safe output-validation feedback', () => {
     'Without quotes, the output must state uncertainty and missing information.',
     'The output includes a malformed privacy label.',
     'The output includes an unknown privacy label.',
+    'The original contact details are not available.',
   ])('publishes only the fixed validation reason: %s', (reason) => {
     const failure = toOrchestrationAppError(new OutputValidationError(reason), 'analysis-id');
     expect(failure.errorCode).toBe('INVALID_OUTPUT');

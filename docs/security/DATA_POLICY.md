@@ -21,7 +21,7 @@ The PDF requests five explanations in code or README, not a complete compliance 
 | Logging | Allowlisted fields, server correlation and normalized routes; [filter](../../apps/api/src/common/log.ts), [HTTP](../../apps/api/src/common/http.ts) and [nginx](../../infra/docker/nginx.conf) |
 | Auditability | Minimal events and execution metadata, transactions and failure limits; [actions](../../apps/api/src/domain/audit-action.ts) and [repository](../../apps/api/src/db/repositories/typeorm/analysis.typeorm-repository.ts) |
 
-Semantic model evaluation belongs to 2.2 and still requires actual-provider revalidation after current changes. Closing this explanation does not turn a FAIL into PASS.
+Semantic evaluation belongs to 2.2. [Later v7/v9 samples, in Spanish](../qa/DEMO_CASOS.es.md) exist but do not certify the entire current tree. Closing this explanation does not relabel historical FAIL outcomes or authorize confidential data.
 
 ## Stored data and retention
 
@@ -44,9 +44,9 @@ No automatic mode change follows latency or outage; protected history requires t
 
 The local `services/pii` candidate uses GLiNER directly for people, `email-validator` and `phonenumbers` for contact details. Presidio/spaCy belong to the historical [T21 NO-GO experiment](../qa/PII_SPIKE.md), not this runtime. Build-time pinned model assets load offline; no external LLM is used for detection.
 
-Source and questions are sanitized before their content/execution writes and before provider calls. A validated provider response has its generated narrative fields sanitized, then schema and exact-quote grounding are checked again against the sanitized source before persistence/display. Exact evidence quotes are already copies of the protected source: they are preserved, not passed through context-dependent NER a second time. Detector misses already present in that source remain an explicit limitation.
+Source and questions are sanitized before their content/execution writes and provider calls. A validated provider response has generated narrative sanitized and is revalidated against the sanitized source before persistence/display. Nonexact quotes are omitted; sanitizer-introduced labels are allowed, not unknown model-invented labels. Exact evidence quotes are preserved without context-dependent NER a second time. Detector misses already present in that source remain explicit limitations.
 
-Detected values become literal `[PERSON_<32 hex>]`, `[EMAIL_ADDRESS_<32 hex>]` or `[PHONE_NUMBER_<32 hex>]` tokens, scoped by owner/incident using HMAC. Stability requires the same key and detected text/boundaries; this does not resolve name variants. React colors those exact tokens in source, chat, results and quotes. There are no identity aliases, stored reversible maps or original restoration.
+Detected values become literal `[PERSON_<32 hex>]`, `[EMAIL_ADDRESS_<32 hex>]` or `[PHONE_NUMBER_<32 hex>]` tokens scoped by owner/incident using HMAC. Stability requires the same key and detected text/boundaries; this does not resolve name variants. Storage/prompts keep the token; React presents colored Person/Email/Phone labels, with consistent numbering within an analysis/history card when several distinct tokens share a type. These are display labels, not identity aliases, reversible maps or original restoration. Quote checks use stored text rather than the visible short names.
 
 This is pseudonymization of detected entities, not universal anonymization. Misses, false positives and identifying context remain possible. Addresses, identity documents and all other personal data are not automatically covered. The actual partial-surname/non-idempotence case remains FAIL and was accepted only for the synthetic assessment/demo; do not submit confidential real content. See [out-of-scope alternatives](PII_IMPLEMENTATION_PLAN.md#accepted-limitation-and-evolution).
 

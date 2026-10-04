@@ -3,12 +3,26 @@
 import asyncio
 import json
 import logging
+import os
 import threading
+import time
 import warnings
 
 from sanitizer import ENGINE_VERSION, POLICY_VERSION, ContactsOnlyDetector, GlinerPersonDetector, Sanitizer, load_key, person_layer_enabled, validate_batch
 
 MAX_BODY_BYTES = 524288
+
+
+def configured_slot_wait() -> float:
+    """Seconds a busy request may wait for the single inference slot. Invalid values use 20."""
+    raw = os.environ.get("PII_SLOT_WAIT_SECONDS", "20").strip()
+    try:
+        wait = float(raw)
+    except ValueError:
+        return 20.0
+    if not 0 <= wait <= 60:
+        return 20.0
+    return wait
 
 
 async def respond(send, status: int, payload: dict) -> None:
@@ -31,10 +45,27 @@ def unique_object(pairs: list[tuple[str, object]]) -> dict:
 class PiiApp:
     """A single shared slot spans body receipt, validation and all batch inference."""
 
-    def __init__(self, sanitizer: Sanitizer | None = None):
-        """Create the request slot; optionally inject a test engine without model startup."""
+    def __init__(self, sanitizer: Sanitizer | None = None, slot_wait_seconds: float | None = None):
+        """Create the request slot; optionally inject a test engine and a bounded wait."""
         self.sanitizer = sanitizer
         self.slot = threading.Lock()
+        self.slot_wait_seconds = configured_slot_wait() if slot_wait_seconds is None else slot_wait_seconds
+
+    async def wait_for_slot(self) -> bool:
+        """Take the inference slot, waiting until it frees or the wait expires.
+
+        @returns True when this request owns the slot.
+        """
+        if self.slot.acquire(blocking=False):
+            return True
+        deadline = time.monotonic() + self.slot_wait_seconds
+        while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                return False
+            await asyncio.sleep(min(0.05, remaining))
+            if self.slot.acquire(blocking=False):
+                return True
 
     async def __call__(self, scope, receive, send) -> None:
         """Handle lifespan/readiness/sanitization; never return raw input or exception details."""
@@ -59,7 +90,7 @@ class PiiApp:
         if self.sanitizer is None:
             await respond(send, 503, {"error": "PII_UNAVAILABLE"})
             return
-        if not self.slot.acquire(blocking=False):
+        if not await self.wait_for_slot():
             await respond(send, 503, {"error": "PII_BUSY"})
             return
         worker_owns_slot = False

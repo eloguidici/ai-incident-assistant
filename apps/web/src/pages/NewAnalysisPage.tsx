@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { api, ApiError, type AnalysisDetail } from '../api';
 import { ApiErrorCode } from '../constants';
 
+import { WaitStatus } from '../components/WaitStatus';
 import { useContentLimits } from '../hooks/useContentLimits';
 
 /**
@@ -43,7 +44,7 @@ export function NewAnalysisPage() {
   }
 
   return (
-    <section>
+    <section className="reading">
       <p className="eyebrow">New analysis</p>
       <h1>Paste the incident report</h1>
       <p className="lead">The text is sent to the configured model. No actions are run on other systems.</p>
@@ -75,10 +76,10 @@ export function NewAnalysisPage() {
           </p>
         ) : null}
         {invalidOutput ? <p><Link to="/history">View failed attempts</Link></p> : null}
-        {pending ? <p className="status" role="status">{limits?.contentProtectionEnabled
+        {pending ? <WaitStatus>{limits?.contentProtectionEnabled
           ? limits.personProtectionEnabled ? 'Protecting detected personal data and analyzing...'
             : 'Protecting detected emails and phones and analyzing...'
-          : 'Analyzing… this can take a few seconds.'}</p> : null}
+          : 'Analyzing… this can take a few seconds.'}</WaitStatus> : null}
         <button type="submit" disabled={pending || !limits || tooLong || sourceText.trim().length === 0}>
           {pending ? 'Analyzing…' : 'Analyze'}
         </button>

@@ -11,6 +11,16 @@ const RULES: ReadonlyArray<{ id: SecurityRuleId; pattern: RegExp }> = [
 ];
 
 /**
+ * Reports whether stored incident text matches a known assistant-instruction pattern.
+ * @param sourceText Incident text already stored for the analyst. The scan does not change it.
+ * @returns True when at least one rule matches. False is not proof the text is safe.
+ * @remarks Observation only. It does not block analysis, score confidence, or judge the result.
+ */
+export function incidentNotesAssistantInstructions(sourceText: string): boolean {
+  return detectPromptInjectionSignals(sourceText).length > 0;
+}
+
+/**
  * Observes known instruction-like patterns in raw data, never in our own system prompt.
  * @param text Raw incident, selected conversation, or question. HTTP/context limits bound production inputs.
  * @returns Deduplicated rule identifiers in stable order. No match means no known signal, not safe input.

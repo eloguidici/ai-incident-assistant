@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { ANALYST_A, INC_OK, login, uniqueIncident, analyzeFromNew } from './helpers';
+import { ANALYST_A, INC_OK, login, uniqueIncident, analyzeFromNew, openQuestions } from './helpers';
 
 test('A11Y-03 login and form errors expose alert role', async ({ page }) => {
   await page.goto('/login');
@@ -20,6 +20,7 @@ test('A11Y-02 small viewport supports new analysis and ask flow without horizont
   await analyzeFromNew(page, uniqueIncident(INC_OK));
   const overflowX = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
   expect(overflowX).toBe(false);
+  await openQuestions(page);
   await page.getByTestId('question-input').fill('What information is missing to confirm the cause?');
   await page.getByRole('button', { name: 'Ask' }).click();
   await expect(page.getByTestId('assistant-answer')).toBeVisible({ timeout: 30_000 });
@@ -70,6 +71,8 @@ test('A11Y-01 keyboard navigation reaches sign-in analyze ask and sign-out', asy
   await page.keyboard.press('Enter');
   await expect(page.getByTestId('analysis-result')).toBeVisible({ timeout: 30_000 });
 
+  await tabTo(page, page.getByRole('tab', { name: 'Result' }));
+  await page.keyboard.press('ArrowRight');
   await tabTo(page, page.getByTestId('question-input'));
   await page.keyboard.type('What is missing?');
   await tabTo(page, page.getByRole('button', { name: 'Ask' }));

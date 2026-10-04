@@ -33,6 +33,8 @@ PHONE_REGIONS = ("AR", "US", "ES", "GB")
 PERSON_NER_LABEL = "person name"
 PERSON_LABELS = (PERSON_NER_LABEL, "software component", "organization", "JSON field name")
 PERSON_THRESHOLD = 0.55
+ROLE_WORDS = frozenset({"analyst", "analista", "engineer", "tenant", "operator", "sre"})
+ROLE_FILLER = frozenset({"the", "a", "an", "el", "la", "los", "las", "un", "una", "on", "call"})
 MODEL_BATCH_SIZE = 8
 MODEL_CHUNK_CHARS = 1000
 
@@ -109,6 +111,13 @@ def deterministic_spans(text: str) -> list[Span]:
             canonical = phonenumbers.format_number(candidate.number, phonenumbers.PhoneNumberFormat.E164)
             spans.append(Span("PHONE_NUMBER", start, end, 1.0, canonical))
     return spans
+
+
+def is_role_mention(text: str) -> bool:
+    """Return whether a PERSON span is only a job title or a known role word."""
+    tokens = [token for token in re.split(r"[^\w]+", text.casefold(), flags=re.UNICODE) if token]
+    content = [token for token in tokens if token not in ROLE_FILLER]
+    return bool(content) and all(token in ROLE_WORDS for token in content)
 
 
 def select_spans(candidates: list[Span], text_length: int, protected: list[tuple[int, int]]) -> list[Span]:
@@ -303,6 +312,7 @@ class Sanitizer:
                 raise ValueError
             results = []
             for text, patterns, people, protected in zip(texts, patterns_by_text, people_by_text, protected_by_text):
+                people = [span for span in people if not is_role_mention(text[span.start:span.end])]
                 selected = select_spans(patterns + people, len(text), protected)
                 parts, cursor = [], 0
                 for span in selected:

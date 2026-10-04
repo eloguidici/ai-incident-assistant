@@ -4,6 +4,7 @@ import asyncio
 import json
 import os
 import threading
+import time
 from unittest.mock import patch
 
 import httpx
@@ -61,7 +62,7 @@ def request(app, path="/sanitize", payload=None, **kwargs):
 @pytest.fixture
 def app():
     """Return a ready injected contract engine, without claiming model integration."""
-    return PiiApp(Sanitizer(NoPersons(), KEY))
+    return PiiApp(Sanitizer(NoPersons(), KEY), slot_wait_seconds=0)
 
 
 def test_empty_and_versions(app):
@@ -160,6 +161,28 @@ def test_reserved_test_email_is_sanitized(app):
     assert "example.test" not in response.json()["text"]
 
 
+def test_role_words_stay_text_and_a_name_is_still_labeled():
+    text = "The on-call engineer and the analista spoke with Jane Doe about the tenant, the operator and SRE."
+
+    class Roles:
+        def detect(self, masked):
+            """Mark every probe phrase, including the name that must still be labeled."""
+            spans = []
+            for phrase in ("on-call engineer", "analista", "Jane Doe", "tenant", "operator", "SRE"):
+                start = masked.index(phrase)
+                spans.append(Span("PERSON", start, start + len(phrase), .9))
+            return spans
+
+    sanitized = Sanitizer(Roles(), KEY).sanitize_batch([text], SCOPE)["texts"][0]
+    assert "on-call engineer" in sanitized
+    assert "analista" in sanitized
+    assert "tenant" in sanitized
+    assert "operator" in sanitized
+    assert "SRE" in sanitized
+    assert "Jane Doe" not in sanitized
+    assert sanitized.count("[PERSON_") == 1
+
+
 def test_overlap_priority_and_adjacent_names():
     selected = select_spans([Span("PERSON", 0, 20, .9), Span("EMAIL_ADDRESS", 4, 20, 1), Span("PERSON", 22, 25, .9), Span("PERSON", 26, 30, .9)], 30, [])
     assert [(span.entity_type, span.start, span.end) for span in selected] == [("EMAIL_ADDRESS", 4, 20), ("PERSON", 22, 25), ("PERSON", 26, 30)]
@@ -196,7 +219,7 @@ def test_cancelled_request_keeps_slot_until_inference_finishes():
             started.set()
             release.wait(5)
             return []
-    app = PiiApp(Sanitizer(Slow(), KEY))
+    app = PiiApp(Sanitizer(Slow(), KEY), slot_wait_seconds=0)
     async def execute():
         async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://pii") as client:
             pending = asyncio.create_task(client.post("/sanitize", json={"text": "hello", "scope": SCOPE}))
@@ -215,6 +238,50 @@ def test_cancelled_request_keeps_slot_until_inference_finishes():
                 await asyncio.sleep(.01)
             assert not app.slot.locked()
     asyncio.run(execute())
+
+
+def test_waiting_request_runs_when_the_slot_frees():
+    """A request that finds the slot taken waits and then sanitizes, instead of failing at once."""
+    started, release = threading.Event(), threading.Event()
+
+    class Slow:
+        def detect(self, text):
+            """Hold the slot until the waiter has had time to block."""
+            started.set()
+            release.wait(2)
+            return []
+
+    app = PiiApp(Sanitizer(Slow(), KEY), slot_wait_seconds=1.5)
+
+    async def execute():
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://pii") as client:
+            pending = asyncio.create_task(client.post("/sanitize", json={"text": "hello", "scope": SCOPE}))
+            await asyncio.to_thread(started.wait, 2)
+            follower = asyncio.create_task(client.post("/sanitize-batch", json={"texts": ["kept"], "scope": SCOPE}))
+            await asyncio.sleep(0.1)
+            assert app.slot.locked()
+            release.set()
+            first, second = await asyncio.wait_for(asyncio.gather(pending, follower), 3)
+            assert first.status_code == 200
+            assert second.status_code == 200
+            assert second.json()["texts"] == ["kept"]
+            assert not app.slot.locked()
+
+    asyncio.run(execute())
+
+
+def test_slot_wait_expires_while_inference_holds_the_slot():
+    """Fail closed when the slot stays taken longer than the wait."""
+    app = PiiApp(Sanitizer(NoPersons(), KEY), slot_wait_seconds=0.2)
+    app.slot.acquire()
+    try:
+        started = time.monotonic()
+        response = request(app, payload={"text": "private", "scope": SCOPE})
+        assert response.status_code == 503
+        assert response.json() == {"error": "PII_BUSY"}
+        assert time.monotonic() - started >= 0.2
+    finally:
+        app.slot.release()
 
 
 def test_streaming_body_limit_and_bad_json(app):

@@ -22,7 +22,7 @@ Use GLiNER 0.2.27 directly with `urchade/gliner_multi-v2.1`, pinned to `443d26d6
 
 Policy `pii-local-v1` declares `PERSON`, `EMAIL_ADDRESS` and `PHONE_NUMBER`. The response includes a bounded engine version with the full model revision. Multilingual quality and preservation of technical facts require actual corpus/holdout verification.
 
-Sanitize source and questions before their content/execution writes and provider calls. After provider schema/grounding validation, sanitize only narrative leaves and revalidate against the sanitized source. Preserve enums, structure and exact quotes; reject outputs whose quotes no longer match.
+Sanitize source and questions before their content/execution writes and provider calls. After schema/grounding validation, sanitize narrative and revalidate against the sanitized source; preserve enums, structure and exact quotes without another NER pass on them. From 2026-10-03 nonexact quotes are omitted and the result may survive remaining checks. Sanitizer-introduced labels are kept; model-written labels absent from context are rejected. The causal rule is lexical, not semantic proof: [evaluation](../qa/AI_EVALUATION.md).
 
 Input-sanitation failure makes no provider call or new content write. Output-sanitation failure occurs after a clean-input provider call and can incur cost; never persist the raw response as fallback.
 
@@ -30,7 +30,7 @@ Input-sanitation failure makes no provider call or new content write. Output-san
 
 HMAC-SHA256 produces a 32-hex token scoped by policy, owner/incident, entity type and normalized detected text. Phone text may use canonical E.164. The private key is not sent in prompts. The service keeps no reversible original map.
 
-The same key, scope and detection boundaries preserve labels across requests/restarts. Variant names are not resolved to an identity. Existing valid labels remain literal; React colors `[PERSON_hex]`, `[EMAIL_ADDRESS_hex]` and `[PHONE_NUMBER_hex]` with the complete 32-hex suffix, without aliases or restoration. Current prompts v6/v7 instruct the model to preserve tokens, avoid identity guesses and invent no labels.
+The same key, scope and detection boundaries preserve labels across requests/restarts. Variant names are not resolved to an identity. Storage/prompts retain tokens; the screen shows Person, Email or Phone with consistent numbering within an analysis/history card for distinct tokens of one type. Distinct tokens do not establish distinct people. The original is not restored. Current v7/v9 prompts preserve tokens without identity guesses or invented labels.
 
 Migration `002_pii_policy` adds a nullable marker without deleting or sanitizing old records. Protected mode blocks legacy detail/questions/retry and hides legacy list content. The marker attests pipeline selection, not detection accuracy. Account login email is unchanged.
 
@@ -50,6 +50,6 @@ Do not ship the failed bilingual union. An external LLM for detection would crea
 
 The service adds image size, CPU/memory, latency and a dependency that rejects requests on failure. Detectors may miss PII, over-redact facts or leave identifying context. This is pseudonymization, not universal anonymization; paid provider routing does not guarantee privacy.
 
-Scoped T22 is closed by the owner's documented risk acceptance, with actual results and residual failures in the [integration report](../qa/LOCAL_PII_INTEGRATION.md). Future layers are described in the guide, not implemented or cost-compared. Historical T20 prompt-quality findings do not certify current v6/v7 prompts; [T25](../qa/ASSESSMENT_CLOSURE.md) tested them and retains semantic FAIL.
+Scoped T22 is closed by documented risk acceptance with results/residual failures in the [integration report](../qa/LOCAL_PII_INTEGRATION.md). Future layers are not implemented or cost-compared. T20/T25 retain historical evidence, not v7/v9 certification. [Later samples, in Spanish](../qa/DEMO_CASOS.es.md) record false positives; [operational profiles](../operations/RUNBOOK.md#configuration-profiles) distinguish single-slot waiting, demo overrides and base/AWS defaults. No universal SLA or confidential-data authorization is established.
 
 Implementation details: [guide](../security/PII_IMPLEMENTATION_PLAN.md), [data policy](../security/DATA_POLICY.md), [runbook](../operations/RUNBOOK.md).

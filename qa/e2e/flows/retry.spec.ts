@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { ANALYST_A, INC_OK, login, uniqueIncident } from './helpers';
+import { ANALYST_A, INC_OK, login, openQuestions, uniqueIncident } from './helpers';
 
 test.beforeEach(async ({ page }) => {
   await login(page, ANALYST_A);
@@ -21,6 +21,7 @@ test('RET-01 retry after double provider failure completes the analysis', async 
   await page.getByRole('button', { name: 'Retry' }).click();
   await expect(page.getByRole('heading', { name: 'Analysis completed' })).toBeVisible({ timeout: 30_000 });
   await expect(page.getByTestId('analysis-result')).toBeVisible();
+  await openQuestions(page);
   await expect(page.getByTestId('question-input')).toBeVisible();
 });
 

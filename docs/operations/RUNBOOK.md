@@ -73,6 +73,29 @@ For host Node with that CA, combine both overlays: `docker compose -f docker-com
 
 ## Request timeouts
 
+### Configuration profiles
+
+Documentation snapshot 2026-10-04, Buenos Aires, from code and recorded runs;
+not a fresh container inspection or configuration change.
+
+| Profile | Source / question | PII per request | Overall / proxy |
+|---|---|---|---|
+| Base API/Compose defaults | 1,000 / 500 characters | 10 s | 20 s / 30 s |
+| Parameterless `scripts/start-real-demo.ps1` | 4,000 / 500 | 9.5 s | 45 s / 60 s |
+| Latest recorded demo, 2026-10-03 | 8,000 / 1,000 | 30 s | 90 s / 120 s |
+
+The latest profile uses 4 CPU/4 threads and is documented in [cases, in Spanish](../qa/DEMO_CASOS.es.md),
+not reproduced by the parameterless script or AWS proposal. Select and verify
+the effective profile when preparing the demo; React obtains limits from the API.
+Timeouts do not establish measured latency or a sub-10-second SLA.
+
+PII shares one inference slot. `PII_SLOT_WAIT_SECONDS` defaults to 20 s (range
+0–60): wait in memory, then process, or return `PII_BUSY` (503) if the slot remains
+unavailable. `0` rejects immediately when busy. The service timeout/global abort
+may expire first; this is not extra budget, a persistent queue or parallel
+inference. There is no raw-text fallback. Cold starts, load and size require
+their own measurements.
+
 The nginx image defaults `API_PROXY_READ_TIMEOUT` to `30s`, above the default 20 s request deadline. The controller abort signal covers sanitation overhead as well as model work. Each PII HTTP request has a 10 s timeout; this is not a guaranteed extra 10 s after the overall deadline. Short 2.5 s general-test deadlines bypass PII and do not measure this real path.
 
 The local OpenRouter overlay uses a 45 s deadline, 20 s attempts and a `60s` proxy timeout. Keep the proxy timeout above the full request budget with time for writes and JSON errors; align ALB too. Rebuild after nginx template changes and recreate web after environment changes. `npm run qa:docker:timeouts` uses an isolated synthetic upstream, not a paid provider or real PII detector; it does not certify T22 latency.

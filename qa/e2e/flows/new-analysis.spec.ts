@@ -79,9 +79,8 @@ test('NEW-09 timeout shows deadline error on the form', async ({ page }) => {
   );
 });
 
-test('NEW-10 invalid model output shows contract error for ungrounded schema and invalid-json tags', async ({ page }) => {
+test('NEW-10 invalid model output shows contract error for schema and invalid-json tags', async ({ page }) => {
   for (const [tag, reason] of [
-    ['[MOCK:ungrounded]', 'A quote does not appear in the incident.'],
     ['[MOCK:schema]', 'The output does not match the analysis schema.'],
     ['[MOCK:invalid-json]', 'Model output is not JSON.'],
   ]) {
@@ -96,6 +95,16 @@ test('NEW-10 invalid model output shows contract error for ungrounded schema and
     await expect(page.getByTestId('source-input')).toHaveValue(text);
     await expect(page.getByTestId('analysis-result')).toHaveCount(0);
   }
+});
+
+test('NEW-10b an ungrounded quote is omitted and the analysis is shown', async ({ page }) => {
+  const text = uniqueIncident(`${INC_OK} [MOCK:ungrounded]`);
+  await page.goto('/new');
+  await page.getByTestId('source-input').fill(text);
+  await page.getByRole('button', { name: 'Analyze' }).click();
+  await expect(page.getByTestId('analysis-result')).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByTestId('analysis-result')).toContainText('There are no quotes grounded in the text.');
+  await expect(page.getByTestId('analysis-result')).not.toContainText('THIS QUOTE IS NOT IN THE TEXT');
 });
 
 test('NEW-11 provider rejects credential shows auth error', async ({ page }) => {

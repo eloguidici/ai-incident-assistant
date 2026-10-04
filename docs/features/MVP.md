@@ -1,17 +1,17 @@
 # MVP contracts
 
 
-Contracts closed on 2026-09-29.
+Initial contracts dated 2026-09-29; documentation synchronized 2026-10-04, Buenos Aires, against the current dev tree. Not a new integration run.
 
 ## Analysis result
 
 `summary`, `category` (`availability|performance|security|data|unknown`), `suggestedSeverity` (`low|medium|high|critical|unknown`), `evidence[]` with `quote` and `note`, `hypotheses[]` with `statement` and `confidence`, `missingInformation[]`, `uncertainty`.
 
-`quote` must be an exact fragment of the incident. Without quotes, `uncertainty` and `missingInformation` are required. A URL in the output is accepted only if it was already in the incident.
+Each retained `quote` must be an exact fragment of the protected incident without cutting labels. Nonexact quotes are omitted rather than automatically rejecting the report. Without quotes, `uncertainty` and `missingInformation` are required. Foreign URLs cause rejection. See [evaluation](../qa/AI_EVALUATION.md) for the lexical causal rule and its limits; there is no semantic judge.
 
 ## Question
 
-The same object plus `answer`. The quote must still come from the original incident, not from an earlier model answer.
+The same object plus `answer`. Retained quotes come from the stored protected source, not earlier model answers. Recognized contact values absent from the source are rejected; originals are not restored. Sanitizer-introduced labels are allowed, not unknown model-invented labels.
 
 ## API
 
@@ -24,18 +24,21 @@ All routes are under `/api`. The error body is `{ error: { code, message, correl
 | GET | `/auth/session` | yes | user | 401 |
 | POST | `/auth/logout` | yes + CSRF | `{ ok: true }` | 401, 403 |
 | GET | `/analyses?limit&offset` | yes | own page | 400, 401 |
+| GET | `/analyses/limits` | yes | `sourceTextMax`, `questionMax`, `contentProtectionEnabled`, `personProtectionEnabled` | 401 |
 | POST | `/analyses` | yes + CSRF | `completed` analysis, or an error with `analysisId` | 400, 403, 409, 413, 422, 429, 502, 504 |
-| GET | `/analyses/:id` | yes | own detail | 404 if it does not exist or belongs to someone else |
+| GET | `/analyses/:id` | yes | own detail with read-time `assistantInstructionsNoted` | 404 if absent/foreign; 409 for incompatible PII policy |
 | POST | `/analyses/:id/messages` | yes + CSRF | detail with the thread | 404, 409, 413, 422, 429, 502 |
 | POST | `/analyses/:id/retry` | yes + CSRF | new attempt if the analysis is `failed` | 404, 409 |
 
 Statuses: `processing`, `completed`, `failed`. An interrupted run becomes `failed` with code `INTERRUPTED` if it is still in progress after the deadline plus 5 seconds.
 
+Listed errors are principal cases, not exhaustive. Input/output protection failure can return `PII_UNAVAILABLE` (503); incompatible records return `PII_LEGACY_RECORD` (409). Early protection failure reserves no content and makes no model call; output failure occurs after the call and can be charged.
+
 ## Limits
 
-Prompt-injection input signals are observed, not blocked: create/retry scans the incident; follow-up scans incident, actual selected history and question. Legitimate reports quoting attacks still proceed. Input, API contracts and statuses are unchanged; no extra model call or database field is added. The output validator separately checks complete grounded URLs and selected impossible assistant-action claims. See [use cases and limitations](../security/PROMPT_INJECTION.md).
+Injection signals are observed, not blocked: create/retry scans the incident; questions include selected history/question. Detail adds `assistantInstructionsNoted`, computed on the stored source with the same detector; no new column or extra LLM is added. The visible note is not a verdict of a successful attack or safe output. See [cases and limits](../security/PROMPT_INJECTION.md).
 
-- Incident: 1 to 8,000 characters. Question: 1 to 1,000. Text with a NUL character is rejected with 400 before the model is called.
+- Incident/question: configurable trimmed limits. Base API/Compose defaults 1,000/500; demo script 4,000/500; latest recorded demo 8,000/1,000. React queries the API and preserves over-limit drafts without truncation. NUL returns 400 before model invocation. See [profiles](../operations/RUNBOOK.md#configuration-profiles).
 - Context: incident + question + recent messages, with a budget of 12,000 characters. If the incident and the question do not fit, the API returns 413 and the model is not called. Older messages are dropped first.
 - 20 analyses and 40 questions per user per hour, in memory.
 - 4 concurrent model calls per process.

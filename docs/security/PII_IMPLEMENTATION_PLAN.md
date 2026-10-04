@@ -61,8 +61,8 @@ The current development candidate uses `person name` alongside `software compone
 3. Sanitize source text before reserving its analysis/execution rows. Sanitize each question before inserting its execution or messages. Recheck the protected context budget because labels expand the text.
 4. Reject unavailable, timed-out or malformed sanitation with `PII_UNAVAILABLE` (503). There is no raw fallback. Early failure creates no incident/question content writes and makes no provider call; ownership reads may already have occurred.
 5. Persist the sanitized source with `pii_policy_version = pii-local-v1`. Prompts use that source and the protected conversation history. Retries reuse the stored protected source.
-6. Validate the provider response's schema and grounding. Sanitize narrative leaves: summary, uncertainty, missing information, evidence quote/note, hypothesis statement and question answer; keep enums and structural fields intact.
-7. Reject privacy tokens absent from the actual protected model context, then revalidate schema, exact quotes and grounding against the same sanitized source before committing results/messages. Changed quotes that no longer match are rejected.
+6. Validate schema and post-process quotes/causal phrases, URLs and action claims. Sanitize generated narrative: summary, uncertainty, missing information, evidence notes, hypothesis statements and question answers; preserve enums, structure and exact already-protected quotes without another NER inference on them.
+7. Reject malformed labels or model-written labels absent from protected context. Keep sanitizer-introduced labels without restoring originals. Revalidate against the same sanitized source. A nonexact quote is omitted; the analysis/question may survive remaining checks. See [evaluation](../qa/AI_EVALUATION.md) for post-processing limits.
 
 An output-sanitation failure happens **after** the provider has been called with sanitized input. The call can be charged; the raw response is not persisted or returned as a successful result. Failure metadata may be written. Do not describe this as zero provider calls.
 
@@ -74,7 +74,7 @@ Literal labels are `[PERSON_<32 lowercase hex>]`, `[EMAIL_ADDRESS_<32 lowercase 
 
 Labels remain stable across requests/restarts given the same key, scope and detected text/boundaries. This is not identity resolution: short/full names or changing model boundaries can produce different labels. Existing valid labels are preserved; there is no reversible original map or restoration.
 
-React colors the literal token by entity type in source, history, chat, results and quotes, using safe text nodes. It does not replace tokens with aliases. Previews/context truncate without cutting valid tokens; mock quotes retain complete protected tokens. Exact quote text remains the stored sanitized text; color does not alter grounding. Current prompts `incident-analysis.v6`/`incident-question.v7` instruct exact preservation, no identity guesses and no invented labels. Historical T20 v4/v5 evidence does not certify their live quality. T22/T25 exercised browser layers, waiting states, labels and desktop/mobile layout; universal accessibility is not certified.
+Storage and prompts preserve full literal tokens. React presents colored Person, Email or Phone labels as safe text nodes; multiple distinct tokens of one kind get consistent numbers within an analysis/history card. These are display names, not identity aliases or original restoration. The full token remains on `data-privacy-token`; previews/context do not cut valid tokens. Quote membership is checked against stored text, not the visible label. Current prompts `incident-analysis.v7`/`incident-question.v9` preserve tokens without identity guesses. T22/T25 retain historical UI evidence; later changes have separate evidence, not universal accessibility certification.
 
 ## Configuration and operation
 
@@ -84,6 +84,7 @@ React colors the literal token by entity type in source, history, chat, results 
 | `PII_PERSON_ENABLED` | Defaults to `true`; explicit `false` skips the name model and protects email/phone only under `pii-contacts-v1` |
 | `PII_SERVICE_URL` | Host setup: `http://127.0.0.1:18080` in the example; Compose: `http://pii:8000`; ECS proposal: same-task `http://127.0.0.1:8000` |
 | `PII_TIMEOUT_MS` | 10,000 ms per internal HTTP request by default; configurable up to 60,000 ms, not a measured endpoint SLA |
+| `PII_SLOT_WAIT_SECONDS` | 20 s by default. A busy detector keeps the next request waiting for the single slot, then runs it. `0` rejects at once. The wait does not run a second inference or return the original text |
 | `SOURCE_TEXT_MAX` / `QUESTION_MAX` | 1,000 / 500 trimmed characters by default; effective API settings also drive React |
 | `PII_HMAC_KEY_PATH` | Compose secret file; default `.local/pii-hmac.key` |
 | `npm run pii:init-key` | Creates the key once with requested mode 0600; does not overwrite an existing key |
@@ -101,6 +102,12 @@ internal protection timeout, 45 s overall API deadline and 60 s proxy wait. Thes
 demo overrides do not change the conservative API/Compose/Terraform defaults or
 turn a configured wait into a latency guarantee. Larger local sources require
 measured CPU/resource checks. Model/threshold/coverage remain unchanged.
+
+The [latest recorded demo, in Spanish](../qa/DEMO_CASOS.es.md) uses 8,000/1,000
+characters, PII timeout 30 s, overall deadline 90 s and proxy 120 s, with 4 CPU/4
+threads. This is another profile, not the script's parameterless behavior or new
+universal defaults. The 20 s slot wait remains subject to service/overall timeouts,
+not a guaranteed extension. No sub-10-second SLA covers all texts/concurrency.
 The demo also selects 4 Torch intra-op threads with a matching 4 CPU quota. Base
 Compose remains 1 thread/1 CPU; Terraform is unchanged and was not runtime-tested
 at the demo resource profile. Sampled protected outputs/spans matched across 67

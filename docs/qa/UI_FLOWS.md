@@ -42,17 +42,26 @@ Rules for generated tests:
 | `[MOCK:timeout]` | Waits until the deadline (2.5 s in the Vite environment) | The analysis did not finish within the time limit. |
 | `[MOCK:auth]` | Provider rejects the credential | The provider rejected the configured credential. |
 | `[MOCK:429]` | Provider rate limit | The provider limited the request. There was no infinite retry. |
-| `[MOCK:invalid-json]`, `[MOCK:schema]`, `[MOCK:ungrounded]` | Output fails validation | The model output did not match the contract and is not shown as a result. |
+| `[MOCK:invalid-json]`, `[MOCK:schema]` | Output fails validation | The model response could not be validated. followed by an allowed reason and No result was accepted. |
+| `[MOCK:ungrounded]` | The nonexact quote is omitted; the result may survive | There are no quotes grounded in the text. in the result without that evidence |
 
 ## 3. UI map
+
+Documentation review 2026-10-04, Buenos Aires: these cases are expectations,
+not a browser run executed in this review. Detail has `Incident`, `Result` and
+`Questions`, initially `Result`; select a tab before asserting its content.
+PII displays colored Person/Email/Phone labels numbered by token within an
+analysis/history card, without original restoration. The wait bar is indeterminate,
+not per-stage progress. Messages depend on effective protection; general mock
+regression explicitly disables PII.
 
 | Route | Page | Key elements |
 |---|---|---|
 | `/login` | Sign in | Heading `Sign in to analyze an incident`; labels `Email` (prefilled with analyst A) and `Password`; button `Sign in` (`Signing in…` while pending); error `[data-testid=login-error]` |
 | any other route | Shell (needs a session) | `Checking session…` while loading; nav links `New`, `History`; the signed-in email; button `Sign out`; link `Skip to content` |
-| `/new` | New analysis | Heading `Paste the incident report`; textarea `[data-testid=source-input]` (`maxLength` 8000); counter `n/8000` (trimmed length); button `Analyze` (disabled when the trimmed text is empty; `Analyzing…` while pending); status `Analyzing… this can take a few seconds.`; error `[data-testid=form-error]` |
+| `/new` | New analysis | Heading `Paste the incident report`; `[data-testid=source-input]` without silent truncation; counter `n/<sourceTextMax>` from API; `Analyze` disabled without limits, empty, over-limit or pending; indeterminate wait and mode-dependent message; error `[data-testid=form-error]` |
 | `/history` | History | `Loading history…`; empty state `[data-testid=empty-history]` with heading `There are no analyses yet` and link `Create the first one`; heading `History`; `[data-testid=history-page-meta]` `Showing a–b of N`; one link per analysis (summary, excerpt, `status · date`); buttons `Previous` / `Next` (page size 20) |
-| `/history/:id` | Detail | `Loading analysis…`; heading `Analysis <status>`; `[data-testid=model-meta]` `Prompt <version> · model <model> · expires <date>`; `[data-testid=source-text]`; when failed: the error message and button `Retry`; result `[data-testid=analysis-result]` with `evidence`, `hypotheses`, `missing`, `uncertainty` sections; `Conversation`; `[data-testid=no-messages]` `There are no questions yet.`; messages `[data-testid=message-completed]` / `[data-testid=message-failed]` labelled `Analyst · …` or `Assistant · …`; answers `[data-testid=assistant-answer]` with a `Evidence, hypotheses, and uncertainty` disclosure (`[data-testid=thread-result-detail]`); textarea `[data-testid=question-input]`; button `Ask` (`Asking…` status while pending); action error `[data-testid=action-error]`; link `Back to history` |
+| `/history/:id` | Detail | Metadata `Model`, `Prompt`, `Kept until`; tabs `Incident`, `Result`, `Questions`, initially `Result`. Incident: `[data-testid=source-text]` and matching-pattern `[data-testid=assistant-instruction-note]`, not enforcement. Result: `[data-testid=analysis-result]` or error/`Retry`. Questions: `Conversation`, `[data-testid=no-messages]`, completed/failed messages, `[data-testid=assistant-answer]`, `Evidence, hypotheses, and uncertainty` disclosure, `[data-testid=question-input]`, `Ask` and indeterminate wait. Error `[data-testid=action-error]`; `Back to history`. |
 | unknown path | — | Redirects to `/history` |
 
 ## 4. Authentication
@@ -76,14 +85,15 @@ Rules for generated tests:
 |---|---|---|---|
 | NEW-01 | Successful analysis | Sign in, click `New`, fill `INC_OK`, click `Analyze` | `Analyzing… this can take a few seconds.` appears, then the URL is `/history/<id>` and `analysis-result` is visible |
 | NEW-02 | Button state | On `/new`, leave the textarea empty, then type only spaces | `Analyze` stays disabled; counter shows `0/8000` |
-| NEW-03 | Length limit | Paste 8,100 characters | The textarea keeps 8,000; counter `8000/8000`; analysis succeeds |
+| NEW-03 | Length limit | Obtain `sourceTextMax`; paste maximum + 100 | Entire draft retained, inline error and disabled `Analyze`. Reducing to the maximum permits submission; no silent truncation |
 | NEW-04 | Counter uses trimmed text | Type `  abc  ` | Counter `3/8000` |
 | NEW-05 | HTML is text | Analyze `INC_HTML` | `source-text` shows the literal tags; `window.__xss` is undefined; no dialog opens |
 | NEW-06 | Prompt injection | Analyze `INC_INJECTION` | Result shows; uncertainty states that no external action was run; no URL appears; the result does not claim a restart |
 | NEW-07 | Double submit | Fill `INC_OK`, double-click `Analyze` | Exactly one new analysis appears in History |
 | NEW-08 | Provider error | Analyze `INC_OK [MOCK:500]` | Stays on `/new`; `form-error` contains `The provider did not return a usable result.`; History lists the analysis as `failed` |
 | NEW-09 | Timeout | Analyze `INC_OK [MOCK:timeout]` | After about the deadline, `form-error` contains `The analysis did not finish within the time limit.` |
-| NEW-10 | Invalid model output | Analyze `INC_OK [MOCK:ungrounded]` (repeat with `[MOCK:schema]` and `[MOCK:invalid-json]`) | `form-error` contains `The model output did not match the contract and is not shown as a result.`; no result is shown anywhere for it |
+| NEW-10 | Invalid model output | Analyze `INC_OK [MOCK:schema]` and `[MOCK:invalid-json]` | `form-error` contains `The model response could not be validated.` with an allowed reason and `No result was accepted.`; no result; draft retained and `View failed attempts` shown |
+| NEW-10b | Nonexact quote | Analyze `INC_OK [MOCK:ungrounded]` | Result shown without the invented quote, with `There are no quotes grounded in the text.`; not semantic approval |
 | NEW-11 | Provider rejects credential | Analyze `INC_OK [MOCK:auth]` | `form-error` contains `The provider rejected the configured credential.` |
 | NEW-12 | Provider rate limit | Analyze `INC_OK [MOCK:429]` | `form-error` contains `The provider limited the request. There was no infinite retry.` |
 | NEW-13 | Automatic retry is invisible | Analyze `INC_OK [MOCK:500-once]` | Result shows normally |
@@ -94,21 +104,21 @@ Rules for generated tests:
 | ID | Case | Steps | Expected |
 |---|---|---|---|
 | RES-01 | Sections | After NEW-01 | `Summary` with `Category: … Suggested severity: ….`; sections `evidence`, `hypotheses` (each with `Confidence low/medium/high.`), `missing`, `uncertainty` are visible |
-| RES-02 | Quotes are grounded | After NEW-01 | Every `blockquote` text inside `evidence` is a substring of `source-text` |
+| RES-02 | Quotes are grounded | After NEW-01; inspect source in `Incident` | Each retained quote occurs in the protected API source without cutting tokens. Visible text can be compared without PII; with short labels use original tokens/API, not visible aliases alone |
 | RES-03 | Insufficient text | Analyze `INC_SHORT` | `uncertainty` is not empty; if there are no quotes, `There are no quotes grounded in the text.` is shown and `missing` lists items |
-| RES-04 | Model metadata | After NEW-01 | `model-meta` starts with `Prompt incident-analysis.v` and contains `model mock-incident-v1` |
+| RES-04 | Model metadata | After NEW-01 | `model-meta` contains `Model mock-incident-v1`, `Prompt incident-analysis.v` and `Kept until` |
 | RES-05 | Persistence | After NEW-01, reload the page | Same source text and result |
 
 ## 7. Follow-up questions
 
 | ID | Case | Steps | Expected |
 |---|---|---|---|
-| ASK-01 | Ask and answer | On a completed analysis, fill `question-input` with `What information is missing to confirm the cause?`, click `Ask` | `Asking…` appears; then `Analyst · completed` and `Assistant · completed` messages; `assistant-answer` not empty; the input is cleared |
+| ASK-01 | Ask and answer | Select `Questions` on a completed analysis, type `What information is missing to confirm the cause?`, click `Ask` | Indeterminate wait with mode-dependent message; then completed Analyst/Assistant messages, nonempty `assistant-answer` and cleared input |
 | ASK-02 | Order | Ask two questions | Messages appear in order Analyst, Assistant, Analyst, Assistant |
 | ASK-03 | Answer details | Open `Evidence, hypotheses, and uncertainty` under an answer | `thread-result-detail` shows the sections |
 | ASK-04 | Empty question | Leave `question-input` empty or spaces | `Ask` is disabled |
-| ASK-05 | Long question | Fill 1,001 characters, click `Ask` | `action-error` contains `The question exceeds the maximum length. Maximum: 1000 characters.`; no new messages |
-| ASK-06 | Question failure keeps the analysis | Ask `Why? [MOCK:invalid-json]` | `action-error` contains `The model output did not match the contract and is not shown as a result.`; the last message is `message-failed`; heading still `Analysis completed` and `analysis-result` unchanged; asking again without the tag works, because a failed exchange is not sent as context to later questions |
+| ASK-05 | Long question | Select `Questions`; obtain `questionMax`, enter maximum + 1 | Draft retained, inline length notice and disabled `Ask`, no new messages. Direct over-limit POST returns 400 |
+| ASK-06 | Question failure keeps the analysis | In `Questions`, ask `Why? [MOCK:invalid-json]` | `action-error` contains `The model response could not be validated.` and `No result was accepted.`; last message `message-failed`; selecting `Result` shows unchanged completed analysis; asking without the tag works because failed exchanges do not enter context |
 | ASK-07 | No questions on failed analyses | Open a failed analysis | No `question-input`; `Retry` is shown instead |
 | ASK-08 | Double submit | Double-click `Ask` | Only one new question pair; a second submit may show `That analysis is still in progress.` |
 | ASK-09 | Late answer after navigation | Ask `Why? [MOCK:timeout]`; while `Asking…` is shown, open another analysis from History | The other analysis is shown and stays shown when the first request ends; no `Asking…` on it; its `question-input` is empty |

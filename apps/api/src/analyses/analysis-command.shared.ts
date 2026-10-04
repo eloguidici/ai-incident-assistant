@@ -24,7 +24,7 @@ import { AnalysesService } from './analyses.service';
 import { logPersistNoOp, logPersistReadFailed, logPersistWriteFailed } from './persistence-orchestration.log';
 import type { QuestionFailureRecord } from './question-failure.types';
 import { PiiService } from '../pii/pii.service';
-import { assertKnownPrivacyLabels } from '../pii/placeholders';
+import { assertKnownPrivacyLabels, privacyLabelsIntroduced } from '../pii/placeholders';
 import { AppError, isUniqueViolation } from '../common/http';
 
 export type AnalysisOwner = { id: string };
@@ -160,7 +160,8 @@ export class AnalysisCommandShared {
       outcome = await this.gateway.complete(buildAnalysisPrompt(sourceText), signal, deadlineAt);
       const parsedAnalysis = validateAnalysis(outcome.response.rawText, sourceText);
       const protectedAnalysis = await this.pii.sanitizeResult(parsedAnalysis, owner.id, analysisId, signal);
-      if (this.pii.policyVersion()) assertKnownPrivacyLabels(JSON.stringify(protectedAnalysis), sourceText);
+      if (this.pii.policyVersion()) assertKnownPrivacyLabels(JSON.stringify(protectedAnalysis), sourceText,
+        privacyLabelsIntroduced(JSON.stringify(parsedAnalysis), JSON.stringify(protectedAnalysis)));
       const validatedAnalysis = validateAnalysis(JSON.stringify(protectedAnalysis), sourceText);
       const commit = await this.analyses.commitAnalysisSuccess({
         ownerId: owner.id,
@@ -381,7 +382,8 @@ export class AnalysisCommandShared {
       const parsedAnswer = validateQuestion(outcome.response.rawText, sourceText);
       const protectedAnswer = await this.pii.sanitizeResult(parsedAnswer, owner.id, analysisId, signal);
       if (this.pii.policyVersion()) assertKnownPrivacyLabels(JSON.stringify(protectedAnswer),
-        [sourceText, question, ...contextWindow.history.map((message) => message.content)].join('\n'));
+        [sourceText, question, ...contextWindow.history.map((message) => message.content)].join('\n'),
+        privacyLabelsIntroduced(JSON.stringify(parsedAnswer), JSON.stringify(protectedAnswer)));
       const validatedAnswer = validateQuestion(JSON.stringify(protectedAnswer), sourceText);
       const commit = await this.analyses.commitQuestionSuccess({
         ownerId: owner.id,

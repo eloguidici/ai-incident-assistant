@@ -1,13 +1,14 @@
 import { expect, type Locator, type Page, type Response } from '@playwright/test';
 import type { AnalysisDetail, AnalysisResult } from '../../../apps/web/src/api';
+import { applyPrivacyNames, privacyDisplayNames } from '../../../apps/web/src/components/PiiText';
 
 export const entityTypes = ['PERSON', 'EMAIL_ADDRESS', 'PHONE_NUMBER'] as const;
 export type PrivacyLabels = Record<(typeof entityTypes)[number], string>;
 
 const entityStyles = {
-  PERSON: { className: 'person', color: 'rgb(29, 78, 216)', background: 'rgb(239, 246, 255)' },
-  EMAIL_ADDRESS: { className: 'email', color: 'rgb(22, 101, 52)', background: 'rgb(240, 253, 244)' },
-  PHONE_NUMBER: { className: 'phone', color: 'rgb(107, 33, 168)', background: 'rgb(250, 245, 255)' },
+  PERSON: { className: 'person', color: 'rgb(12, 47, 29)', background: 'rgb(216, 239, 226)' },
+  EMAIL_ADDRESS: { className: 'email', color: 'rgb(36, 92, 24)', background: 'rgb(229, 246, 212)' },
+  PHONE_NUMBER: { className: 'phone', color: 'rgb(20, 52, 60)', background: 'rgb(215, 238, 243)' },
 };
 
 /**
@@ -92,20 +93,27 @@ export function readLabels(text: string, occurrences: number): PrivacyLabels {
 }
 
 /**
- * Verifies byte-for-byte text preservation and token-specific CSS in an actual browser.
+ * Verifies the short privacy label and token-specific CSS in an actual browser.
  * @param scope One source, quote, message or narrative field container.
  * @param text Exact protected API text expected in that container.
  * @returns Resolves after all literal tokens and colors have been checked.
  * @throws Assertion failure for aliases, restored text, missing tokens or incorrect colors.
  */
 export async function assertColoredText(scope: Locator, text: string): Promise<void> {
-  expect(await scope.textContent()).toBe(text);
+  const scopedTokens = await scope.evaluate((element) => {
+    const root = element.closest('[data-privacy-scope]');
+    if (!root) return null;
+    return [...root.querySelectorAll('.pii-token')].map((node) => node.getAttribute('data-privacy-token') ?? '');
+  });
+  const names = privacyDisplayNames(scopedTokens ?? [text]);
+  expect(await scope.textContent()).toBe(applyPrivacyNames(text, names));
   const matches = Array.from(text.matchAll(/\[(PERSON|EMAIL_ADDRESS|PHONE_NUMBER)_[a-f0-9]{32}\]/g));
   await expect(scope.locator('.pii-token')).toHaveCount(matches.length);
   for (let index = 0; index < matches.length; index += 1) {
     const token = scope.locator('.pii-token').nth(index);
     const entityStyle = entityStyles[matches[index][1] as keyof typeof entityStyles];
-    expect(await token.textContent()).toBe(matches[index][0]);
+    expect(await token.textContent()).toBe(names.get(matches[index][0]));
+    expect(await token.getAttribute('data-privacy-token')).toBe(matches[index][0]);
     await expect(token).toHaveClass(`pii-token pii-token--${entityStyle.className}`);
     await expect(token).toHaveCSS('color', entityStyle.color);
     await expect(token).toHaveCSS('background-color', entityStyle.background);

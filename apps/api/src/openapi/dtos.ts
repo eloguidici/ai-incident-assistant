@@ -237,6 +237,9 @@ export class AnalysisDetailResponseDto {
   @ApiProperty()
   sourceText!: string;
 
+  @ApiProperty({ description: 'Stored incident text matches assistant-instruction patterns. Not a verdict and not a block.' })
+  assistantInstructionsNoted!: boolean;
+
   @ApiProperty({ type: AnalysisResultDto, nullable: true })
   result!: AnalysisResultDto | null;
 

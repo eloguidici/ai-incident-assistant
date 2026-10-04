@@ -2,6 +2,7 @@ import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ApiError } from '../api';
+import { displayedPrivacyText } from '../components/PiiText';
 import { HistoryPage } from './HistoryPage';
 
 const apiMock = vi.fn();
@@ -58,11 +59,11 @@ describe('HistoryPage', () => {
     const { container } = render(<MemoryRouter><HistoryPage /></MemoryRouter>);
     const link = await screen.findByRole('link');
     expect(link).toHaveAttribute('href', '/history/protected');
-    expect(link.querySelector('strong')?.textContent).toBe(summary);
-    expect(link.querySelector('.pii-token--person')?.textContent).toBe(person);
-    expect(link.querySelector('.pii-token--email')?.textContent).toBe(email);
-    expect(link.querySelector('.pii-token--phone')?.textContent).toBe(phone);
-    expect(link.textContent).toContain(excerpt);
+    expect(link.querySelector('strong')?.textContent).toBe(displayedPrivacyText(summary));
+    expect(link.querySelector('.pii-token--person')?.getAttribute('data-privacy-token')).toBe(person);
+    expect(link.querySelector('.pii-token--email')?.textContent).toBe('Email');
+    expect(link.querySelector('.pii-token--phone')?.textContent).toBe('Phone');
+    expect(link.textContent).toContain(displayedPrivacyText(excerpt));
     expect(container.querySelector('img')).toBeNull();
     expect(link.querySelectorAll('.pii-token')).toHaveLength(3);
   });

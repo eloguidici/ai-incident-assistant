@@ -41,6 +41,14 @@ export async function analyzeFromNew(page: Page, sourceText: string): Promise<vo
 }
 
 /**
+ * Shows the question form on an analysis detail that is already open.
+ * @param page Page showing an analysis.
+ */
+export async function openQuestions(page: Page): Promise<void> {
+  await page.getByRole('tab', { name: 'Questions' }).click();
+}
+
+/**
  * Reads the analysis id from a detail URL such as `/history/<id>`.
  * @param page Page currently showing an analysis detail.
  * @returns The analysis id.

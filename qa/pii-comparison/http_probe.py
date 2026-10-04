@@ -63,7 +63,7 @@ def main() -> int:
         status, response, health_elapsed = call("/health")
         checks.append({"id": "health-during-inference", "pass": status == 200 and response.get("status") == "ok", "elapsedMs": health_elapsed})
         status, response, busy_elapsed = call("/sanitize-batch", {"texts": ["private-sentinel"], "scope": "s"})
-        checks.append({"id": "shared-slot-busy", "pass": status == 503 and response == {"error": "PII_BUSY"}, "elapsedMs": busy_elapsed})
+        checks.append({"id": "shared-slot-waits", "pass": status == 200 and response.get("texts") == ["private-sentinel"] and busy_elapsed >= 500, "elapsedMs": busy_elapsed})
         first_status, _, first_elapsed = pending.result()
         checks.append({"id": "long-real-inference", "pass": first_status == 200, "elapsedMs": first_elapsed})
     network_blocked = False

@@ -1,4 +1,4 @@
-import { detectPromptInjectionSignals } from '../src/ai/prompt-injection-signals';
+import { detectPromptInjectionSignals, incidentNotesAssistantInstructions } from '../src/ai/prompt-injection-signals';
 import { redactFields } from '../src/common/log';
 import { SECURITY_DETECTOR_VERSION, SECURITY_RULE_IDS } from '../src/common/constants/security-signal';
 import { DECLARED_EVASIONS, SIGNAL_CASES } from './fixtures/prompt-injection.cases';
@@ -19,6 +19,8 @@ describe('observation-only prompt-injection signals', () => {
     }
     expect(source.endsWith('\u200b')).toBe(true);
     expect(detectPromptInjectionSignals('')).toEqual([]);
+    expect(incidentNotesAssistantInstructions(source)).toBe(true);
+    expect(incidentNotesAssistantInstructions('The status page returned HTTP 200. No customer impact was reported.')).toBe(false);
   });
 
   it('scans a payload-sized tail and adversarial near-matches without truncation', () => {

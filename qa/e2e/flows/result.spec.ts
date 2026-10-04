@@ -39,8 +39,9 @@ test('RES-03 short incident keeps uncertainty and grounded-quote messaging', asy
 test('RES-04 model metadata shows prompt version and mock model', async ({ page }) => {
   await analyzeFromNew(page, uniqueIncident(INC_OK));
   const meta = await page.getByTestId('model-meta').innerText();
-  expect(meta).toMatch(/^Prompt incident-analysis\.v/);
-  expect(meta).toContain('model mock-incident-v1');
+  expect(meta).toContain('Prompt incident-analysis.v');
+  expect(meta).toContain('Model mock-incident-v1');
+  expect(meta).toContain('Kept until ');
 });
 
 test('RES-05 reload keeps source text and result', async ({ page }) => {

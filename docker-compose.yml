@@ -6,6 +6,7 @@ services:
       PII_HMAC_KEY_FILE: /run/secrets/pii_hmac_key
       PII_PERSON_ENABLED: ${PII_PERSON_ENABLED:-true}
       PII_TORCH_THREADS: ${PII_TORCH_THREADS:-1}
+      PII_SLOT_WAIT_SECONDS: ${PII_SLOT_WAIT_SECONDS:-20}
       HF_HUB_OFFLINE: "1"
       TRANSFORMERS_OFFLINE: "1"
     secrets:

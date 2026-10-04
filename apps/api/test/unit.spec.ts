@@ -67,22 +67,24 @@ describe('pure rules', () => {
     expect(selectContext('x'.repeat(200), [], 'y'.repeat(80), 200).rejected).toBe(true);
   });
 
-  it('rejects quotes that are not present and accepts uncertainty without evidence', () => {
+  it('omits quotes that are not present and accepts uncertainty without evidence', () => {
     const source = 'The payments service returned HTTP 503 for 12 minutes.';
-    expect(() =>
-      validateAnalysis(
-        JSON.stringify({
-          summary: 'Summary',
-          category: 'availability',
-          suggestedSeverity: 'high',
-          evidence: [{ quote: 'invented quote that is absent', note: 'note' }],
-          hypotheses: [],
-          missingInformation: [],
-          uncertainty: '',
-        }),
-        source,
-      ),
-    ).toThrow(/quote/);
+    const omitted = validateAnalysis(
+      JSON.stringify({
+        summary: 'Summary',
+        category: 'availability',
+        suggestedSeverity: 'high',
+        evidence: [{ quote: 'invented quote that is absent', note: 'note' }],
+        hypotheses: [],
+        missingInformation: [],
+        uncertainty: '',
+      }),
+      source,
+    );
+    expect(omitted.summary).toBe('Summary');
+    expect(omitted.evidence).toEqual([]);
+    expect(omitted.uncertainty).toContain('not copied from the incident');
+    expect(omitted.missingInformation.length).toBeGreaterThan(0);
     const uncertainAnalysis = validateAnalysis(
       JSON.stringify({
         summary: 'Not enough',

@@ -20,6 +20,7 @@ test('walks through login, analysis, question, and history', async ({ page }) =>
   await expect(page.getByTestId('analysis-result')).toBeVisible();
   await expect(page.getByTestId('evidence')).toContainText('payments service');
   await expect(page.getByTestId('uncertainty')).not.toBeEmpty();
+  await page.getByRole('tab', { name: 'Questions' }).click();
   await page.getByTestId('question-input').fill('What information is missing to confirm the cause?');
   await page.getByRole('button', { name: 'Ask' }).click();
   await expect(page.getByText('Analyst')).toBeVisible();

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { api, ApiError } from '../api';
+import { WaitStatus } from './WaitStatus';
 
 /**
  * Checks the session, then renders the top bar and the nested route. Redirects to /login when there is no session.
@@ -28,7 +29,7 @@ export function Shell() {
     navigate('/login');
   }
 
-  if (!ready || !email) return <p className="status">Checking session…</p>;
+  if (!ready || !email) return <WaitStatus>Checking session…</WaitStatus>;
 
   return (
     <>
@@ -36,19 +37,21 @@ export function Shell() {
         Skip to content
       </a>
       <header className="topbar">
-        <div>
-          <p className="eyebrow">Operations</p>
-          <strong>Incident assistant</strong>
-        </div>
+        <div className="topbar-inner">
+        <strong className="brand">
+          <span className="mark" aria-hidden="true" />
+          Incident assistant
+        </strong>
         <nav>
-          <NavLink to="/new">New</NavLink>
-          <NavLink to="/history">History</NavLink>
+          <NavLink className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')} to="/new">New</NavLink>
+          <NavLink className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')} to="/history">History</NavLink>
         </nav>
         <div className="session">
           <span>{email}</span>
-          <button type="button" onClick={() => void logout()}>
+          <button className="button-quiet" type="button" onClick={() => void logout()}>
             Sign out
           </button>
+        </div>
         </div>
       </header>
       <main id="content">
