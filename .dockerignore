@@ -5,6 +5,13 @@ services
 **/node_modules
 **/.env
 **/.env.*
+**/*.key
+**/*.pem
+**/*.p12
+**/*.pfx
+**/*.secret
+**/*.crt
+**/*.cer
 docs
 tasks
 process
@@ -14,6 +21,9 @@ qa
 qa-artifacts
 playwright-report
 test-results
+blob-report
+.playwright-cli
+output
 infra/terraform
 **/*.md
 !apps/web/index.html

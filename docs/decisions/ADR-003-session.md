@@ -1,6 +1,5 @@
 # ADR-003: Session
 
-
 Date: 2026-09-29. Status: accepted.
 
 ## Decision

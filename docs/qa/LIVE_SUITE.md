@@ -1,6 +1,5 @@
 # Live quality suite
 
-
 `npm run qa:ai:suite` sends every evaluation fixture to a real model along the same path as the API: the gateway (deadline, at most one retry), the prompt builders, the question context window with history, and the output validators. It exists to find defects that the mock cannot show, such as a prompt that a real model does not follow. It is not part of CI and is not a browser test.
 
 ## What it runs

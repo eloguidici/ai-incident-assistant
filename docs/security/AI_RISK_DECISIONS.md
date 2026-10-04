@@ -1,6 +1,5 @@
 # AI security decisions and limitations
 
-
 Reviewed: 2026-10-03, America/Buenos_Aires. Research/documentation only: no new
 executable guard or model calls. [T25 evidence](../qa/ASSESSMENT_CLOSURE.md) remains
 **semantic FAIL**; all three residual risks are accepted only for a synthetic demo.
@@ -13,7 +12,7 @@ account availability and measured superiority are not claimed.
 Documentation update 2026-10-04, Buenos Aires: the current tree uses v7/v9,
 omits nonexact quotes and applies a limited lexical causal rule, without a second
 LLM. The visible injection note is computed on read, not enforcement or output
-judgment. [Later recorded samples, in Spanish](../qa/DEMO_CASOS.es.md) completed
+judgment. [Later recorded samples](../qa/DEMO_CASES.md) completed
 13 analyses per GPT route without observed compliance with the reviewed attacks,
 but retained a generic answer and PII false positives; Liquid had failures.
 This is not immunity, statistical accuracy or full current regression. T25 cases

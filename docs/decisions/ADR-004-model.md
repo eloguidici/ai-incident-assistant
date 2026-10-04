@@ -1,6 +1,5 @@
 # ADR-004: Model integration
 
-
 Date: 2026-09-29. Status: accepted.
 
 ## Decision

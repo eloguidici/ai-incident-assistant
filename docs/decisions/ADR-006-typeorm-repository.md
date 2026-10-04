@@ -1,6 +1,5 @@
 # ADR-006: TypeORM and the Repository pattern
 
-
 Date: 2026-09-30. Status: accepted.
 
 ## Decision

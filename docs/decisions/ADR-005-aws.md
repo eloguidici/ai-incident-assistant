@@ -1,6 +1,5 @@
 # ADR-005: AWS deployment shape
 
-
 Date: 2026-09-29, amended 2026-09-30. Status: proposed, not applied.
 
 ## Decision

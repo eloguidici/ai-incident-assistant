@@ -1,6 +1,5 @@
 # ADR-002: Persistence (historical)
 
-
 Date: 2026-09-29. Status: superseded by [ADR-006](ADR-006-typeorm-repository.md) on 2026-09-30.
 
 ## Decision (historical)

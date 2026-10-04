@@ -1,6 +1,5 @@
 # AWS infrastructure proposal
 
-
 This is an infrastructure definition for assessment section 3.1, which allows AWS or a simulated proposal. It has not been deployed. Local application verification remains separate from cloud validation.
 
 T22 update, 2026-10-02 (Buenos Aires): local `fmt` and `validate` passed for the new configuration in the HashiCorp Terraform 1.9.8 container using cached providers; no new `init` was needed. AWS runtime, detector resource sizing and deployment remain unverified.

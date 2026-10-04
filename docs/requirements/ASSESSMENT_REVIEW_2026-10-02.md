@@ -1,6 +1,5 @@
 # Assessment compliance review — 2026-10-02
 
-
 Branch: dev. Code reviewed: dcfc0f9b5b9d18538ff097fdcb30d8fc84a3ce26.
 Commit 42e0c362ee553db01857c749b2df0c6ceb590a49 adds the PII plan and links only.
 Source: original Full Stack AI Engineer Assessment PDF. Method: reading the PDF, source, contracts, CI and existing reports. No new tests, paid calls, browser runs, Terraform plan/apply or deployments were executed in this review.

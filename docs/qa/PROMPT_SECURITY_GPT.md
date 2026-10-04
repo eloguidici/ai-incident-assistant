@@ -1,6 +1,5 @@
 # Difficult-case GPT live evaluation
 
-
 Date: 2026-10-02, Buenos Aires, 14:24-14:27 (17:24-17:27 UTC). Baseline: `dev` / `c167cd2` plus uncommitted T20 changes. **FAIL for end-to-end quality; real OpenAI and paid OpenRouter calls executed.** This follows, and does not overwrite, the [Liquid sample](PROMPT_SECURITY_LIVE.md).
 
 ## Scope and method

@@ -1,6 +1,5 @@
 # ADR-007: Local PII protection and literal labels
 
-
 Date: 2026-10-02, Buenos Aires. Decision: approved for implementation. Updated 2026-10-03: scoped T22 synthetic-demo acceptance with retained failures, not universal privacy. See integration report and T25 closure.
 
 QA update 2026-10-03: software/browser and selected core gate passed, but an additional actual-adapter
@@ -50,6 +49,6 @@ Do not ship the failed bilingual union. An external LLM for detection would crea
 
 The service adds image size, CPU/memory, latency and a dependency that rejects requests on failure. Detectors may miss PII, over-redact facts or leave identifying context. This is pseudonymization, not universal anonymization; paid provider routing does not guarantee privacy.
 
-Scoped T22 is closed by documented risk acceptance with results/residual failures in the [integration report](../qa/LOCAL_PII_INTEGRATION.md). Future layers are not implemented or cost-compared. T20/T25 retain historical evidence, not v7/v9 certification. [Later samples, in Spanish](../qa/DEMO_CASOS.es.md) record false positives; [operational profiles](../operations/RUNBOOK.md#configuration-profiles) distinguish single-slot waiting, demo overrides and base/AWS defaults. No universal SLA or confidential-data authorization is established.
+Scoped T22 is closed by documented risk acceptance with results/residual failures in the [integration report](../qa/LOCAL_PII_INTEGRATION.md). Future layers are not implemented or cost-compared. T20/T25 retain historical evidence, not v7/v9 certification. [Later samples](../qa/DEMO_CASES.md) record false positives; [operational profiles](../operations/RUNBOOK.md#configuration-profiles) distinguish single-slot waiting, demo overrides and base/AWS defaults. No universal SLA or confidential-data authorization is established.
 
 Implementation details: [guide](../security/PII_IMPLEMENTATION_PLAN.md), [data policy](../security/DATA_POLICY.md), [runbook](../operations/RUNBOOK.md).

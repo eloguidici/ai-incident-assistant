@@ -1,5 +1,6 @@
 # AI Incident Assistant
 
+[Documentation index](docs/README.md) | [Delivery checklist and publication policy](docs/operations/DELIVERY_CHECKLIST.md)
 
 An authenticated analyst submits incident text, receives a structured analysis, asks follow-up questions and returns to saved results. The output separates evidence (exact quotes from the text), hypotheses and missing information. The application does not execute remediation in external systems.
 
@@ -20,8 +21,9 @@ The owner's personal manual test is deferred.
 This does not authorize confidential data or production use; additional technologies
 are outside evaluated scope, not declared impossible because execution is local.
 
-Final validation, 2026-10-03: both real providers and one correction iteration executed;
-**semantic quality FAIL**, while the manual workflow operates. [Results/remaining work](docs/qa/ASSESSMENT_CLOSURE.md).
+Historical T25 validation, 2026-10-03: both real providers and one correction iteration executed;
+**semantic quality FAIL**, while the manual workflow operates. [Dated T25 results](docs/qa/ASSESSMENT_CLOSURE.md).
+Later v7/v9 [recorded demo samples](docs/qa/DEMO_CASES.md) are separate evidence, not a new full-regression approval. See the [delivery gates](docs/operations/DELIVERY_CHECKLIST.md#status-and-remaining-submission-gates).
 [Manual OpenAI testing](docs/qa/MANUAL_ACCEPTANCE.md): synthetic data, full protection
 and 4,000/500 limits. Accepted output is not a verified root cause.
 
@@ -107,7 +109,7 @@ Section 2.2 explanatory scope closed on 2026-10-03 (Buenos Aires). It does not r
 - **Measuring output quality:** `npm run qa:eval` validates/scores five synthetic cases: clear outage, insufficient input, injection, HTML and contradictory facts. It checks contracts/quotes, uncertainty and complete URLs using runtime extraction; the rubric injection check is an English-phrase heuristic, not universal semantic verification. `npm run qa:ai:live` uses a real model. Use human review of all responses against expected facts, including rejected ones, to measure usefulness/fidelity rather than equate valid JSON/quotes with correct causes. Compare false rejections, accepted attacks, latency/tokens/cost and repeated-run variation; there is no automatic dashboard for these measures.
 - **Detecting regressions:** stored version/provider/model supports comparison of identical cases before/after; fix limits/deadlines and protection mode too. Changes require software checks and a comparable real sample, reviewing contracts, fidelity, confidence, latency and consumption. Defined CI runs mock evaluation, not paid requests or semantic certification. Different provider matrices are not equivalent comparisons.
 - **When the AI gives a wrong answer in production:** distinguish technical failure from an incorrect answer that passed its contract; do not use a hypothesis as an automatic decision. Showing quotes/uncertainty, rejecting invalid output and preserving a valid analysis after question failure are implemented. The proposed process investigates execution/version/model/correlation with privacy, adds a regression case and rolls back harmful changes: environment provider/model with restart, prompt through code and controlled deployment. There is no dynamic historical-prompt selector, feedback, semantic alerts or automatic rollback.
-- **Limit:** general offline regression disables PII; mocks do not certify detector quality/resources. T22/T25 retain accepted historical synthetic-demo failures, including a GPT-4.1-mini injection. [Later v7/v9 samples, in Spanish](docs/qa/DEMO_CASOS.es.md) completed 13 analyses on each GPT route without observed compliance with the reviewed attacks, but with a generic answer and PII false positives; Liquid had errors/rejections. This is not semantic approval, immunity or full current regression. See [historical T25 closure](docs/qa/ASSESSMENT_CLOSURE.md).
+- **Limit:** general offline regression disables PII; mocks do not certify detector quality/resources. T22/T25 retain accepted historical synthetic-demo failures, including a GPT-4.1-mini injection. [Later v7/v9 samples](docs/qa/DEMO_CASES.md) completed 13 analyses on each GPT route without observed compliance with the reviewed attacks, but with a generic answer and PII false positives; Liquid had errors/rejections. This is not semantic approval, immunity or full current regression. See [historical T25 closure](docs/qa/ASSESSMENT_CLOSURE.md).
 
 Details/evidence: [AI evaluation and reliability](docs/qa/AI_EVALUATION.md). Rubric correction reproduced before/after, 30 new cases and unit regression passed; historical provider FAIL outcomes are unchanged.
 
@@ -311,4 +313,4 @@ The [Terraform guide](infra/terraform/README.md) describes an HTTPS ALB, a Farga
 - Default retention is 30 days with periodic purge. Expiry is not instantaneous physical deletion; provider retention is separate.
 - Recovery of interrupted runs is eventual after the database becomes available. A minimal failure closure may omit audit or message details if their full transaction failed.
 - Mocks do not certify real-model accuracy, latency, spend or provider privacy.
-- Local PII is a candidate with possible misses and identifying context; legacy data is retained, and explicit disabled mode provides no content protection.
+- Local PII is accepted only for a scoped synthetic demo, with possible misses and identifying context; legacy data is retained, and explicit disabled mode provides no content protection.

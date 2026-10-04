@@ -1,6 +1,5 @@
 # MVP contracts
 
-
 Initial contracts dated 2026-09-29; documentation synchronized 2026-10-04, Buenos Aires, against the current dev tree. Not a new integration run.
 
 ## Analysis result

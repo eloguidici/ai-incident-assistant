@@ -1,6 +1,5 @@
 # Prompt-security remediation checkpoint
 
-
 Date: 2026-10-02 (Buenos Aires). Branch: dev. Implementation/local verification checkpoint, **not real-model approval**. User requested commit/push and continuation later before the new paid run.
 
 ## Changes

@@ -1,6 +1,5 @@
 # Manual assessment acceptance
 
-
 Use synthetic inputs only. Known PII misses and false positives remain; never enter
 confidential information. Every real analysis/question may be charged. Model outputs
 assist a human analyst, not verified causes or executed remediation.

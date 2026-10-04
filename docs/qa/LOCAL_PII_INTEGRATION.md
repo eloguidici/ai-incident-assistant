@@ -1,6 +1,5 @@
 # Local PII Integration QA
 
-
 Verified: 2026-10-02/2026-10-03, America/Buenos_Aires. Branch `dev`, base `2e476c3` plus uncommitted T21/T22 changes.
 Status: owner accepted the scoped implementation for a synthetic assessment/demo with documented limitations. Software/browser checks passed; the additional name test remains FAIL. This is not complete privacy or project-release certification.
 

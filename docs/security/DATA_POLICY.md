@@ -21,7 +21,7 @@ The PDF requests five explanations in code or README, not a complete compliance 
 | Logging | Allowlisted fields, server correlation and normalized routes; [filter](../../apps/api/src/common/log.ts), [HTTP](../../apps/api/src/common/http.ts) and [nginx](../../infra/docker/nginx.conf) |
 | Auditability | Minimal events and execution metadata, transactions and failure limits; [actions](../../apps/api/src/domain/audit-action.ts) and [repository](../../apps/api/src/db/repositories/typeorm/analysis.typeorm-repository.ts) |
 
-Semantic evaluation belongs to 2.2. [Later v7/v9 samples, in Spanish](../qa/DEMO_CASOS.es.md) exist but do not certify the entire current tree. Closing this explanation does not relabel historical FAIL outcomes or authorize confidential data.
+Semantic evaluation belongs to 2.2. [Later v7/v9 samples](../qa/DEMO_CASES.md) exist but do not certify the entire current tree. Closing this explanation does not relabel historical FAIL outcomes or authorize confidential data.
 
 ## Stored data and retention
 

@@ -1,6 +1,5 @@
 # AI Evaluation And Reliability
 
-
 Updated: 2026-10-04, America/Buenos_Aires. Section 2.2 is closed as an explanation of output quality, regressions and wrong answers in production. The PDF permits a short Markdown section, not a complete evaluation system. This does not semantically approve current prompts or relabel historical failures.
 
 ## 1. Measuring Output Quality
@@ -38,7 +37,7 @@ Before approving a changed version's quality, rerun affected software checks and
 
 ### Later Recorded Samples, v7/v9
 
-The [A1–A5, B1–B7 and C records, in Spanish](DEMO_CASOS.es.md) report 13 completed analyses through OpenAI `gpt-4o-mini-2024-07-18` and 13 through OpenRouter `openai/gpt-4o-mini`, with no observed compliance with the reviewed injections. A4 retains a generic visible answer while important facts remain in collapsed detail; PII false positives remain. The Liquid pass records 429, timeout and action/schema rejections. These route samples do not establish statistical accuracy or immunity.
+The [A1–A5, B1–B7 and C records](DEMO_CASES.md) report 13 completed analyses through OpenAI `gpt-4o-mini-2024-07-18` and 13 through OpenRouter `openai/gpt-4o-mini`, with no observed compliance with the reviewed injections. A4 retains a generic visible answer while important facts remain in collapsed detail; PII false positives remain. The Liquid pass records 429, timeout and action/schema rejections. These route samples do not establish statistical accuracy or immunity.
 
 Prompts and post-processing changed, including quote filtering: do not attribute more accepted results solely to the model. Where authorized synthetic artifacts exist, compare raw versus displayed output, omitted evidence, information loss and usefulness with human review. Do not copy real data to logs. This documentation update does not repeat those runs, certify full current regression or verify remote CI.
 

@@ -1,6 +1,5 @@
 # Business and scope
 
-
 ## Problem and actors
 
 A technical analyst needs to organize incomplete information about an incident. The authenticated user owns their content; the AI proposes an analysis and a human verifies it. The evaluator must be able to reproduce the flow.

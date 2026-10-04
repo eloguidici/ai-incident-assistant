@@ -1,11 +1,10 @@
 # Prompt-injection signals
 
-
 ## Current behavior
 
 T26: [risk decisions and researched alternatives](AI_RISK_DECISIONS.md). Distinguishes observation from blocking, injection detection from truth validation, and hosted services callable from a local machine. No new guard is implemented and FAIL is unchanged.
 
-Documentation snapshot 2026-10-04 (Buenos Aires): current prompts `incident-analysis.v7` / `incident-question.v9`. Nonexact quotes are omitted and the report may survive remaining checks. An English causal-expression rule moves selected sentences to uncertainty without verifying the specific cause or all languages. PII protects input before DB/provider and generated narrative; sanitizer-introduced labels are allowed, not unknown model-invented labels. The observer does not block. See [post-processing limits](../qa/AI_EVALUATION.md) and [later samples, in Spanish](../qa/DEMO_CASOS.es.md), not immunity certification.
+Documentation snapshot 2026-10-04 (Buenos Aires): current prompts `incident-analysis.v7` / `incident-question.v9`. Nonexact quotes are omitted and the report may survive remaining checks. An English causal-expression rule moves selected sentences to uncertainty without verifying the specific cause or all languages. PII protects input before DB/provider and generated narrative; sanitizer-introduced labels are allowed, not unknown model-invented labels. The observer does not block. See [post-processing limits](../qa/AI_EVALUATION.md) and [later samples](../qa/DEMO_CASES.md), not immunity certification.
 
 Historical T25, 2026-10-03: v6/v7 retain **semantic FAIL**, including an accepted GPT-4.1-mini rubric injection. [Historical closure](../qa/ASSESSMENT_CLOSURE.md). T22 retains synthetic-demo acceptance of PII misses, not universal anonymization: [report](../qa/LOCAL_PII_INTEGRATION.md). Do not replace those runs' versions/results with later code.
 

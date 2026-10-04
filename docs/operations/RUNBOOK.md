@@ -1,6 +1,5 @@
 # Runbook
 
-
 ## Start locally
 
 T22 status, 2026-10-03 (Buenos Aires): scoped synthetic-demo acceptance with known misses/false positives; not universal privacy or confidential-data certification. See the current report.
@@ -84,7 +83,7 @@ not a fresh container inspection or configuration change.
 | Parameterless `scripts/start-real-demo.ps1` | 4,000 / 500 | 9.5 s | 45 s / 60 s |
 | Latest recorded demo, 2026-10-03 | 8,000 / 1,000 | 30 s | 90 s / 120 s |
 
-The latest profile uses 4 CPU/4 threads and is documented in [cases, in Spanish](../qa/DEMO_CASOS.es.md),
+The latest profile uses 4 CPU/4 threads and is documented in [cases](../qa/DEMO_CASES.md),
 not reproduced by the parameterless script or AWS proposal. Select and verify
 the effective profile when preparing the demo; React obtains limits from the API.
 Timeouts do not establish measured latency or a sub-10-second SLA.

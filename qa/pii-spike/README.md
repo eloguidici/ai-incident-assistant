@@ -1,6 +1,6 @@
 # Bilingual PII feasibility experiment
 
-QA only. No production service, endpoint, database migration or LLM call. Synthetic fixed corpus; a failed quality gate is intentional evidence, not a passing sanitizer. See [measured results](../../docs/qa/PII_SPIKE.es.md) and [implementation plan](../../docs/security/PII_IMPLEMENTATION_PLAN.md).
+QA only. No production service, endpoint, database migration or LLM call. Synthetic fixed corpus; a failed quality gate is intentional evidence, not a passing sanitizer. See [measured results](../../docs/qa/PII_SPIKE.md) and [implementation plan](../../docs/security/PII_IMPLEMENTATION_PLAN.md).
 
 Build from the repository root:
 

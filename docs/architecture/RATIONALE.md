@@ -1,6 +1,5 @@
 # Rationale
 
-
 This document explains the main decisions and what each one costs. The verification commands are listed in the root [README](../../README.md#verification).
 
 ## What the assessment asks

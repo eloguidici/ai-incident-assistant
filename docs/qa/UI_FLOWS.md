@@ -1,6 +1,5 @@
 # UI flows and browser test cases
 
-
 Every user-visible flow, written so that browser tests can be generated from it without reading the code. Selectors and texts are the ones in `apps/web/src` at the time of writing; if a test fails because a text changed, update this document in the same change. Replaces the 2026-09-29 snapshot in [BROWSER_CASES.md](BROWSER_CASES.md), which is kept as history.
 
 ## 1. Environments

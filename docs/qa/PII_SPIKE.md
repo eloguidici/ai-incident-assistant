@@ -1,6 +1,5 @@
 # Local bilingual PII spike
 
-
 2026-10-02, Buenos Aires, dev baseline 2e476c3 plus local QA changes. **Experiment completed; configuration NOT APPROVED for production integration.** No production/API/database change, paid LLM call or deployment. [Plan](../security/PII_IMPLEMENTATION_PLAN.md), [runner](../../qa/pii-spike/README.md).
 
 ## Experiment

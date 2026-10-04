@@ -1,6 +1,5 @@
 # ADR-001: Stack
 
-
 Date: 2026-09-29. Status: accepted.
 
 ## Decision

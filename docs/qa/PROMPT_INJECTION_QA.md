@@ -1,6 +1,5 @@
 # Prompt-injection observation QA
 
-
 Latest real-provider follow-up: [paid GPT via OpenAI and OpenRouter](PROMPT_SECURITY_GPT.md), 15 shared attempts, quality FAIL. Initial local software results below were not rerun during that comparison.
 
 Date: 2026-10-02 (Buenos Aires). Baseline: `dev` / `c167cd2` plus the uncommitted observer changes. Result: **PASS WITH KNOWN RISK for the initial local software regression**. The subsequent [advanced live evaluation](PROMPT_SECURITY_LIVE.md) **FAILED** on the current configured model. No branch switch, commit, push, secret change or cloud deployment.

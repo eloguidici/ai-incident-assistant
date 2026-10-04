@@ -1,6 +1,5 @@
 # Advanced live prompt-security evaluation
 
-
 Subsequent real paid-model verification: [OpenAI/OpenRouter GPT results](PROMPT_SECURITY_GPT.md). Fifteen new attempts shared across both routes, also quality FAIL; the Liquid evidence below remains unchanged.
 
 Date: 2026-10-02, Buenos Aires, 14:09-14:11 (17:09-17:11 UTC). Baseline: `dev` / `c167cd2` plus uncommitted T20 changes. **FAIL: current model/prompt combination is not approved for adversarial correctness.** This does not invalidate the separately passing [local software regression](PROMPT_INJECTION_QA.md).

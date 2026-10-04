@@ -1,6 +1,5 @@
 # Local PII implementation guide
 
-
 Initial decision: 2026-10-02; updated: 2026-10-03, Buenos Aires. Scoped T22 synthetic-demo acceptance has measured quality/resources/integration and retained failures in the [report](../qa/LOCAL_PII_INTEGRATION.md), not universal privacy approval. [T25 closure](../qa/ASSESSMENT_CLOSURE.md) separates software regression from semantic FAIL.
 
 Current decision 2026-10-03: the owner accepts observed limitations for the synthetic assessment/demo and
@@ -103,7 +102,7 @@ demo overrides do not change the conservative API/Compose/Terraform defaults or
 turn a configured wait into a latency guarantee. Larger local sources require
 measured CPU/resource checks. Model/threshold/coverage remain unchanged.
 
-The [latest recorded demo, in Spanish](../qa/DEMO_CASOS.es.md) uses 8,000/1,000
+The [latest recorded demo](../qa/DEMO_CASES.md) uses 8,000/1,000
 characters, PII timeout 30 s, overall deadline 90 s and proxy 120 s, with 4 CPU/4
 threads. This is another profile, not the script's parameterless behavior or new
 universal defaults. The 20 s slot wait remains subject to service/overall timeouts,

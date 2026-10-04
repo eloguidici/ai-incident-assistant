@@ -1,6 +1,5 @@
 # Assessment validation closure
 
-
 Date: 2026-10-03, America/Buenos_Aires. `dev`, baseline `2e476c3` plus prior/T25
 uncommitted changes. **Semantic quality/security: FAIL.** The app supports supervised
 synthetic manual testing, not full approval.

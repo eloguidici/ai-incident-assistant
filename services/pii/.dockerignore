@@ -1,6 +1,14 @@
 __pycache__
 .pytest_cache
+.git
+.env
+.env.*
 *.pem
 *.key
 *.secret
+*.p12
+*.pfx
+*.crt
+*.cer
+*.log
 evidence

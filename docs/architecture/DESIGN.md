@@ -1,6 +1,5 @@
 # Design
 
-
 Status: implemented. Stack in [ADR-001](../decisions/ADR-001-stack.md). Persistence, session and model in [ADR-006](../decisions/ADR-006-typeorm-repository.md), [ADR-003](../decisions/ADR-003-session.md) and [ADR-004](../decisions/ADR-004-model.md). The AWS shape is in [ADR-005](../decisions/ADR-005-aws.md) and has not been applied.
 
 ## Logical structure

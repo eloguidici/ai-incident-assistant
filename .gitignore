@@ -1,9 +1,19 @@
 node_modules/
 dist/
 .env
-.env.local
+.env.*
+!.env.example
 .local/
+*.key
+*.pem
+*.p12
+*.pfx
+*.secret
+*.crt
+*.cer
 __pycache__/
+.pytest_cache/
+*.pyc
 # Local QA notes and credentials (never committed)
 qa/local/
 open-router-key.txt
@@ -12,26 +22,35 @@ qa-artifacts/
 qa/pii-comparison/evidence/
 playwright-report/
 .playwright-cli/
-output/playwright/
+/output/
+*.har
+*.dump
+*.backup
+*.sql.gz
 test-results/
 blob-report/
 coverage/
-infra/terraform/.terraform/
-infra/terraform/*.tfstate
-infra/terraform/*.tfstate.*
+.terraform/
+*.tfstate
+*.tfstate.*
 infra/terraform/crash.log
 *.tsbuildinfo
 .DS_Store
 Thumbs.db
 
 
-infra/terraform/*.tfvars
-infra/terraform/*.tfplan
+*.tfvars
+*.tfvars.json
+*.tfplan
 
 # Internal development material (process notes, agent rules, skills). Kept locally, not published.
+# Delivery documentation is English-only; Spanish study copies are local.
+*.es.md
 docs/internal/
 AGENTS.md
 .agents/
 .ai/
+.cursor/
 process/
+/tasks/
 GUIA_ESTUDIO*.md
