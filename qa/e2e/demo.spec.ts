@@ -6,7 +6,7 @@ const incident =
 test('synthetic demo of login, analysis, and question', async ({ page }) => {
   await page.goto('/login');
   await page.getByLabel('Email').fill('demo1@demo.com');
-  await page.getByLabel('Password').fill('Demo1234$');
+  await page.getByLabel('Password', { exact: true }).fill('Demo1234$');
   await page.getByRole('button', { name: 'Sign in' }).click();
   await page.getByRole('link', { name: 'New' }).click();
   await page.getByTestId('source-input').fill(incident);

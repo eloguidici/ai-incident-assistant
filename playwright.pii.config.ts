@@ -4,7 +4,8 @@ const runTag = process.env.PII_QA_RUN_ID?.replace(/[^A-Za-z0-9_-]/g, '-');
 const artifactName = `playwright-pii-${process.env.PII_QA_MODE ?? 'full'}${runTag ? `-${runTag}` : ''}`;
 
 /**
- * Collects only the opt-in PII battery against the existing Compose stack on port 8080.
+ * Collects only the opt-in PII battery against an existing Compose stack.
+ * E2E_BASE_URL overrides the default http://localhost:8080 for an isolated stack.
  * The .pii.ts suffix keeps these files outside the general projects' .spec/.test discovery.
  * No servers, database resets, HTTP mocks, or retries are configured here.
  */
@@ -19,7 +20,7 @@ export default defineConfig({
   outputDir: `qa-artifacts/${artifactName}`,
   reporter: [['list'], ['html', { open: 'never', outputFolder: `qa-artifacts/${artifactName}-report` }]],
   use: {
-    baseURL: 'http://localhost:8080',
+    baseURL: process.env.E2E_BASE_URL ?? 'http://localhost:8080',
     channel: 'chrome',
     actionTimeout: 15_000,
     navigationTimeout: 30_000,

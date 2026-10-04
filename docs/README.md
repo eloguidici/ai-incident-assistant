@@ -40,6 +40,7 @@ Read each report's date, prompt/model and runtime profile. A previous PASS/FAIL 
 
 | Evidence | Scope |
 |---|---|
+| [Local delivery verification, 2026-10-04](qa/DELIVERY_VERIFICATION.md) | Current uncommitted corrections: clean-checkout installation, software regression, real-PII browser/modes and Docker checks. Remote CI/manual acceptance and accepted AI limits remain separate. |
 | [Recent demo cases](qa/DEMO_CASES.md) | English summary of recorded v7/v9 GPT samples: 13 analyses completed on each route; generic answer/PII false positives and earlier failures remain. Not a complete current regression. |
 | [T25 assessment closure](qa/ASSESSMENT_CLOSURE.md) | Historical v6/v7 real-provider pass, one correction and retained semantic FAIL. Not the current release gate. |
 | [T22 PII integration](qa/LOCAL_PII_INTEGRATION.md) | Dated integration/resource/quality evidence and accepted partial-name failure. |

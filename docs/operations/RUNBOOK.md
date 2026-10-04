@@ -13,6 +13,18 @@ T22 status, 2026-10-03 (Buenos Aires): scoped synthetic-demo acceptance with kno
 
 For all containers, use `docker compose up --build -d` after configuring JWT and the HMAC file. React/nginx is at `http://localhost:8080`. PII has no public port in normal Compose; the API uses `http://pii:8000` and waits for its healthcheck.
 
+PII is explicitly `linux/amd64` because its hash-locked CPU wheel targets x86_64.
+ARM hosts must enable Docker amd64 emulation; native ARM and emulated inference
+latency have not been certified. Allocate at least the PII 4 GiB envelope plus
+space for the other services. The first build downloads dependencies/model assets.
+
+Model readiness can also take several minutes on a loaded 1-CPU host after the
+image is cached. This is startup time, not the per-request protection timeout.
+Use `docker compose ps` to check readiness; for a bounded longer startup check,
+use `docker compose up -d --wait --wait-timeout 600` with the same selected
+overlays. A timeout still requires diagnosing logs/resources; do not disable
+protection to make startup appear successful.
+
 ## Local PII operation
 
 The optional host-development overlay also attaches PII to the default bridge so Docker Desktop can
@@ -97,7 +109,15 @@ their own measurements.
 
 The nginx image defaults `API_PROXY_READ_TIMEOUT` to `30s`, above the default 20 s request deadline. The controller abort signal covers sanitation overhead as well as model work. Each PII HTTP request has a 10 s timeout; this is not a guaranteed extra 10 s after the overall deadline. Short 2.5 s general-test deadlines bypass PII and do not measure this real path.
 
-The local OpenRouter overlay uses a 45 s deadline, 20 s attempts and a `60s` proxy timeout. Keep the proxy timeout above the full request budget with time for writes and JSON errors; align ALB too. Rebuild after nginx template changes and recreate web after environment changes. `npm run qa:docker:timeouts` uses an isolated synthetic upstream, not a paid provider or real PII detector; it does not certify T22 latency.
+The local OpenRouter overlay defaults to a 45 s deadline when `LLM_DEADLINE_MS`
+is absent. Explicit shell/`.env` values win: the example sets 20 s, so set
+`LLM_DEADLINE_MS=45000` to reproduce the 45 s profile. Attempts are 20 s and the
+proxy defaults to `60s`; the real-demo script explicitly chooses 45 s. Keep the
+proxy timeout above the effective full request budget with time for writes and
+JSON errors; align ALB too. Rebuild after nginx template changes and recreate
+web after environment changes. `npm run qa:docker:timeouts` uses an isolated
+synthetic upstream, not a paid provider or real PII detector; it does not certify
+T22 latency.
 
 ## AWS proposal
 

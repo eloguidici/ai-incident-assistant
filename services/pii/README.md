@@ -93,7 +93,10 @@ docker build --secret id=extra_ca_cert,src=qa/local/docker-extra-ca.pem -t ai-in
 Omit `--secret` on hosts that do not require the additional CA. It is a build-only secret;
 TLS verification remains enabled. No CA secret, key or credentials are copied to the final image.
 Dependencies use `requirements.lock.txt` with SHA256 verification and the base image is digest-pinned.
-The CPU wheel targets Linux x86_64 / CPython 3.12. Regenerate with pip-tools 7.4.1 and
+The CPU wheel targets Linux x86_64 / CPython 3.12. Compose selects `linux/amd64`
+explicitly; standalone builds must use `docker build --platform linux/amd64`.
+ARM hosts require amd64 emulation; native ARM and emulated latency are unverified.
+Regenerate with pip-tools 7.4.1 and
 `pip-compile --allow-unsafe --generate-hashes --strip-extras requirements.in` in that environment.
 The explicit setuptools release hashes come from official PyPI.
 Model assets download during build at fixed revisions; the installed manifest records asset hashes.

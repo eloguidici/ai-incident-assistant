@@ -4,7 +4,7 @@ import { ANALYST_A, INC_OK, login, uniqueIncident, analyzeFromNew, openQuestions
 test('A11Y-03 login and form errors expose alert role', async ({ page }) => {
   await page.goto('/login');
   await page.getByLabel('Email').fill(ANALYST_A);
-  await page.getByLabel('Password').fill('wrong-password');
+  await page.getByLabel('Password', { exact: true }).fill('wrong-password');
   await page.getByRole('button', { name: 'Sign in' }).click();
   await expect(page.getByTestId('login-error')).toHaveAttribute('role', 'alert');
   await login(page, ANALYST_A);
@@ -50,7 +50,7 @@ test('A11Y-01 keyboard navigation reaches sign-in analyze ask and sign-out', asy
   await tabTo(page, page.getByLabel('Email'));
   await page.keyboard.press('ControlOrMeta+a');
   await page.keyboard.type(ANALYST_A);
-  await tabTo(page, page.getByLabel('Password'));
+  await tabTo(page, page.getByLabel('Password', { exact: true }));
   await page.keyboard.type('Demo1234$');
   await tabTo(page, page.getByRole('button', { name: 'Sign in' }));
   await page.keyboard.press('Enter');

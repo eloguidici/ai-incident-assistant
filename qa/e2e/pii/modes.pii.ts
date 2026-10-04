@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { login } from './helpers';
+import { assertColoredText, login } from './helpers';
 
 const mode = process.env.PII_QA_MODE ?? 'full';
 const person = 'Nora Vega';
@@ -49,7 +49,9 @@ test.describe(`operator protection flags: ${mode}`, () => {
       if (mode === 'full') expect(created.sourceText).not.toContain(person);
       else expect(created.sourceText).toContain(person);
     }
-    await expect(page.getByTestId('source-text')).toHaveText(created.sourceText);
+    await page.getByRole('tab', { name: 'Incident', exact: true }).click();
+    await expect(page.getByTestId('source-text')).toBeVisible();
+    await assertColoredText(page.getByTestId('source-text'), created.sourceText);
     await expect(page.getByTestId('content-protection-mode')).toHaveText(expectedMode);
     const oversizedQuestion = 'x'.repeat(501);
     await page.getByRole('tab', { name: 'Questions' }).click();
@@ -84,7 +86,9 @@ test.describe(`operator protection flags: ${mode}`, () => {
     }
     await expect(page.getByTestId('assistant-answer')).toBeVisible();
     await page.reload();
-    await expect(page.getByTestId('source-text')).toHaveText(created.sourceText);
+    await page.getByRole('tab', { name: 'Incident', exact: true }).click();
+    await expect(page.getByTestId('source-text')).toBeVisible();
+    await assertColoredText(page.getByTestId('source-text'), created.sourceText);
     for (const width of [1440, 390]) {
       await page.setViewportSize({ width, height: 900 });
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);

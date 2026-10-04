@@ -7,17 +7,27 @@ const incident =
 async function login(page: import('@playwright/test').Page, email: string) {
   await page.goto('/login');
   await page.getByLabel('Email').fill(email);
-  await page.getByLabel('Password').fill('Demo1234$');
+  await page.getByLabel('Password', { exact: true }).fill('Demo1234$');
   await page.getByRole('button', { name: 'Sign in' }).click();
   await expect(page.getByRole('heading', { name: 'There are no analyses yet' }).or(page.getByRole('heading', { name: 'History' }))).toBeVisible();
 }
 
 test.describe('nginx compose stack', () => {
   test('serves React and proxies /api/health to NestJS', async ({ request, page }) => {
+    const externalFontRequests: string[] = [];
+    const cspErrors: string[] = [];
+    page.on('request', (outgoing) => {
+      if (/fonts\.(googleapis|gstatic)\.com/.test(outgoing.url())) externalFontRequests.push(outgoing.url());
+    });
+    page.on('console', (message) => {
+      if (message.type() === 'error' && /Content Security Policy/.test(message.text())) cspErrors.push(message.text());
+    });
     const health = await request.get('/api/health');
     expect(health.ok()).toBeTruthy();
     await page.goto('/');
     await expect(page.getByRole('heading', { name: 'Sign in to analyze an incident' })).toBeVisible();
+    expect(externalFontRequests).toEqual([]);
+    expect(cspErrors).toEqual([]);
   });
 
   test('walks login, analysis, follow-up, history, reload, logout', async ({ page }) => {

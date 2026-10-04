@@ -6,7 +6,7 @@ const incident =
 async function login(page: import('@playwright/test').Page, email: string) {
   await page.goto('/login');
   await page.getByLabel('Email').fill(email);
-  await page.getByLabel('Password').fill('Demo1234$');
+  await page.getByLabel('Password', { exact: true }).fill('Demo1234$');
   await page.getByRole('button', { name: 'Sign in' }).click();
   await expect(page.getByRole('heading', { name: 'There are no analyses yet' }).or(page.getByRole('heading', { name: 'History' }))).toBeVisible();
 }
@@ -35,7 +35,7 @@ test('walks through login, analysis, question, and history', async ({ page }) =>
 test('shows a login error and keeps the script as text', async ({ page }) => {
   await page.goto('/login');
   await page.getByLabel('Email').fill('demo1@demo.com');
-  await page.getByLabel('Password').fill('wrong-password');
+  await page.getByLabel('Password', { exact: true }).fill('wrong-password');
   await page.getByRole('button', { name: 'Sign in' }).click();
   await expect(page.getByTestId('login-error')).toContainText('Invalid credentials');
   await login(page, 'demo1@demo.com');

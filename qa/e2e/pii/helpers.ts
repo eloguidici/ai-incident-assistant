@@ -21,7 +21,7 @@ const entityStyles = {
 export async function login(page: Page, email = 'demo1@demo.com'): Promise<void> {
   await page.goto('/login');
   await page.getByLabel('Email').fill(email);
-  await page.getByLabel('Password').fill('Demo1234$');
+  await page.getByLabel('Password', { exact: true }).fill('Demo1234$');
   await page.getByRole('button', { name: 'Sign in', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'History', exact: true })
     .or(page.getByRole('heading', { name: 'There are no analyses yet' }))).toBeVisible();

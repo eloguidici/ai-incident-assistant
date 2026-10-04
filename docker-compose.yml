@@ -1,5 +1,7 @@
 services:
   pii:
+    # The hash-locked CPU wheel targets x86_64; ARM hosts need Docker emulation.
+    platform: linux/amd64
     build:
       context: ./services/pii
     environment:

@@ -111,7 +111,10 @@ test.describe('T22 real PII detector through Compose HTTP and browser', () => {
       const created = await createAnalysis(page, source, sentinels);
       const labels = readLabels(created.sourceText, 2);
       expect(created.sourceText).toBe(expectedProtectedText(source, contact, labels));
+      await page.getByRole('tab', { name: 'Incident', exact: true }).click();
+      await expect(page.getByTestId('source-text')).toBeVisible();
       await assertColoredText(page.getByTestId('source-text'), created.sourceText);
+      await page.getByRole('tab', { name: 'Result', exact: true }).click();
       await assertResultRendering(page.getByTestId('analysis-result'), created.result!, created.sourceText);
       assertNoOriginals(await page.locator('main').textContent(), sentinels);
       await expect(page.locator('main img, main script')).toHaveCount(0);
@@ -152,12 +155,14 @@ test.describe('T22 real PII detector through Compose HTTP and browser', () => {
       assertNoOriginals(await page.locator('main').textContent(), sentinels);
 
       await page.reload();
+      await page.getByRole('tab', { name: 'Incident', exact: true }).click();
       await expect(page.getByTestId('source-text')).toBeVisible();
       const reloaded = await persistedDetail(page, created.id, sentinels);
       expect(reloaded.sourceText).toBe(created.sourceText);
       expect(reloaded.result).toEqual(created.result);
       expect(reloaded.messages).toEqual(answered.messages);
       await assertColoredText(page.getByTestId('source-text'), reloaded.sourceText);
+      await page.getByRole('tab', { name: 'Questions', exact: true }).click();
       await assertColoredText(page.getByTestId('assistant-answer'), answer.answer);
       await page.getByText('Evidence, hypotheses, and uncertainty', { exact: true }).click();
       for (const width of [1440, 390, 320]) {
@@ -186,8 +191,10 @@ test.describe('T22 real PII detector through Compose HTTP and browser', () => {
       await expect(historyLink).toBeVisible();
       await assertColoredText(historyLink.locator(':scope > span').first(), record.excerpt);
       await historyLink.click();
+      await page.getByRole('tab', { name: 'Incident', exact: true }).click();
       await expect(page.getByTestId('source-text')).toBeVisible();
       await assertColoredText(page.getByTestId('source-text'), created.sourceText);
+      await page.getByRole('tab', { name: 'Questions', exact: true }).click();
       await assertColoredText(page.getByTestId('assistant-answer'), answer.answer);
       assertNoOriginals(await page.locator('main').textContent(), sentinels);
       await checkResponses();
@@ -215,7 +222,7 @@ test.describe('T22 real PII detector through Compose HTTP and browser', () => {
     expect((await persistedDetail(page, first.id, sentinels)).sourceText).toBe(first.sourceText);
     expect((await persistedDetail(page, second.id, sentinels)).sourceText).toBe(second.sourceText);
 
-    const otherContext = await browser.newContext({ baseURL: 'http://localhost:8080' });
+    const otherContext = await browser.newContext({ baseURL: new URL(page.url()).origin });
     try {
       const other = await otherContext.newPage();
       const checkResponsesB = observeContentResponses(other, sentinels);

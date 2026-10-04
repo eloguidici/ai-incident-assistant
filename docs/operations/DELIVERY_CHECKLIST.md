@@ -1,7 +1,13 @@
 # Delivery checklist and publication policy
 
 
-Reviewed 2026-10-04, America/Buenos_Aires, against `dev` at `ed4e2f0` and documentation-only changes. This is submission preparation, not a new application regression, fresh installation or production certification. Spanish documents were relocated intact to ignored study storage and removed from the submitted index; no content was discarded.
+Updated 2026-10-04, America/Buenos_Aires: [local software verification](../qa/DELIVERY_VERIFICATION.md)
+passed against the source tree now recorded as `dev/d2129a4` and the corrections
+included with this report. History cleanup preserved that source tree. Publication
+does not certify remote CI, personal manual acceptance or production.
+The original documentation-organization review used `ed4e2f0`; Spanish documents
+were relocated intact to ignored study storage and removed from the submitted
+index, without discarding their content.
 
 ## What the assessment asks to receive
 
@@ -37,13 +43,15 @@ Git and Docker have independent boundaries: root and PII/prototype build context
 
 ## Git history and a possible clean main delivery
 
-The current tracked tree excludes internal process/agent files and Spanish translations. However, some existed in older commits reachable from the local Git refs. Sharing this repository's history can expose that evolution and those translations even though those paths are ignored now. The bounded credential scan found only the explicit synthetic provider key in a test; this is not exhaustive secret certification or a remote leak audit.
+The current tracked tree excludes internal process/agent files and Spanish translations. On 2026-10-04, the owner authorized filtering both published branch histories: 119 historical private paths and development-session/coauthor metadata were removed. Technical commits, real owner identity/dates and public dated failures were retained. The filtered `dev` tip kept an identical source tree. A verified recovery bundle and local study material remain outside the submitted checkout. This was selective history filtering, not a fabricated single initial commit.
 
-Options, none executed by this organization task:
+The bounded historical scan found no exact matches for current local secrets. This is not exhaustive secret certification or a remote leak audit. Rewriting branches does not guarantee erasure of cached old commit views, forks or copies. Never publish the recovery backup or use a mirror push from a development workspace with private refs.
 
-1. Keep the current repository/history. This preserves provenance and accepts that old process material is visible.
+Publication approaches and their differences:
+
+1. Keep an unfiltered development history. This preserves provenance and accepts that old process material is visible.
 2. Recommended when only the final snapshot should be shared: create a separate delivery repository with one initial commit from reviewed public files. Preserve this development repository and all local material separately. Recheck templates, links, locks and setup in the new checkout. Record the source revision privately.
-3. Rewrite the existing repository with a clean root and replace remote refs. This needs explicit authorization, coordination and a force push. A squash merge into an existing `main` alone does not erase its prior history or the commits retained by `dev`, tags or other refs. No operation can guarantee retrieval of copies already obtained by someone else.
+3. Filter the existing repository history and replace the affected remote refs. This was authorized and executed for `dev` and `main`; it preserves the technical evolution but removes scoped private files/metadata. A clean root is a different, more destructive choice. A squash merge into an existing `main` alone does not erase prior history or commits retained by other refs.
 
 The recorded software/model failures still belong in the delivery's dated public summaries; reducing Git history must not turn historical results into invented current PASS claims.
 
@@ -54,19 +62,19 @@ The recorded software/model failures still belong in the delivery's dated public
 | Required explanations | Mapped to public documentation; no mandatory explanatory topic found missing. This is a documentary conclusion, not evaluator approval. |
 | Runtime profiles | Base 1,000/500, script 4,000/500 and recorded demo 8,000/1,000 are distinguished. Choose the documented script profile for reproducible handoff; no latency promise for larger inputs. |
 | AI/PII limits | Accepted for a synthetic, human-reviewed demonstration only; injection, unsupported claims and partial-name limits remain. No new mitigation requested. |
-| Application verification | Dated evidence retained. No fresh full regression, new real-provider calls or first-install run in this documentation task. |
+| Application verification | Current isolated software regression, installation and real-PII browser/modes PASS; see the dated verification report. Real-provider/quality-corpus failures remain; no new paid calls. |
 | Infrastructure | Terraform definition and validation procedure delivered; no AWS plan/apply/deployment. |
 | Manual acceptance | Procedure available; owner's final personal acceptance is not recorded by this review. |
-| Publication | At audit start, remote `dev` matched `ed4e2f0`. These organization changes are not committed/pushed by this task; final target/history choice remains explicit. Remote CI not inspected. |
+| Publication | Historical cleanup is complete. Public corrections accompany this delivery; the owner authorized the same final revision on `dev` and `main`. Verify actual branch tips and CI/access for the submitted reference. |
 
 Before submission:
 
-- [ ] Choose the reviewed final commit and repository/branch/history option. If using this repo, ensure the evaluator opens the intended branch.
+- [x] Choose the publication approach: selectively filtered history, with the reviewed public corrections delivered on `dev` and `main`. Verify their actual remote tips before handing over the link.
 - [ ] Review exactly the staged files with `git diff --cached --name-status` and `git diff --cached --check`. Do not force-add ignored files or share local env/key files.
 - [ ] Inspect `git ls-files -ci --exclude-standard`; unexpected tracked-but-ignored files need review, not silent removal. Scan secrets in both intended files and reachable history for the chosen repository.
-- [ ] Test the selected public checkout's local instructions with new private secrets and synthetic accounts. Do not reset the existing database to simulate installation.
-- [ ] Run the documented software checks in an isolated test environment and record the final commit/profile/results. API integration/browser tests can reset test data; real-provider commands can incur charges and require separate intentional execution.
+- [x] Test local installation with new private secrets and synthetic accounts in a separate checkout/project. Existing database preserved; recheck access/installation for the final published reference.
+- [x] Run local software checks in the isolated environment and record the base revision, uncommitted patch and profiles. Reverify if application/dependency/configuration changes follow; API/browser tests reset test data and paid commands require intentional execution.
 - [ ] Complete personal manual acceptance and verify the CI outcome for the submitted revision. Mocks/valid JSON do not certify real-model fidelity or PII completeness.
-- [ ] Commit/push only after review. Do not include application secrets in screenshots, logs or delivery messages.
+- [ ] Verify the final publication after review. Do not include application secrets in screenshots, logs or delivery messages.
 
 See root [verification commands](../../README.md#verification) and [manual acceptance](../qa/MANUAL_ACCEPTANCE.md). These are procedures, not newly executed results.

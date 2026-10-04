@@ -19,7 +19,7 @@ export function uniqueIncident(base: string): string {
 export async function login(page: Page, email: string = ANALYST_A): Promise<void> {
   await page.goto('/login');
   await page.getByLabel('Email').fill(email);
-  await page.getByLabel('Password').fill(PASSWORD);
+  await page.getByLabel('Password', { exact: true }).fill(PASSWORD);
   await page.getByRole('button', { name: 'Sign in' }).click();
   await expect(
     page

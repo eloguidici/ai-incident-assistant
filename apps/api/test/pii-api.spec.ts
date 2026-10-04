@@ -48,10 +48,17 @@ function syntheticSanitize(text: string, scope: string): string {
   return text;
 }
 
-/** @param question Whether to include an answer. @param known Whether the synthetic identity exists in the source. @returns Valid grounded output with synthetic PII. */
-function outputWithPii(question = false, known = false): AnalysisResult | QuestionResult {
+/**
+ * Builds a synthetic provider response with exact evidence and narrative PII.
+ * @param question Whether to include an answer.
+ * @param known Whether the synthetic identity exists in the source.
+ * @param contactScope Protects the contact as the provider would see it; names stay raw to exercise output sanitation.
+ * @returns A schema-valid analysis or question fixture, not a detector-quality assertion.
+ */
+function outputWithPii(question = false, known = false, contactScope?: string): AnalysisResult | QuestionResult {
   const resultPerson = known ? person : outputPerson;
-  const resultEmail = known ? email : outputEmail;
+  const originalEmail = known ? email : outputEmail;
+  const resultEmail = contactScope ? syntheticSanitize(originalEmail, contactScope) : originalEmail;
   const result: AnalysisResult = {
     summary: `${resultPerson} reported a payments symptom.`, category: 'availability', suggestedSeverity: 'high',
     evidence: [{ quote: technicalFact, note: `Contact ${resultEmail} for metrics.` }],
@@ -233,7 +240,7 @@ describe('T22 protected API + PostgreSQL + synthetic HTTP detector (not detector
   it('sanitizes questions, known output PII and stored history before the next actual provider input', async () => {
     const created = await create();
     expect(created.status).toBe(200);
-    nextOutput(outputWithPii(true, true));
+    nextOutput(outputWithPii(true, true, `${a.ownerId}:${created.body.id}`));
     const asked = await ask(created.body.id, `Did ${person} report ${email} and ${phone}?`);
     expect(asked.status).toBe(200);
     assertNoSentinels(asked.body);
@@ -335,10 +342,11 @@ describe('T22 protected API + PostgreSQL + synthetic HTTP detector (not detector
   it.each(['output-unavailable', 'bad-grounding', 'bad-schema'] as const)('preserves a successful analysis when question output is %s', async (failure) => {
     const created = await create();
     expect(created.status).toBe(200);
-    nextOutput(outputWithPii(true, true));
+    nextOutput(outputWithPii(true, true, `${a.ownerId}:${created.body.id}`));
     mode = failure;
     const response = await ask(created.body.id, `What did ${person} observe?`);
     expect(response.status).toBe(failure === 'output-unavailable' ? 503 : 422);
+    expect(batches.at(-1)!.texts.length).toBeGreaterThan(1);
     const loaded = await a.agent.get(`/api/analyses/${created.body.id}`);
     expect(loaded.status).toBe(200);
     expect(loaded.body.result).toEqual(created.body.result);
@@ -348,27 +356,35 @@ describe('T22 protected API + PostgreSQL + synthetic HTTP detector (not detector
     expect(executing).toEqual([]);
   });
 
-  it('sanitizes newly introduced model PII then rejects its labels outside the actual analysis context', async () => {
+  it('accepts labels introduced by trusted analysis sanitation and persists only protected output', async () => {
     nextOutput(outputWithPii());
     const response = await create();
-    expect(response.status).toBe(422);
-    expect(response.body.error.code).toBe(ErrorCode.InvalidOutput);
+    expect(response.status).toBe(200);
     expect(provider).toHaveBeenCalledTimes(1);
     expect(batches[1].texts.join('\n')).toContain(outputPerson);
     expect(batches[1].texts.join('\n')).toContain(outputEmail);
-    const stored = await dataSource.query('select status, result from analyses where id = $1', [response.body.error.analysisId]);
-    expect(stored).toEqual([{ status: RunStatus.Failed, result: null }]);
+    const scope = `${a.ownerId}:${response.body.id}`;
+    expect(response.body.result.summary).toContain(syntheticSanitize(outputPerson, scope));
+    expect(response.body.result.missingInformation[0]).toContain(syntheticSanitize(outputEmail, scope));
+    expect(response.body.sourceText).not.toContain(syntheticSanitize(outputPerson, scope));
+    const stored = await dataSource.query('select status, result from analyses where id = $1', [response.body.id]);
+    expect(stored).toEqual([{ status: RunStatus.Completed, result: response.body.result }]);
     assertNoSentinels(response.body);
   });
 
-  it('rejects newly introduced question output PII without replacing the completed analysis', async () => {
+  it.each([true, false])('rejects raw question contacts before output sanitation (known identity: %s)', async (known) => {
     const created = await create();
     expect(created.status).toBe(200);
-    nextOutput(outputWithPii(true));
+    provider.mockClear(); adapter.mockClear(); batches = [];
+    nextOutput(outputWithPii(true, known));
     const response = await ask(created.body.id, `What did ${person} report?`);
     expect(response.status).toBe(422);
     expect(response.body.error.code).toBe(ErrorCode.InvalidOutput);
     expect(response.body.error.analysisId).toBe(created.body.id);
+    expect(provider).toHaveBeenCalledTimes(1);
+    expect(adapter).toHaveBeenCalledTimes(1);
+    expect(batches).toHaveLength(1);
+    expect(batches[0].texts).toHaveLength(1);
     const loaded = await a.agent.get(`/api/analyses/${created.body.id}`);
     expect(loaded.body.result).toEqual(created.body.result);
     expect(loaded.body.messages.at(-1).status).toBe(RunStatus.Failed);
@@ -392,10 +408,11 @@ describe('T22 protected API + PostgreSQL + synthetic HTTP detector (not detector
     const foreignLabel = other.body.sourceText.match(/\[PERSON_[a-f0-9]{32}\]/)[0] as string;
     expect(created.body.sourceText).not.toContain(foreignLabel);
     provider.mockClear();
-    nextOutput({ ...outputWithPii(true, true), answer: `${foreignLabel} might clarify the cause.` } as QuestionResult);
+    nextOutput({ ...outputWithPii(true, true, `${a.ownerId}:${created.body.id}`), answer: `${foreignLabel} might clarify the cause.` } as QuestionResult);
     const response = await ask(created.body.id, 'Who can clarify the metrics?');
     expect(response.status).toBe(422);
     expect(response.body.error.code).toBe(ErrorCode.InvalidOutput);
+    expect(batches.at(-1)!.texts.length).toBeGreaterThan(1);
     expect(JSON.stringify(provider.mock.calls[0][0])).not.toContain(foreignLabel);
     const loaded = await a.agent.get(`/api/analyses/${created.body.id}`);
     expect(loaded.body.result).toEqual(created.body.result);
@@ -405,14 +422,15 @@ describe('T22 protected API + PostgreSQL + synthetic HTTP detector (not detector
   it('permits a protected label introduced by the current question and later selected history', async () => {
     const created = await create();
     expect(created.status).toBe(200);
-    nextOutput(outputWithPii(true));
+    const scope = `${a.ownerId}:${created.body.id}`;
+    nextOutput(outputWithPii(true, false, scope));
     const first = await ask(created.body.id, `Could ${outputPerson} supply metrics via ${outputEmail}?`);
     expect(first.status).toBe(200);
     const introducedLabel = syntheticSanitize(outputPerson, `${a.ownerId}:${created.body.id}`);
     expect(created.body.sourceText).not.toContain(introducedLabel);
     expect(first.body.messages.at(-1).content).toContain(introducedLabel);
     provider.mockClear();
-    nextOutput(outputWithPii(true));
+    nextOutput(outputWithPii(true, false, scope));
     const second = await ask(created.body.id, 'Which metric remains unconfirmed?');
     expect(second.status).toBe(200);
     expect(provider.mock.calls[0][0].messages[1].content).toContain(introducedLabel);
@@ -426,10 +444,11 @@ describe('T22 protected API + PostgreSQL + synthetic HTTP detector (not detector
     await repository.appendMessage({ ownerId: a.ownerId, analysisId: created.body.id, role: 'user',
       content: `${'x'.repeat(980)}${hiddenLabel}`, status: RunStatus.Completed, result: null, errorCode: null });
     provider.mockClear();
-    nextOutput({ ...outputWithPii(true, true), answer: `Metrics may be held by ${hiddenLabel}.` } as QuestionResult);
+    nextOutput({ ...outputWithPii(true, true, `${a.ownerId}:${created.body.id}`), answer: `Metrics may be held by ${hiddenLabel}.` } as QuestionResult);
     const response = await ask(created.body.id, 'Which evidence remains missing?');
     expect(response.status).toBe(422);
     expect(response.body.error.code).toBe(ErrorCode.InvalidOutput);
+    expect(batches.at(-1)!.texts.length).toBeGreaterThan(1);
     const input = provider.mock.calls[0][0].messages[1].content as string;
     expect(input).not.toContain(hiddenLabel);
     expect(input).not.toContain(`[EMAIL_ADDRESS_${'e'.repeat(5)}`);

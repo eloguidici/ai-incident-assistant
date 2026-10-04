@@ -199,6 +199,12 @@ The assessment asks to pick any bonus. I chose the cost estimate and per-user is
 
 Use Node.js 22 and Docker for PostgreSQL and the local PII service. Copy the example only for a new local configuration; preserve an existing `.env`. Configure a strong `JWT_SECRET` before startup. Use synthetic incidents only: T22 is accepted with limitations for a demo, not certified for confidential data.
 
+The pinned PII CPU dependencies target Linux x86_64. Compose explicitly builds/runs
+that service as `linux/amd64`; ARM hosts need Docker's amd64 emulation enabled.
+Native ARM inference and emulated latency are not certified. The model container
+needs 4 GiB of memory plus capacity for PostgreSQL/API/web; allow time and network
+access for the first dependency/model download. Subsequent inference is offline.
+
 ```powershell
 Copy-Item .env.example .env
 npm ci
@@ -243,7 +249,7 @@ On Windows, if dependency/model downloads or provider HTTPS fail with a certific
 
 Compose reads `JWT_SECRET` from `.env` and stops with an error if it is missing; no secret is written in the Compose file or baked into an image. The API applies migrations and creates the two synthetic demo users at startup; data lives in the `pgdata` volume and survives `docker compose down` (not `down -v`). For a real model, add `-f docker-compose.openrouter.yml`; it reads `OPENROUTER_API_KEY` and `OPENROUTER_MODEL` from `.env`, so check that `OPENROUTER_MODEL` is the model you intend to pay for. Browser checks against this stack: `npm run qa:e2e:compose`.
 
-The web image serves React at http://localhost:8080 and proxies `/api/` to the API. It renders its nginx template using `API_UPSTREAM`, defaulting to `api:3000` in Compose, and `API_PROXY_READ_TIMEOUT`, defaulting to `30s`. The OpenRouter overlay sets a 45 s API deadline, 20 s attempts and a 60 s proxy timeout, leaving time for the API to return a controlled error. Rebuild the image after template changes and recreate the web container after environment changes.
+The web image serves React at http://localhost:8080 and proxies `/api/` to the API. It renders its nginx template using `API_UPSTREAM`, defaulting to `api:3000` in Compose, and `API_PROXY_READ_TIMEOUT`, defaulting to `30s`. The OpenRouter overlay defaults to a 45 s API deadline only when `LLM_DEADLINE_MS` is unset; an explicit `.env` value wins. The copied example sets 20 s, so set `LLM_DEADLINE_MS=45000` to select the 45 s profile. Attempts are 20 s and the proxy defaults to 60 s. The real-demo script explicitly selects 45 s. Keep the proxy above the effective API deadline, then recreate the affected containers. Rebuild the image after template changes. React uses system fonts and makes no external font request under the supplied CSP.
 
 Compose keeps PII on an internal network at `http://pii:8000`, with a secret mount, read-only root, dropped capabilities and provisional 4 GiB / 1 CPU. Model/key readiness precedes API startup. The controller's overall deadline includes protection overhead; 10 s is the default internal request timeout (configurable up to 60 s), not an extra guaranteed allowance.
 
@@ -277,6 +283,13 @@ validation reason, not the provider's raw response. Older failed rows keep their
 generic message; their specific original rejection reason cannot be recovered.
 
 ## Verification
+
+[Local verification, 2026-10-04](docs/qa/DELIVERY_VERIFICATION.md): software gates
+passed on the same source tree now recorded as `d2129a4`, with the corrections
+included in this delivery, using an isolated checkout and database. This is not
+remote CI or new real-model quality approval.
+Jest and general/limits browser regression use an explicit synthetic 8,000/1,000
+profile with PII disabled; protected Compose checks retain base 1,000/500 limits.
 
 | Command | Purpose |
 |---|---|

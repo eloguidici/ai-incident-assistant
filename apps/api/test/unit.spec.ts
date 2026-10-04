@@ -19,6 +19,13 @@ import { scoreAnalysis } from '../src/evaluation/rubric';
 const baseEnv = () => loadAppConfig().get(llmConfig);
 
 describe('pure rules', () => {
+  it('keeps base content limits independent from the larger synthetic regression profile', () => {
+    const defaults = llmConfig.schema.validate({ LLM_PROVIDER: 'mock' });
+    expect(defaults.error).toBeUndefined();
+    expect(llmConfig.map(defaults.value)).toMatchObject({ sourceTextMax: 1000, questionMax: 500 });
+    expect(baseEnv()).toMatchObject({ sourceTextMax: 8000, questionMax: 1000 });
+  });
+
   it('detects TLS trust failures in nested causes', () => {
     const root = new Error('Connection error.', {
       cause: new Error('fetch failed', {

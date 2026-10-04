@@ -14,4 +14,7 @@ process.env.FAULT_INJECTION = 'false';
 process.env.LLM_DEADLINE_MS = '2500';
 process.env.LLM_ATTEMPT_TIMEOUT_MS = '800';
 process.env.CONTEXT_CHAR_BUDGET = '12000';
+// Synthetic regression envelope; runtime defaults remain 1000/500 with real PII.
+process.env.SOURCE_TEXT_MAX = '8000';
+process.env.QUESTION_MAX = '1000';
 process.env.PORT = '3001';

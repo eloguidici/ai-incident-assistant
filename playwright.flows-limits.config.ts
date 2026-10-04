@@ -63,6 +63,9 @@ function apiEnv(overrides: Record<string, string>): Record<string, string> {
     WEB_ORIGIN: webBase,
     LLM_PROVIDER: 'mock',
     PII_ENABLED: 'false', // The separate PII battery certifies the real detector.
+    // Long synthetic fixtures, not the real-detector runtime defaults.
+    SOURCE_TEXT_MAX: '8000',
+    QUESTION_MAX: '1000',
     SEED_DEMO: 'true',
     ALLOW_SEED_DEMO: 'true',
     SEED_PASSWORD: 'Demo1234$',
