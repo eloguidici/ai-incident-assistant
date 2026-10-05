@@ -30,12 +30,12 @@ and 4,000/500 limits. Accepted output is not a verified root cause.
 | Assessment section | Where it is answered |
 |---|---|
 | 1.1 Problem statement | This README; [product scope](docs/business/PRODUCT.md) |
-| 1.2 Backend (AI-first) | [Architecture and AI design](#architecture-and-ai-design); [prompt injection](#prompt-injection-and-unsafe-input); [costs and rate limits](#costs-and-rate-limits-in-production) |
+| 1.2 Backend (AI-first) | [Architecture and AI design](#architecture-and-ai-design); [prompt injection](#prompt-injection-and-unsafe-input); [costs and rate limits](#costs-and-rate-limits-in-production); [provider selection and switching](#real-provider-demo-powershell) |
 | 1.3 Frontend (AI-aware UX) | [AI-aware user experience](#ai-aware-user-experience) |
 | 2.1 Data flow and storage | [Data, retention, PII, logging and audit](#data-retention-pii-logging-and-audit); [data policy](docs/security/DATA_POLICY.md) |
 | 2.2 AI evaluation and reliability | [Evaluation and reliability](#evaluation-and-reliability) |
 | 3.1 Cloud and runtime | [Secrets, rotation and bursty usage](#secrets-rotation-and-bursty-usage); [Terraform guide](infra/terraform/README.md) |
-| 3.2 Containerization | [Scaling constraints of AI workloads](#scaling-constraints-of-ai-workloads); `infra/docker/` |
+| 3.2 Containerization (optional, included) | [Container deployment choice](infra/terraform/README.md#container-deployment-choice); [scaling constraints of AI workloads](#scaling-constraints-of-ai-workloads); `infra/docker/` |
 | Bonus | [Cost estimate for 1k / 10k / 100k requests](#cost-estimate-for-1k--10k--100k-requests); [per-user data isolation](#per-user-data-isolation); [bonus sections not chosen](#bonus-sections-not-chosen) |
 
 ## Architecture and AI design
@@ -108,7 +108,7 @@ Section 2.2 explanatory scope closed on 2026-10-03 (Buenos Aires). It does not r
 
 - **Measuring output quality:** `npm run qa:eval` validates/scores five synthetic cases: clear outage, insufficient input, injection, HTML and contradictory facts. It checks contracts/quotes, uncertainty and complete URLs using runtime extraction; the rubric injection check is an English-phrase heuristic, not universal semantic verification. `npm run qa:ai:live` uses a real model. Use human review of all responses against expected facts, including rejected ones, to measure usefulness/fidelity rather than equate valid JSON/quotes with correct causes. Compare false rejections, accepted attacks, latency/tokens/cost and repeated-run variation; there is no automatic dashboard for these measures.
 - **Detecting regressions:** stored version/provider/model supports comparison of identical cases before/after; fix limits/deadlines and protection mode too. Changes require software checks and a comparable real sample, reviewing contracts, fidelity, confidence, latency and consumption. Defined CI runs mock evaluation, not paid requests or semantic certification. Different provider matrices are not equivalent comparisons.
-- **When the AI gives a wrong answer in production:** distinguish technical failure from an incorrect answer that passed its contract; do not use a hypothesis as an automatic decision. Showing quotes/uncertainty, rejecting invalid output and preserving a valid analysis after question failure are implemented. The proposed process investigates execution/version/model/correlation with privacy, adds a regression case and rolls back harmful changes: environment provider/model with restart, prompt through code and controlled deployment. There is no dynamic historical-prompt selector, feedback, semantic alerts or automatic rollback.
+- **When the AI gives a wrong answer in production:** distinguish technical failure from an incorrect answer that passed its contract. Previous tests reduce risk, current checks reject selected invalid output, and protected accepted content plus execution/audit metadata support investigation; full raw provider transcripts are not stored and failure records are not guaranteed. The proposed process uses human review, privacy-controlled diagnosis, a regression case and controlled code/configuration rollback with retesting. Feedback, semantic alerts, a dedicated switch to suspend new AI requests and automatic rollback are not implemented. Provider/model changes require restart/recreation; prompt rollback requires the corresponding code/deployment. See the [before/during/after procedure](docs/qa/AI_EVALUATION.md#3-responding-to-wrong-answers-in-production).
 - **Limit:** general offline regression disables PII; mocks do not certify detector quality/resources. T22/T25 retain accepted historical synthetic-demo failures, including a GPT-4.1-mini injection. [Later v7/v9 samples](docs/qa/DEMO_CASES.md) completed 13 analyses on each GPT route without observed compliance with the reviewed attacks, but with a generic answer and PII false positives; Liquid had errors/rejections. This is not semantic approval, immunity or full current regression. See [historical T25 closure](docs/qa/ASSESSMENT_CLOSURE.md).
 
 Details/evidence: [AI evaluation and reliability](docs/qa/AI_EVALUATION.md). Rubric correction reproduced before/after, 30 new cases and unit regression passed; historical provider FAIL outcomes are unchanged.
@@ -117,19 +117,39 @@ Details/evidence: [AI evaluation and reliability](docs/qa/AI_EVALUATION.md). Rub
 
 ### Secrets, rotation and bursty usage
 
-- **Where AI keys live:** locally in `.env` (git-ignored). On AWS, in Secrets Manager, injected into the ECS task at start. They are never in the image, the frontend bundle, Terraform variables or logs.
-- **Rotation:** create a new secret version, then replace the ECS tasks so they read it. Running containers do not reload secrets. Rotating the JWT secret invalidates existing sessions.
+- **AWS versus Terraform:** AWS would host the application; Terraform describes the desired resources, connections and permissions as version-controlled infrastructure code. The proposal defines Fargate containers, private RDS PostgreSQL, HTTPS ingress and secret references. Recorded validation is not a deployment: no `plan` or `apply` ran. See the [infrastructure guide](infra/terraform/README.md).
+- **Where AI keys live:** the backend reads `OPENAI_API_KEY` or `OPENROUTER_API_KEY` from its environment. A local private `.env` is Git-ignored but not encrypted by that rule. The AWS proposal defines Secrets Manager containers/references and ECS startup injection; an authorized operator would supply actual values outside Terraform. The supplied setup keeps these values out of source, images and React. Environment variables remain accessible to the process and authorized runtime/debugging access; a secret manager does not remove that boundary.
+- **Rotation:** generate a replacement provider credential, update the private environment/secret version, restart Node or recreate Compose API containers (replace ECS tasks in AWS), verify a real call and revoke the old credential after checking that no instance still depends on it. Overlap depends on provider support; a suspected compromise prioritizes revocation even if availability is affected. Running containers do not reload secrets. This is a proposed manual procedure, not automatic rotation or an AWS-tested zero-downtime guarantee. No code/image rebuild is needed solely to change an environment-supplied key. Rotating the JWT secret invalidates existing sessions.
 - **PII key:** `npm run pii:init-key` creates a private 48-byte binary file once at `.local/pii-hmac.key`, requesting mode 0600 and preserving existing files. Review Windows ACLs separately. Keep the key stable for retained incidents; rotation changes new labels without automatically relabeling stored content.
-- **Bursty usage:** the concurrency cap and per-user limits shed load early with 429 responses; the gateway honours the provider's `Retry-After` within the deadline and never retries indefinitely. More ECS tasks do not raise the provider quota, so bursts beyond it need a queue (see below).
+- **Bursty usage:** defaults allow four simultaneous model-stage gateway calls per API process and 20 analyses / 40 questions per owner per rolling hour. These are configurable, process-local counters, not a four-user or whole-HTTP-request limit; PII has a separate single request slot with bounded waiting, not a durable queue. Gateway/rate-limit rejection can return 429; retries remain bounded by the deadline. More replicas neither raise provider quota nor share these counters. Proposed scaling first measures provider, detector and database capacity, coordinates quotas/budgets across replicas and, if justified, adds a bounded queue with workers. Distributed quotas, durable jobs, polling and autoscaling are not implemented or production-load certified. See the [scaling procedure and boundaries](infra/terraform/README.md#proposed-burst-handling).
 
 Details: [Terraform guide](infra/terraform/README.md) and [runbook](docs/operations/RUNBOOK.md).
 
+### Configuration versus code
+
+Provider/model, limits, deadlines, retention and service addresses come from startup
+environment configuration, mapped to typed settings and validated with Joi. System
+rules and prompts remain versioned in code; credentials have separate handling.
+Validation checks shape/presence and some relationships, not provider access or
+every cross-service combination. Parameter changes need a Node restart or Compose
+container recreation; there is no hot reload. Production improvements would first
+consolidate profiles/precedence and extend coherence checks, then identify approved
+nonsecret profiles and consider controlled central configuration. Parameter Store
+and AppConfig are alternatives, not integrations. See the [current mechanism and
+proposed improvements](docs/operations/RUNBOOK.md#configuration-and-code).
+
 ### Scaling constraints of AI workloads
 
-- Requests are long (seconds, not milliseconds), so each one holds a connection and a concurrency slot; nginx, ALB and application timeouts must be aligned (30 s proxy, 20 s model deadline).
-- Provider quota/tokens and local detector CPU/memory can both limit throughput. Adding replicas multiplies per-process limits, which is why quotas must be shared before scaling out. Preliminary CPU timings motivated smaller starting input limits; full-path latency and resource certification are pending. Raising limits is conditional on those measurements.
-- PostgreSQL connections limit the number of replicas.
-- For higher volume I would move model calls to a queue with workers (the API returns 202 and the client polls), which smooths bursts and makes retries and cost control central.
+- **Waiting and deadlines:** synchronous requests keep an HTTP connection and request state alive while waiting; this does not mean Node uses all its CPU continuously. The model stage additionally occupies a gateway concurrency slot, not a slot covering all earlier PII work or all logged-in users. Align nginx, ALB and application deadlines for the chosen profile (base defaults: 30 s proxy, 20 s overall API deadline, including protection overhead).
+- **Provider quota:** adding API replicas does not increase the provider's quota. Current counters are per process; shared quota/budget admission would be needed to enforce aggregate limits across replicas.
+- **Local protection capacity:** PII has a single shared request slot and uses CPU/memory. It can saturate before model invocation; its bounded waiting is not a durable queue. Preliminary timings do not certify production load or every input size. Raising limits requires measurements, not automatic protection bypass.
+- **Consumption:** source/context size, output and retries affect token use, waiting and spend. Execution token metadata supports diagnosis/reporting, not an implemented monetary budget. A timeout does not prove that the provider made no charge.
+- **Database capacity:** replicas also share finite PostgreSQL connection capacity. The application reserves processing state and commits completion in short repository transactions; the provider call runs between them, not inside an open database transaction. This avoids holding transaction locks throughout that wait, without making the database and provider one atomic operation.
+- If measured volume justified it, I would propose durable queued jobs with workers (202 acceptance and result polling), bounded admission, shared quotas and controlled retries. A queue delays work; it does not increase provider capacity or guarantee completion. This workflow is not implemented.
+
+The current AWS proposal scales web/API/PII together. Neither autoscaling nor
+production burst capacity is certified. See the [current boundaries and proposed
+scaling procedure](infra/terraform/README.md#proposed-burst-handling).
 
 ### AI-aware user experience
 
@@ -195,6 +215,30 @@ The assessment asks to pick any bonus. I chose the cost estimate and per-user is
 | Vector store / RAG (section 2.1) | The user pastes one incident within the configured source/context limits (1,000 source characters by default). There is no corpus to search. | Searching runbooks or past incidents. |
 | Multi-tenant isolation | Implemented as per-user isolation. Organizations and roles are not part of the product, so adding them would only serve the bonus. | Teams that share incidents under an organization with roles. |
 
+### Delivery summary and evidence
+
+The delivered workflow is authenticated text submission, structured analysis,
+follow-up questions and persistent owner-scoped history. The modular backend
+separates prompts, provider calls and validation; bounded inputs, quotas and local
+PII protection support that workflow without external remediation tools.
+
+[Recorded software/browser checks](docs/qa/DELIVERY_VERIFICATION.md) and
+[real-provider samples](docs/qa/DEMO_CASES.md) have distinct dated scopes. They do
+not guarantee semantic accuracy, complete PII detection or production capacity;
+the accepted injection, unsupported-conclusion and partial-name limits remain
+restricted to a synthetic, human-reviewed demonstration. Docker images and an
+undeployed Terraform proposal are included; AWS plan/apply was not performed.
+
+The [2026-10-05 handoff recheck](docs/qa/HANDOFF_RECHECK_2026-10-05.md) records
+repeated software checks, a rebuilt full-protection stack and two OpenAI browser
+analyses plus one question. Workflow success and retained over-inference
+observations are reported separately, without semantic approval.
+
+Before handoff, select an explicit [startup/provider profile](#real-provider-demo-powershell), complete personal
+manual acceptance and verify the submitted revision, CI and reviewer access using
+the [delivery checklist](docs/operations/DELIVERY_CHECKLIST.md#status-and-remaining-submission-gates).
+These procedures are not newly executed acceptance results.
+
 ## Local setup
 
 Use Node.js 22 and Docker for PostgreSQL and the local PII service. Copy the example only for a new local configuration; preserve an existing `.env`. Configure a strong `JWT_SECRET` before startup. Use synthetic incidents only: T22 is accepted with limitations for a demo, not certified for confidential data.
@@ -205,9 +249,130 @@ Native ARM inference and emulated latency are not certified. The model container
 needs 4 GiB of memory plus capacity for PostgreSQL/API/web; allow time and network
 access for the first dependency/model download. Subsequent inference is offline.
 
+### Prepare private local configuration
+
+From the cloned repository root, with Node.js 22 and Docker Desktop's Linux engine
+running, prepare a new configuration without replacing an existing one:
+
 ```powershell
-Copy-Item .env.example .env
+if (-not (Test-Path -LiteralPath .env)) {
+  Copy-Item -LiteralPath .env.example -Destination .env
+}
 npm ci
+```
+
+Before startup, replace the example `JWT_SECRET` with a strong private random
+value of at least 32 characters; the example file includes a generation command.
+For a real provider, populate the corresponding private key:
+
+| Route | Private variable | Explicit model example |
+|---|---|---|
+| OpenAI direct | `OPENAI_API_KEY` | `gpt-4o-mini` |
+| OpenRouter | `OPENROUTER_API_KEY` | `openai/gpt-4o-mini` |
+
+Both keys may coexist; only the selected route is used. Model examples match
+the recorded setup, not a guarantee of current availability, account access,
+pricing or compatibility of arbitrary models. Real submissions may be charged.
+Never commit or share `.env`, keys or resolved configuration dumps.
+
+For a new installation, keep `PII_HMAC_KEY_PATH=./.local/pii-hmac.key` from the
+example. The demo launcher initializes that file once without replacing it.
+If preserving an existing custom path, make the same path available through
+the process environment before initialization: the key helper itself does not
+load `.env`. Do not replace a retained installation's key to simplify startup.
+
+### Real-provider demo (PowerShell)
+
+Choose exactly one command. Both use the existing launcher and explicit provider
+and model, so the selection does not depend on different default models.
+The complete stack publishes host ports 8080, 3001 and 5432; resolve conflicts
+with existing services deliberately, without deleting their databases or volumes.
+
+OpenAI direct:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\start-real-demo.ps1 -Provider openai -Model "gpt-4o-mini"
+```
+
+OpenRouter:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\start-real-demo.ps1 -Provider openrouter -Model "openai/gpt-4o-mini"
+```
+
+Use the PowerShell invocation only where permitted by your execution policy.
+The launcher builds/starts the complete stack and waits up to 180 seconds for
+services to become running/healthy after the build. Startup may take minutes;
+this wait is not the per-request protection or model deadline. If readiness fails,
+inspect service state/resources using the [runbook](docs/operations/RUNBOOK.md#start-locally)
+and rerun the same selected command after resolving it; do not disable protection.
+
+The launcher selects this profile, not just the provider:
+
+| Setting | Selected demo value |
+|---|---|
+| Content protection / names | Enabled / enabled |
+| Source / question | 4,000 / 500 characters |
+| Detector CPU threads / CPU quota | 4 / 4 |
+| Internal protection timeout | 9,500 ms |
+| Overall API / model attempt / proxy | 45 s / 20 s / 60 s |
+
+These are limits/budgets, not guaranteed response times. `-PiiThreads 1` or `2`
+reduces the allocation; input overrides use `-SourceTextMax` / `-QuestionMax`.
+They require their own latency review. The script restores its process overrides
+after startup and does not rewrite `.env`; containers keep the selected settings.
+
+To change provider, model or launcher parameters, rerun the corresponding explicit
+command. Compose recreates services when their configuration/image changes and
+preserves mounted volumes; this is not an automatic database reset. See
+[Compose up behavior](https://docs.docker.com/reference/cli/docker/compose/up/).
+Existing analyses keep their recorded provider/model and are not reanalyzed.
+Editing `.env` or using `docker compose restart` alone does not update an existing
+container's injected environment.
+
+The script's `-Model` sets the selected model variable before Compose starts and
+overrides its `.env` counterpart for that invocation. Other shell variables can
+also override `.env` interpolation; review the intended environment without
+printing credentials. See [Docker interpolation precedence](https://docs.docker.com/compose/how-tos/environment-variables/variable-interpolation/).
+Without parameters, the launcher chooses OpenAI / `gpt-4o-mini`; OpenRouter without
+`-Model` chooses `openai/gpt-4.1-mini`, unlike the direct overlay's
+`openai/gpt-4o-mini` fallback. The commands above deliberately avoid this ambiguity.
+
+After successful startup:
+
+```powershell
+docker compose ps
+```
+
+Open [the application](http://localhost:8080), sign in with a local demo account,
+check the displayed coverage/input limit, then create a new synthetic analysis,
+ask a follow-up and revisit history. Use the second account to check owner isolation.
+Service health does not make a paid model call or certify its output; inspect
+evidence, hypotheses and uncertainty yourself. See [manual acceptance](docs/qa/MANUAL_ACCEPTANCE.md).
+
+For HTTPS-inspection certificate failures, follow the
+[CA procedure](docs/operations/RUNBOOK.md#tls-problems-on-windows) first. The launcher
+automatically includes the extra-CA overlay when `qa/local/docker-extra-ca.pem`
+exists. Do not disable TLS verification. These are instructions, not a new
+installation, provider-call or personal-acceptance result.
+
+### Local accounts and persisted data
+
+Local demo users are `demo1@demo.com` and `demo2@demo.com`, password `Demo1234$`.
+These are synthetic local credentials; production demo seeding is disabled.
+A new installation with `SEED_DEMO=true` creates both accounts with empty history.
+Login suggests `demo1@demo.com`. Restarting does not duplicate accounts or overwrite
+passwords; the seed only adds missing accounts. Existing history remains subject
+to retention. Deleting previous data requires an explicit decision, never normal
+startup. Compose uses `$$` to preserve the literal `$` in the demo password;
+the Node/`.env` password is `Demo1234$`.
+
+### Host Node development
+
+This alternative uses the configuration prepared above, host API/Vite and
+containerized PostgreSQL/PII, not the launcher's 4,000/500 demo profile:
+
+```powershell
 npm run pii:init-key
 docker compose -f docker-compose.yml -f docker-compose.pii-dev.yml up --build -d postgres pii
 npm run db:migrate
@@ -225,18 +390,15 @@ The example uses API port 3001 and frontend http://127.0.0.1:5173. OpenAPI is at
 
 For host Node, set `PII_ENABLED=true`, `PII_SERVICE_URL=http://127.0.0.1:18080`, `PII_TIMEOUT_MS=10000`, `SOURCE_TEXT_MAX=1000` and `QUESTION_MAX=500` as in the example. The optional overlay publishes PII on loopback only. The first image build downloads pinned model assets; inference loads them offline. See the [runbook](docs/operations/RUNBOOK.md) for readiness and failures.
 
-Change `SOURCE_TEXT_MAX` and/or `QUESTION_MAX` in the API environment, restart/recreate the API and reload the page; no frontend build is needed. Existing `.env` or startup overrides may differ from defaults. The latest recorded demo uses 8,000/1,000; the parameterless script uses 4,000/500 and base API/Compose uses 1,000/500. This documentation changes no environment and promises no CPU latency for these sizes. See [configuration profiles](docs/operations/RUNBOOK.md#configuration-profiles).
+Change `SOURCE_TEXT_MAX` and/or `QUESTION_MAX` in the API environment, restart/recreate the API and reload the page; no frontend build is needed. Existing `.env` or startup overrides may differ from defaults. The historical 2026-10-03 expanded demo used 8,000/1,000; the script and 2026-10-05 handoff use 4,000/500, while base API/Compose defaults remain 1,000/500. These profiles do not promise CPU latency for every input. See [configuration profiles](docs/operations/RUNBOOK.md#configuration-profiles).
 
-Local demo users are `demo1@demo.com` and `demo2@demo.com`, password `Demo1234$`. These are synthetic local credentials; production demo seeding is disabled.
+For a real host-Node model, set `LLM_PROVIDER=openrouter` with `OPENROUTER_API_KEY`,
+or `LLM_PROVIDER=openai` with `OPENAI_API_KEY`, and choose `OPENROUTER_MODEL` or
+`OPENAI_MODEL`. Restart the API after changing startup values. This is the Node
+loader path, not the container launcher; base Compose still fixes its API provider
+to `mock`. Never commit `.env` or keys.
 
-A new installation with `SEED_DEMO=true` automatically creates both accounts with
-empty history. Login suggests `demo1@demo.com`. Restarting does not duplicate
-accounts or overwrite passwords; the seed only adds missing accounts. Deleting
-previous installation data requires an explicit decision, never normal startup.
-Compose uses `$$` to preserve the literal `$` in the demo password; the Node/`.env`
-password is `Demo1234$`.
-
-For a real model, set `LLM_PROVIDER=openrouter` with `OPENROUTER_API_KEY`, or `LLM_PROVIDER=openai` with `OPENAI_API_KEY`. Optional model overrides are `OPENROUTER_MODEL` and `OPENAI_MODEL`. Never commit `.env` or keys. On Windows, see the [runbook](docs/operations/RUNBOOK.md) for TLS troubleshooting; do not disable certificate verification.
+### All-container mock and direct overlays
 
 For the complete local stack (PostgreSQL, PII, API and React served by nginx), with configured `.env`, generated `JWT_SECRET` and the initialized HMAC file:
 
@@ -245,9 +407,21 @@ npm run pii:init-key
 docker compose up --build
 ```
 
+This base Compose profile uses `mock`, even if `.env` says `LLM_PROVIDER=openai`
+or `openrouter`. It makes no paid model call and does not certify model quality.
+Do not use the bare command to restart a real-provider demo while expecting to
+keep that provider: choose its launcher command or the intended overlay explicitly.
+
 On Windows, if dependency/model downloads or provider HTTPS fail with a certificate error, export your HTTPS inspection root and use the optional overlay (see [runbook](docs/operations/RUNBOOK.md#tls-problems-on-windows)): `npm run docker:export-ca`, then `docker compose -f docker-compose.yml -f docker-compose.extra-ca.yml up --build` (API/web/PII build secret plus a read-only API runtime trust mount).
 
-Compose reads `JWT_SECRET` from `.env` and stops with an error if it is missing; no secret is written in the Compose file or baked into an image. The API applies migrations and creates the two synthetic demo users at startup; data lives in the `pgdata` volume and survives `docker compose down` (not `down -v`). For a real model, add `-f docker-compose.openrouter.yml`; it reads `OPENROUTER_API_KEY` and `OPENROUTER_MODEL` from `.env`, so check that `OPENROUTER_MODEL` is the model you intend to pay for. Browser checks against this stack: `npm run qa:e2e:compose`.
+Compose requires `JWT_SECRET`; no secret is written in the Compose file or baked
+into an image. The API applies migrations and creates missing synthetic demo
+accounts at startup. Data lives in `pgdata` and survives `docker compose down`
+(not `down -v`). Direct real-provider operation uses the base file plus
+`docker-compose.openai.yml` or `docker-compose.openrouter.yml`; provider key/model
+and timeouts come from those overlays and interpolated values. For the selected
+demo profile, use the [explicit launcher instructions](#real-provider-demo-powershell)
+instead. Browser checks against this stack: `npm run qa:e2e:compose`.
 
 The web image serves React at http://localhost:8080 and proxies `/api/` to the API. It renders its nginx template using `API_UPSTREAM`, defaulting to `api:3000` in Compose, and `API_PROXY_READ_TIMEOUT`, defaulting to `30s`. The OpenRouter overlay defaults to a 45 s API deadline only when `LLM_DEADLINE_MS` is unset; an explicit `.env` value wins. The copied example sets 20 s, so set `LLM_DEADLINE_MS=45000` to select the 45 s profile. Attempts are 20 s and the proxy defaults to 60 s. The real-demo script explicitly selects 45 s. Keep the proxy above the effective API deadline, then recreate the affected containers. Rebuild the image after template changes. React uses system fonts and makes no external font request under the supplied CSP.
 

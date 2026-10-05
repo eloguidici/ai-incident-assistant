@@ -9,6 +9,12 @@ The original documentation-organization review used `ed4e2f0`; Spanish documents
 were relocated intact to ignored study storage and removed from the submitted
 index, without discarding their content.
 
+2026-10-05 follow-up: the owner reports personal manual acceptance complete. The
+[handoff recheck](../qa/HANDOFF_RECHECK_2026-10-05.md) records repeated local checks,
+rebuilt images and a bounded OpenAI browser sample with known quality limits.
+The earlier review below retains its dated scope; exact submitted-reference CI
+and final repository visibility/access must still be checked after publication.
+
 ## What the assessment asks to receive
 
 A GitHub/GitLab repository and a README covering architecture decisions, AI design choices, trade-offs/known limitations and clear local run instructions. The [documentation index](../README.md) maps each explanation in parts 1, 2 and 3 to its public source; the [requirements matrix](../requirements/ASSESSMENT.md) maps functionality.
@@ -64,7 +70,7 @@ The recorded software/model failures still belong in the delivery's dated public
 | AI/PII limits | Accepted for a synthetic, human-reviewed demonstration only; injection, unsupported claims and partial-name limits remain. No new mitigation requested. |
 | Application verification | Current isolated software regression, installation and real-PII browser/modes PASS; see the dated verification report. Real-provider/quality-corpus failures remain; no new paid calls. |
 | Infrastructure | Terraform definition and validation procedure delivered; no AWS plan/apply/deployment. |
-| Manual acceptance | Procedure available; owner's final personal acceptance is not recorded by this review. |
+| Manual acceptance | Owner reports completion on 2026-10-05; independently exercised browser checks are in the handoff recheck, not universal quality certification. |
 | Publication | Historical cleanup is complete. Public corrections accompany this delivery; the owner authorized the same final revision on `dev` and `main`. Verify actual branch tips and CI/access for the submitted reference. |
 
 Before submission:
@@ -74,7 +80,8 @@ Before submission:
 - [ ] Inspect `git ls-files -ci --exclude-standard`; unexpected tracked-but-ignored files need review, not silent removal. Scan secrets in both intended files and reachable history for the chosen repository.
 - [x] Test local installation with new private secrets and synthetic accounts in a separate checkout/project. Existing database preserved; recheck access/installation for the final published reference.
 - [x] Run local software checks in the isolated environment and record the base revision, uncommitted patch and profiles. Reverify if application/dependency/configuration changes follow; API/browser tests reset test data and paid commands require intentional execution.
-- [ ] Complete personal manual acceptance and verify the CI outcome for the submitted revision. Mocks/valid JSON do not certify real-model fidelity or PII completeness.
+- [x] Complete personal manual acceptance: reported by the owner on 2026-10-05.
+- [ ] Verify the CI outcome for the submitted revision after publication. Mocks/valid JSON do not certify real-model fidelity or PII completeness.
 - [ ] Verify the final publication after review. Do not include application secrets in screenshots, logs or delivery messages.
 
 See root [verification commands](../../README.md#verification) and [manual acceptance](../qa/MANUAL_ACCEPTANCE.md). These are procedures, not newly executed results.

@@ -2,6 +2,13 @@
 
 ## Start locally
 
+For the complete real-provider demo, follow the [canonical README recipe](../../README.md#real-provider-demo-powershell)
+with an explicit provider/model. It covers private configuration, the launcher's
+full profile, switching/recreation and a synthetic manual check. Host Node and
+base mock Compose below remain distinct alternatives; do not mix their commands
+and assume the same effective settings. No new installation or model call is
+claimed by these instructions.
+
 T22 status, 2026-10-03 (Buenos Aires): scoped synthetic-demo acceptance with known misses/false positives; not universal privacy or confidential-data certification. See the current report.
 
 1. For a new setup, copy `.env.example` to `.env`; preserve an existing configuration. Install with `npm ci` and configure a strong `JWT_SECRET`.
@@ -64,11 +71,25 @@ The volume survives a `docker restart` of the container. On 2026-09-29 a row was
 
 ## Secrets
 
-Locally: `.env` and the private HMAC file, git-ignored. Compose mounts HMAC as a secret; it is not copied into an image. In the AWS proposal: Secrets Manager for database URL, provider key, JWT and PII HMAC. Rotate through new secret versions and task replacement; it is not automated. HMAC rotation changes new token generation and must account for retained incident continuity.
+Locally: `.env` and the private HMAC file, git-ignored; ignore rules do not encrypt
+them. Compose mounts HMAC as a secret; it is not copied into an image. In the AWS
+proposal: Secrets Manager for database URL, provider key, JWT and PII HMAC.
+Provider rotation includes a replacement credential, startup configuration update,
+a real-call check and old-key revocation; merely changing a stored secret does not
+update running instances. Follow the [canonical proposed procedure](../../infra/terraform/README.md#proposed-provider-key-rotation).
+It is not automated or executed in AWS. HMAC rotation changes new token generation
+and must account for retained incident continuity.
 
 ## Bursts
 
-More API replicas do not raise the provider's quota or PostgreSQL's connection limit. Each process allows 4 concurrent model calls and a per-user rate, in memory. That limit is not shared between replicas.
+More API replicas do not raise the provider's quota or PostgreSQL's connection
+limit. Defaults are four simultaneous model-stage calls per process and 20 analyses /
+40 questions per owner per rolling hour, held in memory; the effective environment
+may override them. They are not shared across replicas or a four-user limit.
+PII has a separate single request slot with bounded waiting, not durable jobs.
+Shared quotas/budgets, queues/workers and autoscaling remain proposals; follow the
+[canonical burst-handling explanation](../../infra/terraform/README.md#proposed-burst-handling).
+No production burst-capacity certification or automatic protection bypass.
 
 ## Documents
 
@@ -82,6 +103,71 @@ Antivirus HTTPS scanning (for example Avast Web Shield) re-signs traffic with it
 
 For host Node with that CA, combine both overlays: `docker compose -f docker-compose.yml -f docker-compose.pii-dev.yml -f docker-compose.extra-ca.yml up --build -d postgres pii`. For the complete stack, omit the dev overlay; add the OpenRouter overlay only when deliberately configuring a real provider.
 
+## Configuration and code
+
+Keep three responsibilities distinct:
+
+- Code defines system rules, prompt construction, output validation and workflow.
+  Prompts remain versioned in Git; changing their instructions is a code release.
+- Startup configuration selects provider/model, limits, deadlines, retention and
+  service addresses without changing that workflow.
+- Secrets include provider keys, the JWT signing secret and the credential-bearing
+  database URL. Private local files are not encrypted by Git ignore. See
+  [secret delivery and rotation](../../infra/terraform/README.md#secrets-and-rotation).
+
+The [loader](../../apps/api/src/config/env.ts) reads the process environment and
+local environment files, then [Joi schemas and typed slices](../../apps/api/src/config/slices.ts)
+validate/map settings. Existing process values win; within each search root the
+file loader tries `.env.local` before `.env`, without overriding loaded values.
+Roots are checked in order: process working directory, then two levels above it.
+This is the Node loader's precedence, not a substitute for Compose interpolation,
+overlays or demo-script choices before a container starts. Compare the already
+documented [configuration profiles](#configuration-profiles) when selecting a run.
+
+Validation includes selected-provider key requirements and the relationship
+between model-attempt timeout and overall deadline. It does not prove credential
+validity, model access, connectivity or all proxy/API/PII combinations. A real
+provider call and deployment checks remain necessary for integration evidence.
+
+To switch provider, set its provider/model and credential using the documented
+startup path, then restart Node or recreate the Compose API container. Do not
+expect an environment-file edit or `docker compose restart` to update an existing
+container's injected environment. Settings/SDK clients are constructed at startup;
+there is no dynamic configuration consumer or per-request secret fetch.
+
+### Proposed configuration improvements
+
+1. Consolidate profile selection and precedence across host Node, Compose and the
+   demo script, preserving intentional differences while making the effective
+   choice predictable. Existing profile documentation is not a unified mechanism.
+2. Extend current validation with cross-component checks for proxy/overall budgets
+   and API/detector protection settings. Some relationships are already checked;
+   complete topology validation is not implemented.
+3. Record an approved nonsecret profile identifier alongside existing model/prompt
+   metadata to investigate which limits/deadlines applied. This is a proposal, not
+   current profile tracking. Do not dump the environment or derive this identifier
+   from secret-bearing configuration or credential values.
+4. If operational needs justify it, centralize parameters in
+   [Parameter Store](https://docs.aws.amazon.com/systems-manager/latest/userguide/systems-manager-parameter-store.html)
+   or use [AppConfig](https://docs.aws.amazon.com/appconfig/latest/userguide/what-is-appconfig.html)
+   for validated, gradual configuration deployments with rollback when configured
+   CloudWatch alarms trigger. Neither is integrated or defined by this Terraform
+   proposal. Keep credentials under dedicated secret management.
+
+Dynamic changes would require application retrieval/consumption, revalidation and
+a policy for in-flight requests and configuration versions. A central service does
+not automatically refresh SDK clients, database connections or running tasks.
+Some settings would still require controlled process replacement. Alarm-based
+rollback responds to configured operational signals; it cannot certify the truth
+of every AI answer. Prioritize profile consistency and validation before adding
+another service. These are scope/operability choices, not local hardware barriers.
+
+No profile migration, new checks, hot reload or AWS configuration service was
+implemented for this explanation. The [README startup recipe](../../README.md#real-provider-demo-powershell)
+now consolidates both provider paths; it does not unify the underlying profile
+selection mechanisms or certify a new installation. Documentation alone does not
+implement the proposed coherence checks or dynamic configuration.
+
 ## Request timeouts
 
 ### Configuration profiles
@@ -93,12 +179,18 @@ not a fresh container inspection or configuration change.
 |---|---|---|---|
 | Base API/Compose defaults | 1,000 / 500 characters | 10 s | 20 s / 30 s |
 | Parameterless `scripts/start-real-demo.ps1` | 4,000 / 500 | 9.5 s | 45 s / 60 s |
-| Latest recorded demo, 2026-10-03 | 8,000 / 1,000 | 30 s | 90 s / 120 s |
+| Historical expanded demo, 2026-10-03 | 8,000 / 1,000 | 30 s | 90 s / 120 s |
 
-The latest profile uses 4 CPU/4 threads and is documented in [cases](../qa/DEMO_CASES.md),
+The historical expanded profile uses 4 CPU/4 threads and is documented in [cases](../qa/DEMO_CASES.md),
 not reproduced by the parameterless script or AWS proposal. Select and verify
 the effective profile when preparing the demo; React obtains limits from the API.
 Timeouts do not establish measured latency or a sub-10-second SLA.
+
+The [2026-10-05 handoff recheck](../qa/HANDOFF_RECHECK_2026-10-05.md) rebuilt and
+inspected the script's 4,000/500 full-protection profile, then exercised OpenAI
+through the browser. This later evidence does not change base defaults or certify
+the historical larger profile. First uncached dependency/model downloads can take
+substantially longer than readiness or individual request budgets.
 
 PII shares one inference slot. `PII_SLOT_WAIT_SECONDS` defaults to 20 s (range
 0–60): wait in memory, then process, or return `PII_BUSY` (503) if the slot remains

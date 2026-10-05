@@ -1,6 +1,6 @@
 # AI Evaluation And Reliability
 
-Updated: 2026-10-04, America/Buenos_Aires. Section 2.2 is closed as an explanation of output quality, regressions and wrong answers in production. The PDF permits a short Markdown section, not a complete evaluation system. This does not semantically approve current prompts or relabel historical failures.
+Updated: 2026-10-05, America/Buenos_Aires. Section 2.2 is closed as an explanation of output quality, regressions and wrong answers in production. The PDF permits a short Markdown section, not a complete evaluation system. This does not semantically approve current prompts or relabel historical failures.
 
 ## 1. Measuring Output Quality
 
@@ -47,15 +47,42 @@ Distinguish a technical failure from an incorrect answer that passed its contrac
 
 Implemented controls show evidence/uncertainty/confidence, reject invalid output and retain investigative metadata. A failed question preserves an earlier valid analysis. There are no remediation tools or guaranteed records during database outages. Output rejection does not undo a provider call or its possible charge.
 
+The sequence is before, during and after execution: previously executed software,
+real-provider and manual checks expose failures before release; bounded runtime
+checks handle verifiable conditions; persisted evidence supports later diagnosis.
+Those controls exist, but they are not complete production quality supervision.
+Historical failures remain failures. A plausible false explanation can pass and
+influence a human even though the application itself performs no remediation.
+
+In protected mode, the database retains protected source/questions, accepted
+post-processed/protected results and provider/model/prompt-version/status/attempt/
+latency/available-token/correlation metadata. Normal audit adds actor/action/
+resource/result/time. It does not preserve a full raw request snapshot or every
+raw/rejected provider response; a version identifier is not the full prompt.
+Original input exists in browser/API/detector memory before protection, without an
+identity restoration map. Ignored synthetic QA files may preserve raw responses
+under a separate operator-managed retention policy, not the runtime content purge.
+Evidence is useful, not guaranteed sufficient for exact replay. Reduced failure
+closes can omit messages/audit and a total database outage can prevent any record.
+Disabled protection and historical unprotected records have different coverage;
+see the canonical [data and audit policy](../security/DATA_POLICY.md).
+
 The proposed production procedure is:
 
 1. Do not use the disputed conclusion as an automatic decision; review the case/impact with a human owner.
-2. Locate execution/model/version/correlation and collect only necessary evidence with privacy controls, not confidential payloads in logs.
+2. Locate execution/model/version/correlation and collect only necessary evidence with privacy controls, not confidential payloads in logs. If retained evidence is insufficient, state that limit; any exceptional capture of real content would require authorization, restricted access and bounded retention, not routine full-payload logging.
 3. Diagnose integration/contract error, prompt/model regression or insufficient evidence; add a synthetic or authorized regression case.
 4. Roll back a harmful change under controlled deployment and retest before reuse. Provider/model comes from environment and requires process restart/recreation; prompt rollback requires the corresponding code revision and deployment. There is no variable selecting any historical prompt or database prompt editor.
 5. Review potentially affected executions using available metadata and verify that legitimate cases still work.
 
-Feedback buttons, curated production-failure collection, semantic alerts, version experiments and automatic rollback are not implemented. They are operational evolution, not missing 2.2 requirements or promised current functionality.
+Feedback buttons, curated production-failure collection, semantic alerts, version
+experiments, a dedicated switch to suspend new AI requests and automatic rollback
+are not implemented. Proposed evolution adds reporting/human review, sampled
+quality indicators/alerts, operational suspension while preserving history where
+possible, and controlled release/rollback with retesting. Suspension today would
+require manual operational intervention, not automatic detection of false claims.
+These are not missing 2.2 requirements or promised current functionality. Accepted
+synthetic-demo limits do not authorize real-data production use.
 
 ## Historical T24 Closure Verification
 

@@ -29,7 +29,7 @@ The matrix maps requirements; it is not a new test certification. AWS is a defin
 
 - [Local PII guide](security/PII_IMPLEMENTATION_PLAN.md): current code/configuration and failure boundaries. Database/prompt use HMAC tokens; React shows short colored Person/Email/Phone labels, without restoring originals.
 - [AI risk decisions](security/AI_RISK_DECISIONS.md): accepted synthetic-demo limits for injection, unsupported conclusions and partial names; researched alternatives are not implemented or effectiveness-certified.
-- [Manual acceptance procedure](qa/MANUAL_ACCEPTANCE.md): reproducible 4,000/500 script profile. The [runbook profiles](operations/RUNBOOK.md#configuration-profiles) distinguish it from 1,000/500 base defaults and the last recorded 8,000/1,000 demo.
+- [Manual acceptance procedure](qa/MANUAL_ACCEPTANCE.md): reproducible 4,000/500 script profile, exercised in the 2026-10-05 handoff. The [runbook profiles](operations/RUNBOOK.md#configuration-profiles) distinguish it from 1,000/500 base defaults and the historical 8,000/1,000 expanded demo.
 - [Delivery checklist and publication policy](operations/DELIVERY_CHECKLIST.md): what travels in Git, what stays local and what must be verified before submission. No commit/push or production approval is implied.
 
 Decision records: [ADR-001 stack](decisions/ADR-001-stack.md), [ADR-003 session](decisions/ADR-003-session.md), [ADR-004 model](decisions/ADR-004-model.md), [ADR-005 AWS proposal](decisions/ADR-005-aws.md), [ADR-006 TypeORM](decisions/ADR-006-typeorm-repository.md), [ADR-007 local PII](decisions/ADR-007-local-pii.md). [ADR-002 persistence](decisions/ADR-002-persistence.md) is superseded history.
@@ -40,7 +40,8 @@ Read each report's date, prompt/model and runtime profile. A previous PASS/FAIL 
 
 | Evidence | Scope |
 |---|---|
-| [Local delivery verification, 2026-10-04](qa/DELIVERY_VERIFICATION.md) | Current uncommitted corrections: clean-checkout installation, software regression, real-PII browser/modes and Docker checks. Remote CI/manual acceptance and accepted AI limits remain separate. |
+| [Handoff recheck, 2026-10-05](qa/HANDOFF_RECHECK_2026-10-05.md) | Repeated software regression, rebuilt 4,000/500 real-PII stack, two OpenAI browser analyses/one question and owner isolation; retained over-inference, not semantic approval. |
+| [Local delivery verification, 2026-10-04](qa/DELIVERY_VERIFICATION.md) | Recorded clean-checkout installation, software regression, real-PII browser/modes and Docker corrections included in the published baseline. Later publication and tests do not change this dated scope. |
 | [Recent demo cases](qa/DEMO_CASES.md) | English summary of recorded v7/v9 GPT samples: 13 analyses completed on each route; generic answer/PII false positives and earlier failures remain. Not a complete current regression. |
 | [T25 assessment closure](qa/ASSESSMENT_CLOSURE.md) | Historical v6/v7 real-provider pass, one correction and retained semantic FAIL. Not the current release gate. |
 | [T22 PII integration](qa/LOCAL_PII_INTEGRATION.md) | Dated integration/resource/quality evidence and accepted partial-name failure. |
