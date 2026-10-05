@@ -1,87 +1,83 @@
-# Delivery checklist and publication policy
+# Delivery checklist
 
-
-Updated 2026-10-04, America/Buenos_Aires: [local software verification](../qa/DELIVERY_VERIFICATION.md)
-passed against the source tree now recorded as `dev/d2129a4` and the corrections
-included with this report. History cleanup preserved that source tree. Publication
-does not certify remote CI, personal manual acceptance or production.
-The original documentation-organization review used `ed4e2f0`; Spanish documents
-were relocated intact to ignored study storage and removed from the submitted
-index, without discarding their content.
-
-2026-10-05 follow-up: the owner reports personal manual acceptance complete. The
-[handoff recheck](../qa/HANDOFF_RECHECK_2026-10-05.md) records repeated local checks,
-rebuilt images and a bounded OpenAI browser sample with known quality limits.
-The earlier review below retains its dated scope; exact submitted-reference CI
-and final repository visibility/access must still be checked after publication.
+Updated 2026-10-05, America/Buenos_Aires. This guide helps reviewers prepare and
+verify the local assessment. Start with the [root README](../../README.md#local-setup).
+The [latest handoff report](../qa/HANDOFF_RECHECK_2026-10-05.md) records executed
+checks; instructions below are not additional test results or production approval.
 
 ## What the assessment asks to receive
 
-A GitHub/GitLab repository and a README covering architecture decisions, AI design choices, trade-offs/known limitations and clear local run instructions. The [documentation index](../README.md) maps each explanation in parts 1, 2 and 3 to its public source; the [requirements matrix](../requirements/ASSESSMENT.md) maps functionality.
+A GitHub/GitLab repository and a README covering architecture decisions, AI
+design choices, trade-offs/known limitations and clear local run instructions.
+The [documentation index](../README.md) maps each requested explanation; the
+[requirements matrix](../requirements/ASSESSMENT.md) maps functionality.
+Optional extras are identified separately and do not become required features.
 
-The original hiring PDF, private interview notes, AI-agent skills and internal task history are not required deliverables. Keep them locally. Do not publish private conversations or real customer data. Optional extras do not become mandatory because this project includes some of them.
+## Prepare a local review
 
-## What belongs in the submitted checkout
+1. Clone the submitted revision and use Node.js 22 plus Docker's Linux engine.
+   The detector targets Linux x86_64 and needs memory/download capacity described
+   in the README; first model/dependency preparation can take several minutes.
+2. Follow [private configuration setup](../../README.md#prepare-private-local-configuration):
+   preserve an existing environment, generate a strong JWT secret and supply only
+   the selected provider's key. Never commit credentials or share environment dumps.
+3. Select an explicit [provider/model profile](../../README.md#real-provider-demo-powershell).
+   The script uses full protection and 4,000/500 characters; base API/Compose
+   defaults are 1,000/500. Historical 8,000/1,000 measurements are a different profile.
+4. Check service readiness and sign in with the documented synthetic demo accounts.
+   Use only synthetic incident data; existing volumes/history are preserved.
+5. Create an analysis, ask a question, reload/history-check persistence and use the
+   second account to check owner isolation. Review evidence, hypotheses and
+   uncertainty rather than treating a completed request as a verified root cause.
+6. Use the [verification commands](../../README.md#verification) with a separate
+   test database. Integration/browser tests reset test data; real-provider QA may
+   incur charges. The [runbook](RUNBOOK.md) covers readiness, failures and TLS.
 
-| Material | Publication rule |
+## Repository contents and runtime boundary
+
+| Material | Role |
 |---|---|
-| `apps/`, `services/pii/` | Source, migrations, tests and current offline detector; no local models/caches or credentials. |
-| Root README and public `docs/` | English current explanations, contracts, decisions, operational instructions and dated QA summaries. Preserve known FAIL/NO-GO outcomes. |
-| `infra/`, Compose, Dockerfiles, `.github/` | Reproducible configuration and the undeployed AWS definition/CI workflow; secret values supplied externally. |
-| `scripts/`, public `qa/` | Runners, synthetic fixtures and reproducible historical experiments. `qa/pii-spike` is not the current detector. |
-| `.env.example` | Nonsecret template with empty provider keys and explicitly synthetic demo credentials; never an operational secret. Generate a real JWT secret locally. |
-| `package-lock.json`, requirements/model locks, `.terraform.lock.hcl` | Publish reproducibility metadata. A lockfile is not Terraform state or downloaded model weights. |
+| `apps/`, `services/pii/` | Application source, migrations, tests and the current local detector. |
+| README and `docs/` | Assessment explanations, contracts, decisions, instructions and dated evidence. |
+| `infra/`, Compose and `.github/` | Local containers, undeployed AWS definition and verification workflow. |
+| `scripts/`, `qa/` | Test runners and synthetic fixtures; experiment boundaries are in the [evidence index](../qa/README.md#experiments-and-evaluation-tooling). |
+| Dependency/model/provider locks | Reproducibility metadata, not downloaded models or Terraform state. |
+| `.env.example` | Nonsecret configuration template with empty provider keys and explicitly synthetic accounts. |
 
-## What stays local
-
-| Material | Existing home or ignore boundary |
-|---|---|
-| Provider/JWT values, PII HMAC key, certificates | `.env`, other `.env.*` except `.env.example`, `.local/`, private key/certificate export extensions. |
-| PDF, extraction, Spanish translations, study guides, defense Q&A, working process | `docs/internal/`; Spanish reference copies are under `docs/internal/estudio/referencia/` and all `*.es.md` are ignored. Existing English-source links remain public. |
-| Agent instructions/skills/editor notes | `AGENTS.md`, `.agents/`, `.ai/`, `.cursor/`, local process/tasks. |
-| Raw model outputs, private QA notes, traces/videos/screenshots | `qa/local/`, `qa-artifacts/`, comparison evidence, Playwright reports, `output/`, test-results and HAR/log files. Public synthetic fixtures/summaries remain in Git. |
-| Dependencies, generated builds, caches/coverage | `node_modules/`, `dist/`, Python caches, coverage and generated TypeScript metadata. |
-| Terraform runtime data and database exports | `.terraform/`, state/tfvars/plan files, dump/backup exports. SQL migrations and `infra/docker/init-test-db.sql` remain public. |
-
-Ignoring preserves the file on disk. It does not encrypt it, back it up, prevent `git add -f`, remove an already tracked file or erase an earlier commit. New public certificates/templates need explicit review before an exception is added. Never distribute the whole working folder as a ZIP: it contains ignored private files.
-
-Git and Docker have independent boundaries: root and PII/prototype build contexts also exclude local env files and private certificate/key exports through their `.dockerignore` files. Docs are excluded from application images. This policy review is not a new image build or inspection of existing image layers.
-
-## Git history and a possible clean main delivery
-
-The current tracked tree excludes internal process/agent files and Spanish translations. On 2026-10-04, the owner authorized filtering both published branch histories: 119 historical private paths and development-session/coauthor metadata were removed. Technical commits, real owner identity/dates and public dated failures were retained. The filtered `dev` tip kept an identical source tree. A verified recovery bundle and local study material remain outside the submitted checkout. This was selective history filtering, not a fabricated single initial commit.
-
-The bounded historical scan found no exact matches for current local secrets. This is not exhaustive secret certification or a remote leak audit. Rewriting branches does not guarantee erasure of cached old commit views, forks or copies. Never publish the recovery backup or use a mirror push from a development workspace with private refs.
-
-Publication approaches and their differences:
-
-1. Keep an unfiltered development history. This preserves provenance and accepts that old process material is visible.
-2. Recommended when only the final snapshot should be shared: create a separate delivery repository with one initial commit from reviewed public files. Preserve this development repository and all local material separately. Recheck templates, links, locks and setup in the new checkout. Record the source revision privately.
-3. Filter the existing repository history and replace the affected remote refs. This was authorized and executed for `dev` and `main`; it preserves the technical evolution but removes scoped private files/metadata. A clean root is a different, more destructive choice. A squash merge into an existing `main` alone does not erase prior history or commits retained by other refs.
-
-The recorded software/model failures still belong in the delivery's dated public summaries; reducing Git history must not turn historical results into invented current PASS claims.
+Operational secrets, database exports, local traces, caches and generated builds
+are not delivery artifacts. Git ignore is not encryption or exhaustive leak
+protection. Application images exclude documentation; the frontend serves its
+build, not repository files. Never distribute an entire configured working folder.
 
 ## Status and remaining submission gates
 
-| Area | Status at this review |
+| Area | Recorded status |
 |---|---|
-| Required explanations | Mapped to public documentation; no mandatory explanatory topic found missing. This is a documentary conclusion, not evaluator approval. |
-| Runtime profiles | Base 1,000/500, script 4,000/500 and recorded demo 8,000/1,000 are distinguished. Choose the documented script profile for reproducible handoff; no latency promise for larger inputs. |
-| AI/PII limits | Accepted for a synthetic, human-reviewed demonstration only; injection, unsupported claims and partial-name limits remain. No new mitigation requested. |
-| Application verification | Current isolated software regression, installation and real-PII browser/modes PASS; see the dated verification report. Real-provider/quality-corpus failures remain; no new paid calls. |
-| Infrastructure | Terraform definition and validation procedure delivered; no AWS plan/apply/deployment. |
-| Manual acceptance | Owner reports completion on 2026-10-05; independently exercised browser checks are in the handoff recheck, not universal quality certification. |
-| Publication | Historical cleanup is complete. Public corrections accompany this delivery; the owner authorized the same final revision on `dev` and `main`. Verify actual branch tips and CI/access for the submitted reference. |
+| Required explanations | All requested topics mapped to public documentation; not evaluator approval. |
+| Local installation | Separate-checkout installation recorded on 2026-10-04; later rebuilt-stack checks have their own scope. |
+| Software checks | Repeated local regression passed on 2026-10-05; see exact counts and exclusions in the handoff report. |
+| Browser and real model | Two OpenAI analyses, one question, persistence, PII labels and owner isolation exercised on 2026-10-05. |
+| Personal manual acceptance | Owner reports completion on 2026-10-05; separate from automated checks. |
+| AI/PII limitations | Injection, unsupported conclusions and partial-name limits accepted only for a synthetic, human-reviewed demo. Historical FAIL/NO-GO remains visible. |
+| Infrastructure | Terraform definition and local validation delivered; no AWS plan/apply/deployment. |
+| Remote CI | Not certified for the final submitted revision. Hosted-runner availability is separate from local results; inspect the exact run rather than infer success. |
+| Reviewer access | Repository access/visibility must be provided by the owner before submission. |
 
-Before submission:
+Recorded local acceptance:
 
-- [x] Choose the publication approach: selectively filtered history, with the reviewed public corrections delivered on `dev` and `main`. Verify their actual remote tips before handing over the link.
-- [ ] Review exactly the staged files with `git diff --cached --name-status` and `git diff --cached --check`. Do not force-add ignored files or share local env/key files.
-- [ ] Inspect `git ls-files -ci --exclude-standard`; unexpected tracked-but-ignored files need review, not silent removal. Scan secrets in both intended files and reachable history for the chosen repository.
-- [x] Test local installation with new private secrets and synthetic accounts in a separate checkout/project. Existing database preserved; recheck access/installation for the final published reference.
-- [x] Run local software checks in the isolated environment and record the base revision, uncommitted patch and profiles. Reverify if application/dependency/configuration changes follow; API/browser tests reset test data and paid commands require intentional execution.
-- [x] Complete personal manual acceptance: reported by the owner on 2026-10-05.
-- [ ] Verify the CI outcome for the submitted revision after publication. Mocks/valid JSON do not certify real-model fidelity or PII completeness.
-- [ ] Verify the final publication after review. Do not include application secrets in screenshots, logs or delivery messages.
+- [x] Provide the requested explanations and reproducible setup/verification instructions.
+- [x] Run local software checks and record profiles, scope and known failures.
+- [x] Exercise synthetic real-provider browser workflows and preserve semantic limits.
+- [x] Record the owner's personal manual acceptance.
+- [x] Deliver the infrastructure proposal without claiming a working AWS deployment.
 
-See root [verification commands](../../README.md#verification) and [manual acceptance](../qa/MANUAL_ACCEPTANCE.md). These are procedures, not newly executed results.
+Before sharing the final repository link:
+
+- [ ] Confirm the intended published `main` revision and grant reviewer access.
+- [ ] Inspect its [CI result](https://github.com/eloguidici/ai-incident-assistant/actions/workflows/ci.yml).
+  If unavailable or failed before execution, state that separately; do not call it PASS.
+- [ ] Recheck local behavior if application, dependencies or configuration change.
+  Documentation-only edits require link/content checks, not invented new runtime results.
+
+See [current evidence and historical reports](../qa/README.md). Local acceptance
+does not certify semantic correctness, universal PII protection or production capacity.

@@ -22,7 +22,7 @@ Source: Full Stack AI Engineer Assessment PDF, received on 2026-09-29. The appli
 | R16 | Data and architecture | Section 2.1 documentary closure on 2026-10-03: all five topics explained in the [data policy](../security/DATA_POLICY.md), with local protection and accepted synthetic-demo limits; not anonymization or production certification. |
 | R17 | Evaluation | [Quality, regressions and wrong answers](../qa/AI_EVALUATION.md) explained; no complete system required. T25 retains [historical v6/v7 FAIL](../qa/ASSESSMENT_CLOSURE.md). [Later v7/v9 samples](../qa/DEMO_CASES.md) record improvements and limits, not semantic approval or full current regression. |
 | R18 | AWS or mock + IaC | Terraform consistent with the architecture; documented as not deployed. |
-| R19 | Secrets and configuration | Secret injection/configuration paths, location, rotation and scaling explained. The [publication policy](../operations/DELIVERY_CHECKLIST.md) distinguishes current files from Git history and the limits of credential checks; this is not exhaustive leak certification. |
+| R19 | Secrets and configuration | Secret injection/configuration paths, location, rotation and scaling explained. The [delivery checklist](../operations/DELIVERY_CHECKLIST.md) separates private runtime configuration from submitted files; no exhaustive leak certification is claimed. |
 | R20 | Repository and README | Decisions, AI design, trade-offs, limits and local procedures, with a [public documentation index](../README.md) and [submission gates](../operations/DELIVERY_CHECKLIST.md). This review does not record a new first-install run. |
 
 ## Separate extras

@@ -1,6 +1,11 @@
-# T22 Local GLiNER Comparison
+# Local GLiNER comparison and evaluation
 
-This QA directory is separate from the unchanged T21 spike. All cases are synthetic.
+Detector evaluation tooling, not an additional application service. It includes
+development experiments and runtime probes; the HTTP detector lives in
+[services/pii](../../services/pii/README.md). These utilities are not required to
+start the application. See the [evidence index](../../docs/qa/README.md).
+
+This QA directory is separate from the unchanged Presidio/spaCy spike. All cases are synthetic.
 The original 38 fixtures must retain SHA256
 `ccb67967392af1be05bd8bedf4c520451ca9f6e81cbf3218558b9c5134964c96`.
 The comparison executes the original `expected_spans`, `evaluate`, `aggregate`, and `percentile`
@@ -25,7 +30,8 @@ From the repository root, build `ai-incident-pii:t22` with the optional CA secre
 
 ```powershell
 New-Item -ItemType Directory -Force qa/pii-comparison/evidence
-docker run --rm --network none --read-only --cpus 1 --memory 4g --memory-swap 4g --cap-drop ALL --security-opt no-new-privileges --mount 'type=bind,source=C:/Users/Practical Tecno/Documents/GitHub/ai-incident-assistant/qa/pii-spike,target=/baseline,readonly' --mount 'type=bind,source=C:/Users/Practical Tecno/Documents/GitHub/ai-incident-assistant/qa/pii-comparison,target=/comparison,readonly' --mount 'type=bind,source=C:/Users/Practical Tecno/Documents/GitHub/ai-incident-assistant/qa/pii-comparison/evidence,target=/evidence' --entrypoint python ai-incident-pii:t22 /comparison/compare.py
+$repository = (Get-Location).Path
+docker run --rm --network none --read-only --cpus 1 --memory 4g --memory-swap 4g --cap-drop ALL --security-opt no-new-privileges --mount "type=bind,source=$repository/qa/pii-spike,target=/baseline,readonly" --mount "type=bind,source=$repository/qa/pii-comparison,target=/comparison,readonly" --mount "type=bind,source=$repository/qa/pii-comparison/evidence,target=/evidence" --entrypoint python ai-incident-pii:t22 /comparison/compare.py
 node qa/pii-comparison/verify-evidence.mjs
 ```
 

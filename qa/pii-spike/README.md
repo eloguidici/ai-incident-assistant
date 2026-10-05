@@ -1,5 +1,10 @@
 # Bilingual PII feasibility experiment
 
+Historical Presidio/spaCy prototype, not integrated into the application. The
+current detector is [services/pii](../../services/pii/README.md); start with the
+[verification evidence index](../../docs/qa/README.md) for the handoff results.
+This experiment is not required to start or review the application workflow.
+
 QA only. No production service, endpoint, database migration or LLM call. Synthetic fixed corpus; a failed quality gate is intentional evidence, not a passing sanitizer. See [measured results](../../docs/qa/PII_SPIKE.md) and [implementation plan](../../docs/security/PII_IMPLEMENTATION_PLAN.md).
 
 Build from the repository root:

@@ -1,10 +1,12 @@
 # Documentation
 
-Start with the root [README](../README.md) to run and evaluate the application. This index separates current explanations from dated evidence; files are kept in their existing locations. Repository documentation is not served by the application.
+Start with the root [README](../README.md) to run and evaluate the application,
+then the [latest handoff verification](qa/HANDOFF_RECHECK_2026-10-05.md).
+This index maps assessment explanations; the [evidence index](qa/README.md)
+separates final checks, historical reports and experiments.
 
-Delivery documentation is English-only. Personal translations and interview
-study material are local and excluded from the submitted checkout; public
-explanations and dated failure summaries remain self-contained.
+Delivery documentation is English-only and self-contained. Repository documents
+are not served by the application.
 
 ## Required assessment documentation
 
@@ -30,30 +32,26 @@ The matrix maps requirements; it is not a new test certification. AWS is a defin
 - [Local PII guide](security/PII_IMPLEMENTATION_PLAN.md): current code/configuration and failure boundaries. Database/prompt use HMAC tokens; React shows short colored Person/Email/Phone labels, without restoring originals.
 - [AI risk decisions](security/AI_RISK_DECISIONS.md): accepted synthetic-demo limits for injection, unsupported conclusions and partial names; researched alternatives are not implemented or effectiveness-certified.
 - [Manual acceptance procedure](qa/MANUAL_ACCEPTANCE.md): reproducible 4,000/500 script profile, exercised in the 2026-10-05 handoff. The [runbook profiles](operations/RUNBOOK.md#configuration-profiles) distinguish it from 1,000/500 base defaults and the historical 8,000/1,000 expanded demo.
-- [Delivery checklist and publication policy](operations/DELIVERY_CHECKLIST.md): what travels in Git, what stays local and what must be verified before submission. No commit/push or production approval is implied.
+- [Delivery checklist](operations/DELIVERY_CHECKLIST.md): local review steps, recorded acceptance and final access/CI checks. No production approval is implied.
 
 Decision records: [ADR-001 stack](decisions/ADR-001-stack.md), [ADR-003 session](decisions/ADR-003-session.md), [ADR-004 model](decisions/ADR-004-model.md), [ADR-005 AWS proposal](decisions/ADR-005-aws.md), [ADR-006 TypeORM](decisions/ADR-006-typeorm-repository.md), [ADR-007 local PII](decisions/ADR-007-local-pii.md). [ADR-002 persistence](decisions/ADR-002-persistence.md) is superseded history.
 
 ## Recorded evidence and historical material
 
-Read each report's date, prompt/model and runtime profile. A previous PASS/FAIL or completed request is not a full regression of the submitted revision. Historical failures remain public.
+The [verification evidence index](qa/README.md) lists reports by scope, with the
+2026-10-05 handoff first. Historical reports remain at their original paths with
+dates, prompt/model, profile and FAIL/NO-GO preserved. A completed request or an
+earlier PASS is not full semantic approval of the submitted revision.
 
-| Evidence | Scope |
-|---|---|
-| [Handoff recheck, 2026-10-05](qa/HANDOFF_RECHECK_2026-10-05.md) | Repeated software regression, rebuilt 4,000/500 real-PII stack, two OpenAI browser analyses/one question and owner isolation; retained over-inference, not semantic approval. |
-| [Local delivery verification, 2026-10-04](qa/DELIVERY_VERIFICATION.md) | Recorded clean-checkout installation, software regression, real-PII browser/modes and Docker corrections included in the published baseline. Later publication and tests do not change this dated scope. |
-| [Recent demo cases](qa/DEMO_CASES.md) | English summary of recorded v7/v9 GPT samples: 13 analyses completed on each route; generic answer/PII false positives and earlier failures remain. Not a complete current regression. |
-| [T25 assessment closure](qa/ASSESSMENT_CLOSURE.md) | Historical v6/v7 real-provider pass, one correction and retained semantic FAIL. Not the current release gate. |
-| [T22 PII integration](qa/LOCAL_PII_INTEGRATION.md) | Dated integration/resource/quality evidence and accepted partial-name failure. |
-| [T21 PII spike](qa/PII_SPIKE.md) | Original Presidio/spaCy experiment: NO-GO, not the runtime. |
-| [Initial injection QA](qa/PROMPT_INJECTION_QA.md), [Liquid live](qa/PROMPT_SECURITY_LIVE.md), [GPT live](qa/PROMPT_SECURITY_GPT.md), [remediation checkpoint](qa/PROMPT_SECURITY_REMEDIATION.md) | T20 sequence; historical versions and failures, not current-model approval. |
-| [Live suite](qa/LIVE_SUITE.md), [regression catalog](qa/REGRESSION_CATALOG.md), [browser snapshot](qa/BROWSER_CASES.md) | Procedures and dated results; not a new execution. |
-| [Assessment review, 2026-10-02](requirements/ASSESSMENT_REVIEW_2026-10-02.md) | Historical review predating T22, preserved rather than rewritten. |
-
-Public synthetic fixtures and experiment code under `qa/` preserve reproducibility; prototype folders are not application services. Raw local outputs/traces are ignored. Public summaries explain results without requiring those private files.
+The same index distinguishes the current detector from the Presidio/spaCy
+prototype and GLiNER evaluation utilities. Synthetic fixtures and runners remain
+available for reproducibility; they are not extra application services.
 
 ## Local-only material and runtime boundary
 
-Study guides, the original assessment PDF, working notes, skills and process records stay under ignored local paths. They are not prerequisites for evaluating a checkout. Secrets, database exports, raw QA artifacts, traces, caches and builds do not belong in Git.
+Secrets, database exports, raw QA artifacts, traces, caches and generated builds
+are excluded from the submitted files. Public explanations and reports do not
+require access to those artifacts.
 
-`docs/` is excluded from runtime images; the frontend publishes only its build. `npm run check:web-docs` checks that build, not Git history or every possible secret. Current ignore rules do not erase internal material already present in old commits; see the delivery policy.
+`docs/` is excluded from runtime images; the frontend publishes only its build.
+`npm run check:web-docs` checks that build, not every possible credential leak.

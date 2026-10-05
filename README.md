@@ -1,10 +1,10 @@
 # AI Incident Assistant
 
-[Documentation index](docs/README.md) | [Delivery checklist and publication policy](docs/operations/DELIVERY_CHECKLIST.md)
+[Documentation index](docs/README.md) | [Delivery checklist](docs/operations/DELIVERY_CHECKLIST.md) | [Verification evidence](docs/qa/README.md)
 
 An authenticated analyst submits incident text, receives a structured analysis, asks follow-up questions and returns to saved results. The output separates evidence (exact quotes from the text), hypotheses and missing information. The application does not execute remediation in external systems.
 
-T22 background, 2026-10-02 (Buenos Aires): the local candidate implementation was subject to detector, integration and resource checks. Subsequent verification and scoped acceptance are described below and in the [integration report](docs/qa/LOCAL_PII_INTEGRATION.md), [implementation guide](docs/security/PII_IMPLEMENTATION_PLAN.md) and [ADR-007](docs/decisions/ADR-007-local-pii.md). T21's [Presidio/spaCy experiment](docs/qa/PII_SPIKE.md) remains NO-GO; its metrics do not certify the new service.
+The current local detector and its scoped acceptance are described in the [integration report](docs/qa/LOCAL_PII_INTEGRATION.md), [implementation guide](docs/security/PII_IMPLEMENTATION_PLAN.md) and [ADR-007](docs/decisions/ADR-007-local-pii.md). The earlier [Presidio/spaCy experiment](docs/qa/PII_SPIKE.md) remains NO-GO and is not the application runtime. Start with the [latest handoff verification](docs/qa/HANDOFF_RECHECK_2026-10-05.md); older reports retain their dates and limits.
 
 Decision, 2026-10-03: the owner accepts scoped local PII for the synthetic assessment/demo with known
 limitations. Software/browser and core corpus passed; the partial-surname/non-idempotence test remains FAIL.
@@ -16,13 +16,14 @@ and [future options](docs/security/PII_IMPLEMENTATION_PLAN.md#accepted-limitatio
 **Delivery acceptance, 2026-10-03:** the owner accepts known injection, unsupported
 conclusion and partial-name limits for the assessment/synthetic, human-reviewed
 demo. No further mitigation is planned in this stage; measured FAIL results remain.
-The owner's personal manual test is deferred.
+The owner subsequently reported personal manual acceptance complete on 2026-10-05;
+independent checks are in the dated handoff report.
 [Decision and rationale](docs/security/AI_RISK_DECISIONS.md#demonstration-risk-acceptance).
 This does not authorize confidential data or production use; additional technologies
 are outside evaluated scope, not declared impossible because execution is local.
 
-Historical T25 validation, 2026-10-03: both real providers and one correction iteration executed;
-**semantic quality FAIL**, while the manual workflow operates. [Dated T25 results](docs/qa/ASSESSMENT_CLOSURE.md).
+Historical assessment validation, 2026-10-03: both real providers and one correction iteration executed;
+**semantic quality FAIL**, while the manual workflow operates. [Dated results](docs/qa/ASSESSMENT_CLOSURE.md).
 Later v7/v9 [recorded demo samples](docs/qa/DEMO_CASES.md) are separate evidence, not a new full-regression approval. See the [delivery gates](docs/operations/DELIVERY_CHECKLIST.md#status-and-remaining-submission-gates).
 [Manual OpenAI testing](docs/qa/MANUAL_ACCEPTANCE.md): synthetic data, full protection
 and 4,000/500 limits. Accepted output is not a verified root cause.
@@ -109,7 +110,7 @@ Section 2.2 explanatory scope closed on 2026-10-03 (Buenos Aires). It does not r
 - **Measuring output quality:** `npm run qa:eval` validates/scores five synthetic cases: clear outage, insufficient input, injection, HTML and contradictory facts. It checks contracts/quotes, uncertainty and complete URLs using runtime extraction; the rubric injection check is an English-phrase heuristic, not universal semantic verification. `npm run qa:ai:live` uses a real model. Use human review of all responses against expected facts, including rejected ones, to measure usefulness/fidelity rather than equate valid JSON/quotes with correct causes. Compare false rejections, accepted attacks, latency/tokens/cost and repeated-run variation; there is no automatic dashboard for these measures.
 - **Detecting regressions:** stored version/provider/model supports comparison of identical cases before/after; fix limits/deadlines and protection mode too. Changes require software checks and a comparable real sample, reviewing contracts, fidelity, confidence, latency and consumption. Defined CI runs mock evaluation, not paid requests or semantic certification. Different provider matrices are not equivalent comparisons.
 - **When the AI gives a wrong answer in production:** distinguish technical failure from an incorrect answer that passed its contract. Previous tests reduce risk, current checks reject selected invalid output, and protected accepted content plus execution/audit metadata support investigation; full raw provider transcripts are not stored and failure records are not guaranteed. The proposed process uses human review, privacy-controlled diagnosis, a regression case and controlled code/configuration rollback with retesting. Feedback, semantic alerts, a dedicated switch to suspend new AI requests and automatic rollback are not implemented. Provider/model changes require restart/recreation; prompt rollback requires the corresponding code/deployment. See the [before/during/after procedure](docs/qa/AI_EVALUATION.md#3-responding-to-wrong-answers-in-production).
-- **Limit:** general offline regression disables PII; mocks do not certify detector quality/resources. T22/T25 retain accepted historical synthetic-demo failures, including a GPT-4.1-mini injection. [Later v7/v9 samples](docs/qa/DEMO_CASES.md) completed 13 analyses on each GPT route without observed compliance with the reviewed attacks, but with a generic answer and PII false positives; Liquid had errors/rejections. This is not semantic approval, immunity or full current regression. See [historical T25 closure](docs/qa/ASSESSMENT_CLOSURE.md).
+- **Limit:** general offline regression disables PII; mocks do not certify detector quality/resources. Detector integration and assessment reviews retain accepted historical synthetic-demo failures, including a GPT-4.1-mini injection. [Later v7/v9 samples](docs/qa/DEMO_CASES.md) completed 13 analyses on each GPT route without observed compliance with the reviewed attacks, but with a generic answer and PII false positives; Liquid had errors/rejections. This is not semantic approval, immunity or full current regression. See [historical assessment closure](docs/qa/ASSESSMENT_CLOSURE.md).
 
 Details/evidence: [AI evaluation and reliability](docs/qa/AI_EVALUATION.md). Rubric correction reproduced before/after, 30 new cases and unit regression passed; historical provider FAIL outcomes are unchanged.
 
@@ -173,7 +174,7 @@ scaling procedure](infra/terraform/README.md#proposed-burst-handling).
 
 Follow-up questions resend the incident and the recent conversation, so input grows with each turn (about +90 tokens between the first and second question in this sample). The suite mixes fixture types; long incidents cost more.
 
-These historical costs exclude local PII resources and do not measure current v7/v9 prompts or expanded label text. T25 recorded full-protection token usage under its v6/v7 versions, not an invoice or current prices: [historical report](docs/qa/ASSESSMENT_CLOSURE.md).
+These historical costs exclude local PII resources and do not measure current v7/v9 prompts or expanded label text. The assessment review recorded full-protection token usage under its v6/v7 versions, not an invoice or current prices: [historical report](docs/qa/ASSESSMENT_CLOSURE.md).
 
 **Historical samples (superseded prompts).** Before v3/v4, three analysis calls with `incident-analysis.v2` averaged 456 / 472 input/output tokens (~USD 0.00035 per analysis); two follow-ups with `incident-question.v3` averaged 645 / 590 (~USD 0.00045). Those five calls are not comparable one-to-one with the table above.
 
@@ -234,14 +235,15 @@ repeated software checks, a rebuilt full-protection stack and two OpenAI browser
 analyses plus one question. Workflow success and retained over-inference
 observations are reported separately, without semantic approval.
 
-Before handoff, select an explicit [startup/provider profile](#real-provider-demo-powershell), complete personal
-manual acceptance and verify the submitted revision, CI and reviewer access using
+For review, select an explicit [startup/provider profile](#real-provider-demo-powershell).
+Personal manual acceptance was reported complete; verify the submitted revision,
+record its CI outcome separately and provide reviewer access using
 the [delivery checklist](docs/operations/DELIVERY_CHECKLIST.md#status-and-remaining-submission-gates).
 These procedures are not newly executed acceptance results.
 
 ## Local setup
 
-Use Node.js 22 and Docker for PostgreSQL and the local PII service. Copy the example only for a new local configuration; preserve an existing `.env`. Configure a strong `JWT_SECRET` before startup. Use synthetic incidents only: T22 is accepted with limitations for a demo, not certified for confidential data.
+Use Node.js 22 and Docker for PostgreSQL and the local PII service. Copy the example only for a new local configuration; preserve an existing `.env`. Configure a strong `JWT_SECRET` before startup. Use synthetic incidents only: local PII is accepted with limitations for a demo, not certified for confidential data.
 
 The pinned PII CPU dependencies target Linux x86_64. Compose explicitly builds/runs
 that service as `linux/amd64`; ARM hosts need Docker's amd64 emulation enabled.
@@ -486,11 +488,11 @@ profile with PII disabled; protected Compose checks retain base 1,000/500 limits
 
 Integration tests require an isolated PostgreSQL database with `test` in its name; they truncate data and test migration rollback. CI runs lint, typecheck (including frontend test files), API tests with coverage, frontend tests, the mock evaluation, the build and `terraform validate` on every push.
 
-The commands above are verification procedures, not T22 results. General regression's explicit PII bypass does not certify protected operation. Real detector quality, integration, resource measurements and colored-label evidence are in the [local PII report](docs/qa/LOCAL_PII_INTEGRATION.md). Real LLM failures are separately recorded in [assessment closure](docs/qa/ASSESSMENT_CLOSURE.md).
+The commands above are verification procedures, not additional executed results. General regression's explicit PII bypass does not certify protected operation. Real detector quality, integration, resource measurements and colored-label evidence are in the [local PII report](docs/qa/LOCAL_PII_INTEGRATION.md). Real LLM failures are separately recorded in [assessment closure](docs/qa/ASSESSMENT_CLOSURE.md).
 
 ## Infrastructure proposal
 
-The [Terraform guide](infra/terraform/README.md) describes an HTTPS ALB, a Fargate task with web/API/PII, private RDS, secrets and logs. T22 proposes 4 GiB / 1 vCPU total, a 3,072 MiB PII sidecar, `pii_container_image` and a dedicated HMAC secret; `desired_count = 0` remains. Local `fmt` and `validate` passed for the new configuration with Terraform 1.9.8 on 2026-10-02 using cached providers, without a new `init`. AWS runtime and model resource sizing remain unverified. No `plan`, `apply` or cloud deployment has been performed.
+The [Terraform guide](infra/terraform/README.md) describes an HTTPS ALB, a Fargate task with web/API/PII, private RDS, secrets and logs. It proposes 4 GiB / 1 vCPU total, a 3,072 MiB PII sidecar, `pii_container_image` and a dedicated HMAC secret; `desired_count = 0` remains. Local `fmt` and `validate` passed with Terraform 1.9.8 on 2026-10-02 using cached providers, without a new `init`; the 2026-10-05 handoff repeated offline Linux validation. AWS runtime and model resource sizing remain unverified. No `plan`, `apply` or cloud deployment has been performed.
 
 ## Deliberate limits
 

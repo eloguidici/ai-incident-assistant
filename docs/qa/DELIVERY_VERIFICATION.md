@@ -90,4 +90,4 @@ process/study paths and development-session metadata, while preserving technical
 history and dated QA outcomes. A recovery backup stays outside the repository.
 The bounded historical scan found no exact matches for the current local secrets;
 it is not exhaustive credential certification. Existing platform caches or copies
-cannot be certified erased. Follow the [publication policy](../operations/DELIVERY_CHECKLIST.md#git-history-and-a-possible-clean-main-delivery).
+cannot be certified erased. See the [current delivery checklist](../operations/DELIVERY_CHECKLIST.md#repository-contents-and-runtime-boundary).
